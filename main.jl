@@ -3,7 +3,6 @@
 ############################
 using Revise
 
-
 # User Settings
 gridlengthX  = 150;
 gridlengthY  = 50;
@@ -42,25 +41,28 @@ velocityY   = zeros(gridlengthX, gridlengthY, Q);
 dotprod_velocities = zeros(gridlengthX, gridlengthY, Q);
 
 # Run Simulation Loop
-for i in [1:simulationTime]
+for i in 1:simulationTime
 
-# Get Macroscopic values
-global densityGrid = sum(distributions, dims=3);
-velocityX .= (1 ./ densityGrid) .* sum(distributions.*lattice_velx, dims=3); 
-velocityY .= (1 ./ densityGrid) .* sum(distributions.*lattice_vely, dims=3); 
+    # Get Macroscopic values
+    global densityGrid = sum(distributions, dims=3);
+    velocityX .= (1 ./ densityGrid) .* sum(distributions.*lattice_velx, dims=3); 
+    velocityY .= (1 ./ densityGrid) .* sum(distributions.*lattice_vely, dims=3); 
 
-## Apply Collision
-# Compute equilibrium state
-dotprod_velocities .= (lattice_velx .* velocityX) .+ (lattice_vely .* velocityY);
-distributions_equilibrium .= weights .* densityGrid .*(1 .+ 3 .*dotprod_velocities .+ 9/2 .*dotprod_velocities.^2 .- 3/2 .*(velocityX.^2 + velocityY.^2));
-# Relax towards equilibrium
-distributions .+= -(1/τ) .* (distributions .- distributions_equilibrium);
+    ## Apply Collision
+    # Compute equilibrium state
+    dotprod_velocities .= (lattice_velx .* velocityX) .+ (lattice_vely .* velocityY);
+    distributions_equilibrium .= weights .* densityGrid .*(1 .+ 3 .*dotprod_velocities .+ 9/2 .*dotprod_velocities.^2 .- 3/2 .*(velocityX.^2 + velocityY.^2));
+    # Relax towards equilibrium
+    distributions .+= -(1/τ) .* (distributions .- distributions_equilibrium);
 
-# Stream 
+    # Stream 
+    for j in 1:Q
+        distributions[:,:,j] = circshift(distributions[:,:,j], (lattice_velx[j], lattice_vely[j]))
+    end
 
-# Apply Boundary conditions
+    # Apply Boundary conditions
 
-# Apply object
+    # Apply object
 
 
 end
