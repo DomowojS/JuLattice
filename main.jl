@@ -23,6 +23,7 @@ lattice_velx = reshape(lattice_velocity_unit[1,],1,1,Q)
 lattice_vely = reshape(lattice_velocity_unit[2,],1,1,Q)
 
 weights =   [4/9, 1/9, 1/9, 1/9, 1/9, 1/36, 1/36, 1/36, 1/36];
+weights =   reshape(weights,1,1,Q);
 
 # Initialize distributions arrays
 distributions = ones(gridlengthX, gridlengthY, Q) .+ 0.01*rand(gridlengthX, gridlengthY, Q);
@@ -31,14 +32,37 @@ distributions_streamed = ones(gridlengthX, gridlengthY, Q);
 
 # Initialize macroscopic density and scale distribution
 densityGrid = sum(distributions, dims=3);
-distributions[:,:,1:Q] .*= fluiddensity ./ densityGrid[:,:,1];
+distributions .*= fluiddensity ./ densityGrid;
 
 # Initialize macroscopic velocity arrays
 velocityX   = zeros(gridlengthX, gridlengthY, Q);
 velocityY   = zeros(gridlengthX, gridlengthY, Q);
 
+# Initialise dotproduct array 
+dotprod_velocities = zeros(gridlengthX, gridlengthY, Q);
+
 # Run Simulation Loop
 for i in [1:simulationTime]
-velocityX[:,:,1:Q] .= 1 ./ densityGrid[:,:,1] .* (sum(distributions[:,:,1:Q].*lattice_velx, dims=3)); 
-velocityY[:,:,1:Q] .= 1 ./ densityGrid[:,:,1] .* (sum(distributions[:,:,1:Q].*lattice_vely, dims=3)); 
+
+# Get Macroscopic values
+global densityGrid = sum(distributions, dims=3);
+velocityX .= (1 ./ densityGrid) .* sum(distributions.*lattice_velx, dims=3); 
+velocityY .= (1 ./ densityGrid) .* sum(distributions.*lattice_vely, dims=3); 
+
+## Apply Collision
+# Compute equilibrium state
+dotprod_velocities .= (lattice_velx .* velocityX) .+ (lattice_vely .* velocityY);
+distributions_equilibrium .= weights .* densityGrid .*(1 .+ 3 .*dotprod_velocities .+ 9/2 .*dotprod_velocities.^2 .- 3/2 .*(velocityX.^2 + velocityY.^2));
+# Relax towards equilibrium
+distributions .+= -(1/τ) .* (distributions .- distributions_equilibrium);
+
+# Stream 
+
+# Apply Boundary conditions
+
+# Apply object
+
+
 end
+
+println("Everything Set")
