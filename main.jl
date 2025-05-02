@@ -17,8 +17,10 @@ Q   = 9;
 τ   = 1/√3 
 
 lattice_velocity_unit = [   [0, -1, 0, 1, 0, -1, -1, 1, 1],
-                            [0, 0, 1, 0, -1, -1, 1, 1, -1]
-                        ];
+                            [0, 0, 1, 0, -1, -1, 1, 1, -1]];
+
+lattice_velx = reshape(lattice_velocity_unit[1,],1,1,Q)
+lattice_vely = reshape(lattice_velocity_unit[2,],1,1,Q)
 
 weights =   [4/9, 1/9, 1/9, 1/9, 1/9, 1/36, 1/36, 1/36, 1/36];
 
@@ -35,10 +37,8 @@ distributions[:,:,1:Q] .*= fluiddensity ./ densityGrid[:,:,1];
 velocityX   = zeros(gridlengthX, gridlengthY, Q);
 velocityY   = zeros(gridlengthX, gridlengthY, Q);
 
-# Initialize macroscopic velocity
-velocityX[:,:,1:Q] .= 1 ./ densityGrid[:,:,1] .* (sum(distributions[:,:,1:Q].*reshape(lattice_velocity_unit[1,],1,1,Q), dims=3)); 
-velocityY[:,:,1:Q] .= 1 ./ densityGrid[:,:,1] .* (sum(distributions[:,:,1:Q].*reshape(lattice_velocity_unit[2,],1,1,Q), dims=3)); 
-
-# Initialize macroscopic entities arrays
-
-println("Everything set")
+# Run Simulation Loop
+for i in [1:simulationTime]
+velocityX[:,:,1:Q] .= 1 ./ densityGrid[:,:,1] .* (sum(distributions[:,:,1:Q].*lattice_velx, dims=3)); 
+velocityY[:,:,1:Q] .= 1 ./ densityGrid[:,:,1] .* (sum(distributions[:,:,1:Q].*lattice_vely, dims=3)); 
+end
