@@ -8,8 +8,9 @@ gridlengthX  = 400;
 gridlengthY  = 100;
 
 fluiddensity   = 100;
+inflow_velocity= 0.1;     #Lattice unit
 
-simulationTime = 4000;
+simulationTime = 8000;
 
 cylinder_radius  = 10;
 cylinder_position = [gridlengthX/4, gridlengthY/2]
@@ -36,7 +37,7 @@ cylinder = (gridX.-cylinder_position[1]).^2 + (gridY.-cylinder_position[2]).^2 .
 
 # create boundary indetifiers
 walls = gridY .== 1 .|| gridY .== gridlengthY;
-inlet = gridX .== 0;
+inlet = gridX .== 1;
 outlet = gridX .== gridlengthX;
 
 # Initialize distributions arrays
@@ -104,9 +105,18 @@ for i in 1:simulationTime
     end
 
     ## Apply Boundary conditions
+    #Inlet velocity bc (unknown: f_1, f_8, f_9)
+    densityGrid[inlet, :] .= (sum(distributions[inlet, [1,3,5]], dims=2).+ 2 .*sum(distributions[inlet, [2,6,7]], dims=2)) ./ (1-inflow_velocity)
+    distributions[inlet, 4] .= distributions[inlet, 2] .+ (2/3 .* densityGrid[inlet,:] .* inflow_velocity)
+    distributions[inlet, 8] .= distributions[inlet, 6] .+ (1/6 .* densityGrid[inlet,:] .* inflow_velocity) .- (1/2 .* (distributions[inlet, 3] .- distributions[inlet, 5]))
+    distributions[inlet, 9] .= distributions[inlet, 7] .+ (1/6 .* densityGrid[inlet,:] .* inflow_velocity) .+ (1/2 .* (distributions[inlet, 3] .- distributions[inlet, 5]))
+
+
+    #Outlet zero gradient bc
+    distributions[outlet, [4, 8, 9]] .= distributions[gridlengthX-1, :, [4, 8, 9]]
+
     #No Slip Walls
     distributions[walls, 1:Q] .= distributions[walls, [1,4,5,2,3,8,9,6,7]];
-
 
     # Apply object boundary condition
     distributions[cylinder, 1:Q] .= distributions[cylinder, [1,4,5,2,3,8,9,6,7]];
@@ -122,6 +132,8 @@ for i in 1:simulationTime
             dv_dx = circshift(velocityY, (-1, 0)) .- circshift(velocityY, (1, 0))
             du_dy = circshift(velocityX, (0, -1)) .- circshift(velocityX, (0, 1))
             vorticity .= dv_dx .- du_dy
+            vorticity[inlet] .= 0.0
+            vorticity[outlet] .= 0.0
 
             # Mask the cylinder region
             vorticity[cylinder] .= NaN
