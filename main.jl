@@ -11,7 +11,7 @@ fluiddensity   = 100;
 
 simulationTime = 4000;
 
-cylinder_radius  = 20;
+cylinder_radius  = 10;
 cylinder_position = [gridlengthX/4, gridlengthY/2]
 
 ## Simulation Settings
@@ -33,6 +33,11 @@ gridX, gridY = gridX', gridY';
 
 # create object indetifier
 cylinder = (gridX.-cylinder_position[1]).^2 + (gridY.-cylinder_position[2]).^2 .< cylinder_radius.^2;
+
+# create boundary indetifiers
+walls = gridY .== 1 .|| gridY .== gridlengthY;
+inlet = gridX .== 0;
+outlet = gridX .== gridlengthX;
 
 # Initialize distributions arrays
 distributions = ones(gridlengthX, gridlengthY, Q) .+ 0.01*rand(gridlengthX, gridlengthY, Q);
@@ -63,7 +68,7 @@ vorticity_obs = Observable(vorticity);
         hm = heatmap!(ax, 1:gridlengthX, 1:gridlengthY, vorticity_obs, 
                     colormap = :curl, 
                     nan_color = :black,
-                    colorrange = (-0.45, 0.45))
+                    colorrange = (-0.3, 0.3))
         Colorbar(fig[1, 2], hm, label = "Vorticity")
 
         # Set axis limits explicitly
@@ -98,42 +103,45 @@ for i in 1:simulationTime
         distributions[:,:,j] = circshift(distributions[:,:,j], (lattice_velx[j], lattice_vely[j]))
     end
 
-    # Apply Boundary conditions
+    ## Apply Boundary conditions
+    #No Slip Walls
+    distributions[walls, 1:Q] .= distributions[walls, [1,4,5,2,3,8,9,6,7]];
+
 
     # Apply object boundary condition
     distributions[cylinder, 1:Q] .= distributions[cylinder, [1,4,5,2,3,8,9,6,7]];
 
-    # Plot of the field
-    if ((i % 10 == 0)) || (i == simulationTime)
-        # Set velocities inside the cylinder to zero
-        velocityX[cylinder] .= 0.0
-        velocityY[cylinder] .= 0.0
+        # Plot of the field
+        if ((i % 10 == 0)) || (i == simulationTime)
+            # Set velocities inside the cylinder to zero
+            velocityX[cylinder] .= 0.0
+            velocityY[cylinder] .= 0.0
 
-        # Compute vorticity
-        fill!(vorticity, 0.0)
-        dv_dx = circshift(velocityY, (-1, 0)) .- circshift(velocityY, (1, 0))
-        du_dy = circshift(velocityX, (0, -1)) .- circshift(velocityX, (0, 1))
-        vorticity .= dv_dx .- du_dy
+            # Compute vorticity
+            fill!(vorticity, 0.0)
+            dv_dx = circshift(velocityY, (-1, 0)) .- circshift(velocityY, (1, 0))
+            du_dy = circshift(velocityX, (0, -1)) .- circshift(velocityX, (0, 1))
+            vorticity .= dv_dx .- du_dy
 
-        # Mask the cylinder region
-        vorticity[cylinder] .= NaN
+            # Mask the cylinder region
+            vorticity[cylinder] .= NaN
 
-        # Print some statistics to monitor the simulation
-        valid_values = filter(!isnan, vorticity)
-        if !isempty(valid_values)
-            println("Step $i - Min: $(minimum(valid_values)), Max: $(maximum(valid_values))")
+            # Print some statistics to monitor the simulation
+            valid_values = filter(!isnan, vorticity)
+            if !isempty(valid_values)
+                println("Step $i - Min: $(minimum(valid_values)), Max: $(maximum(valid_values))")
+            end
+
+            # Force the figure to update
+            # Update the observable
+            vorticity_obs[] = copy(vorticity)
+            # Update time step text
+            step_text[] = "Time step: $i"
+            # Force a draw
+            GLMakie.display(fig)
+            yield()
+            sleep(0.05)
         end
-
-        # Force the figure to update
-        # Update the observable
-        vorticity_obs[] = copy(vorticity)
-        # Update time step text
-        step_text[] = "Time step: $i"
-        # Force a draw
-        GLMakie.display(fig)
-        yield()
-        sleep(0.05)
-    end
 
 end
 
