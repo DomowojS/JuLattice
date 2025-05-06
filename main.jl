@@ -3,27 +3,61 @@
 ############################
 using Revise, MeshGrid, GLMakie
 
-# User Settings
-gridlengthX  = 400;
-gridlengthY  = 100;
+## User Settings
+# Domain Settings
+length_X = 4;              # m
+length_Y = 1;              # m 
 
-fluiddensity   = 100;
-inflow_velocity= 0.1;     #Lattice unit
+# Cylinder Definition
+Radius   = 0.1    # m
+Position = [1, 0.5] # m
 
-simulationTime = 8000;
+# Fluid Settings 
+Fluid_Density = 1000.0;       # kg/m^3
+Inflow_Velocity = 0.001;      # m/s
+Kinematic_Viscosity = 0.000001; # m^2/s 
 
-cylinder_radius  = 10;
-cylinder_position = [gridlengthX/4, gridlengthY/2]
+# Simulation Settings
+Simulation_Time = 8000;     # s
+delta_x = 0.005;             # discretisation in time and space
+τ = 0.6;
+Re = (Inflow_Velocity .* Radius)/Kinematic_Viscosity;
+Re_Log=floor(Int,Re)
 
-## Simulation Settings
+## Compute timestep from relaxation time
+# Time step from relaxation time
+lattice_speedOfSound = 1 / √3;
+delta_t = ((τ - 0.5) * lattice_speedOfSound^2 * delta_x^2) / Kinematic_Viscosity
+println("Δx: $delta_x m")
+println("Δt: $delta_t s")
+
+## Convert user settings to lattice units
+# Domain
+gridlengthX  = ceil(Int, length_X / delta_x);
+gridlengthY  = ceil(Int, length_Y / delta_x);
+
+# Cylinder
+cylinder_radius  = Radius/delta_x;
+cylinder_position = Position ./ delta_x;
+
+# Fluid
+fluiddensity = 100;
+lattice_inflow_velocity = Inflow_Velocity * (delta_t / delta_x);
+lattice_viscosity = lattice_speedOfSound^2 * (τ -0.5);
+#ReynoldsCheck
+lattice_Re = (lattice_inflow_velocity .* cylinder_radius)/lattice_viscosity;
+lattice_Re_Log=floor(Int,lattice_Re)
+println("The Reynoldsnumber is $lattice_Re_Log")
+
+# Simulation Settings
+simulationTime = ceil(Int, Simulation_Time / delta_t);
 Q   = 9;
-τ   = 1/√3 
 
-lattice_velocity_unit = [   [0, -1, 0, 1, 0, -1, -1, 1, 1],
-                            [0, 0, 1, 0, -1, -1, 1, 1, -1]];
+velocity_vector = [     [0, -1, 0, 1, 0, -1, -1, 1, 1],
+                        [0, 0, 1, 0, -1, -1, 1, 1, -1]];
 
-lattice_velx = reshape(lattice_velocity_unit[1,],1,1,Q)
-lattice_vely = reshape(lattice_velocity_unit[2,],1,1,Q)
+velocity_vector_x = reshape(velocity_vector[1,],1,1,Q)
+velocity_vector_y = reshape(velocity_vector[2,],1,1,Q)
 
 weights =   [4/9, 1/9, 1/9, 1/9, 1/9, 1/36, 1/36, 1/36, 1/36];
 weights =   reshape(weights,1,1,Q);
@@ -62,7 +96,7 @@ vorticity_obs = Observable(vorticity);
 
     ## Set up the figure and axis       
         # Set up the figure and axis with explicit sizing
-        fig = Figure(size = (1000, 600))
+        fig = Figure(size = (3000, 1200))
         ax = Axis(fig[1, 1], aspect = DataAspect(), title = "LBM Simulation")
 
         # Display the vorticity field using a heatmap with dynamic color range
@@ -71,45 +105,44 @@ vorticity_obs = Observable(vorticity);
                     nan_color = :black,
                     colorrange = (-0.3, 0.3))
         Colorbar(fig[1, 2], hm, label = "Vorticity")
-
+        rowsize!(fig.layout, 1, ax.scene.viewport[].widths[2])
         # Set axis limits explicitly
         xlims!(ax, 1, gridlengthX)
         ylims!(ax, 1, gridlengthY)
 
         # Create a text element for time step display
-        step_text = Observable("Time step: 0")
-        text_obj = text!(ax, 2, gridlengthY-8, text = step_text, 
+        step_text = Observable("Time step: 0, 0s")
+        text_obj = text!(ax, ceil(Int, (gridlengthX*2/100)), ceil(Int, (gridlengthY*2/100)), text = step_text, 
                 color = :black, fontsize = 14)
 
-        # Make sure figure is displayed explicitly
-        display(fig)
-
+println("#################################")
+println("Starting Simulation:")
 # Run Simulation Loop
 for i in 1:simulationTime
 
     # Get Macroscopic values
     global densityGrid = sum(distributions, dims=3);
-    velocityX .= (1 ./ densityGrid) .* sum(distributions.*lattice_velx, dims=3); 
-    velocityY .= (1 ./ densityGrid) .* sum(distributions.*lattice_vely, dims=3); 
+    velocityX .= (1 ./ densityGrid) .* sum(distributions.*velocity_vector_x, dims=3); 
+    velocityY .= (1 ./ densityGrid) .* sum(distributions.*velocity_vector_y, dims=3); 
 
     ## Apply Collision
     # Compute equilibrium state
-    dotprod_velocities .= (lattice_velx .* velocityX) .+ (lattice_vely .* velocityY);
-    distributions_equilibrium .= weights .* densityGrid .*(1 .+ 3 .*dotprod_velocities .+ 9/2 .*dotprod_velocities.^2 .- 3/2 .*(velocityX.^2 .+ velocityY.^2));
+    dotprod_velocities .= (velocity_vector_x .* velocityX) .+ (velocity_vector_y .* velocityY);
+    distributions_equilibrium .= weights .* densityGrid .*(1 .+ 3 .*dotprod_velocities .+ 4.5 .*dotprod_velocities.^2 .- 1.5 .*(velocityX.^2 .+ velocityY.^2));
     # Relax towards equilibrium
     distributions .+= -(1/τ) .* (distributions .- distributions_equilibrium);
 
     # Stream 
     for j in 1:Q
-        distributions[:,:,j] = circshift(distributions[:,:,j], (lattice_velx[j], lattice_vely[j]))
+        distributions[:,:,j] = circshift(distributions[:,:,j], (velocity_vector_x[j], velocity_vector_y[j]))
     end
 
     ## Apply Boundary conditions
     #Inlet velocity bc (unknown: f_1, f_8, f_9)
-    densityGrid[inlet, :] .= (sum(distributions[inlet, [1,3,5]], dims=2).+ 2 .*sum(distributions[inlet, [2,6,7]], dims=2)) ./ (1-inflow_velocity)
-    distributions[inlet, 4] .= distributions[inlet, 2] .+ (2/3 .* densityGrid[inlet,:] .* inflow_velocity)
-    distributions[inlet, 8] .= distributions[inlet, 6] .+ (1/6 .* densityGrid[inlet,:] .* inflow_velocity) .- (1/2 .* (distributions[inlet, 3] .- distributions[inlet, 5]))
-    distributions[inlet, 9] .= distributions[inlet, 7] .+ (1/6 .* densityGrid[inlet,:] .* inflow_velocity) .+ (1/2 .* (distributions[inlet, 3] .- distributions[inlet, 5]))
+    densityGrid[inlet, :] .= (sum(distributions[inlet, [1,3,5]], dims=2).+ 2 .*sum(distributions[inlet, [2,6,7]], dims=2)) ./ (1-lattice_inflow_velocity)
+    distributions[inlet, 4] .= distributions[inlet, 2] .+ (2/3 .* densityGrid[inlet,:] .* lattice_inflow_velocity)
+    distributions[inlet, 8] .= distributions[inlet, 6] .+ (1/6 .* densityGrid[inlet,:] .* lattice_inflow_velocity) .- (1/2 .* (distributions[inlet, 3] .- distributions[inlet, 5]))
+    distributions[inlet, 9] .= distributions[inlet, 7] .+ (1/6 .* densityGrid[inlet,:] .* lattice_inflow_velocity) .+ (1/2 .* (distributions[inlet, 3] .- distributions[inlet, 5]))
 
 
     #Outlet zero gradient bc
@@ -124,8 +157,8 @@ for i in 1:simulationTime
         # Plot of the field
         if ((i % 10 == 0)) || (i == simulationTime)
             # Set velocities inside the cylinder to zero
-            velocityX[cylinder] .= 0.0
-            velocityY[cylinder] .= 0.0
+            velocityX[cylinder] .= NaN
+            velocityY[cylinder] .= NaN
 
             # Compute vorticity
             fill!(vorticity, 0.0)
@@ -139,16 +172,15 @@ for i in 1:simulationTime
             vorticity[cylinder] .= NaN
 
             # Print some statistics to monitor the simulation
-            valid_values = filter(!isnan, vorticity)
-            if !isempty(valid_values)
-                println("Step $i - Min: $(minimum(valid_values)), Max: $(maximum(valid_values))")
+            if ((i % 100 == 0)) || (i == simulationTime)
+            println("Time Step: $i / $simulationTime")
             end
 
             # Force the figure to update
             # Update the observable
             vorticity_obs[] = copy(vorticity)
             # Update time step text
-            step_text[] = "Time step: $i"
+            step_text[] = "Time step: $i, $(i*delta_t)s"
             # Force a draw
             GLMakie.display(fig)
             yield()
