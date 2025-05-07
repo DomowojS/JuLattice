@@ -1,7 +1,11 @@
 ############################
 ## Main file for JuLattice #
 ############################
+include("src/Plotter.jl")
+include("src/Logger.jl")
+
 using Revise, MeshGrid, GLMakie
+using .Plotter, .Logger, .SimulationCore
 
 ## User Settings
 # Domain Settings
@@ -14,22 +18,28 @@ Position = [1, 0.5] # m
 
 # Fluid Settings 
 Fluid_Density = 1000.0;       # kg/m^3
-Inflow_Velocity = 0.001;      # m/s
-Kinematic_Viscosity = 0.000001; # m^2/s 
+Inflow_Velocity = 0.4;      # m/s
+Kinematic_Viscosity = 0.001; # m^2/s 
 
 # Simulation Settings
 Simulation_Time = 8000;     # s
-delta_x = 0.005;             # discretisation in time and space
-τ = 0.6;
+delta_x = 0.01;             # discretisation in time and space
+τ = 0.65;
 Re = (Inflow_Velocity .* Radius)/Kinematic_Viscosity;
 Re_Log=floor(Int,Re)
 
+# Plot Requests
+Plotvx = true;
+Plotvy = true;
+Plotvorticity = true;
+
+
+#### Run Simulation #####
+Log_Simulation_Header()
 ## Compute timestep from relaxation time
 # Time step from relaxation time
 lattice_speedOfSound = 1 / √3;
 delta_t = ((τ - 0.5) * lattice_speedOfSound^2 * delta_x^2) / Kinematic_Viscosity
-println("Δx: $delta_x m")
-println("Δt: $delta_t s")
 
 ## Convert user settings to lattice units
 # Domain
@@ -47,7 +57,9 @@ lattice_viscosity = lattice_speedOfSound^2 * (τ -0.5);
 #ReynoldsCheck
 lattice_Re = (lattice_inflow_velocity .* cylinder_radius)/lattice_viscosity;
 lattice_Re_Log=floor(Int,lattice_Re)
-println("The Reynoldsnumber is $lattice_Re_Log")
+
+#Log 
+Log_Discretization_Settings(delta_x, delta_t, lattice_Re_Log)
 
 # Simulation Settings
 simulationTime = ceil(Int, Simulation_Time / delta_t);
@@ -90,30 +102,23 @@ velocityY   = zeros(gridlengthX, gridlengthY);
 # Initialise dotproduct array 
 dotprod_velocities = zeros(gridlengthX, gridlengthY, Q);
 
-# Initialize Plot arrays
-vorticity = zeros(gridlengthX, gridlengthY);
-vorticity_obs = Observable(vorticity);
-
-    ## Set up the figure and axis       
-        # Set up the figure and axis with explicit sizing
-        fig = Figure(size = (3000, 1200))
-        ax = Axis(fig[1, 1], aspect = DataAspect(), title = "LBM Simulation")
-
-        # Display the vorticity field using a heatmap with dynamic color range
-        hm = heatmap!(ax, 1:gridlengthX, 1:gridlengthY, vorticity_obs, 
-                    colormap = :curl, 
-                    nan_color = :black,
-                    colorrange = (-0.3, 0.3))
-        Colorbar(fig[1, 2], hm, label = "Vorticity")
-        rowsize!(fig.layout, 1, ax.scene.viewport[].widths[2])
-        # Set axis limits explicitly
-        xlims!(ax, 1, gridlengthX)
-        ylims!(ax, 1, gridlengthY)
-
-        # Create a text element for time step display
-        step_text = Observable("Time step: 0, 0s")
-        text_obj = text!(ax, ceil(Int, (gridlengthX*2/100)), ceil(Int, (gridlengthY*2/100)), text = step_text, 
-                color = :black, fontsize = 14)
+if any((Plotvorticity, Plotvx, Plotvy))
+    if Plotvorticity==true 
+        vorticity, vorticity_obs, text_obj, step_text, fig_vorticity = Create_Plot(gridlengthX, gridlengthY)
+        screen1 = GLMakie.Screen()
+        GLMakie.display(screen1, fig_vorticity)
+    end
+    if Plotvx==true 
+        velocityX_obs, text_obj_vx, step_text_vx, fig_vx = Create_Plot(gridlengthX, gridlengthY, velocityX, "X")
+        screen2 = GLMakie.Screen(; position = (600, 0))
+        GLMakie.display(screen2, fig_vx)
+    end
+    if Plotvy==true 
+        velocityY_obs, text_obj_vy, step_text_vy, fig_vy = Create_Plot(gridlengthX, gridlengthY, velocityY, "Y")
+        screen3 = GLMakie.Screen()
+        display(screen3, fig_vy)
+    end
+end
 
 println("#################################")
 println("Starting Simulation:")
@@ -171,22 +176,27 @@ for i in 1:simulationTime
             # Mask the cylinder region
             vorticity[cylinder] .= NaN
 
-            # Print some statistics to monitor the simulation
             if ((i % 100 == 0)) || (i == simulationTime)
-            println("Time Step: $i / $simulationTime")
+                Simulation_RuntimeLog(i, simulationTime)
+            end
+            # Update the observables
+            if Plotvorticity==true 
+                vorticity_obs[] = copy(vorticity) 
+                step_text[] = "Time step: $i, $(floor(Int, i*delta_t))s"
+            end
+            if Plotvx==true 
+                velocityX_obs[] = copy(velocityX) 
+                step_text_vx[] = "Time step: $i, $(floor(Int, i*delta_t))s"
+            end
+            if Plotvy==true 
+                velocityY_obs[] = copy(velocityY) 
+                step_text_vy[] = "Time step: $i, $(floor(Int, i*delta_t))s"
             end
 
-            # Force the figure to update
-            # Update the observable
-            vorticity_obs[] = copy(vorticity)
-            # Update time step text
-            step_text[] = "Time step: $i, $(i*delta_t)s"
-            # Force a draw
-            GLMakie.display(fig)
             yield()
             sleep(0.05)
         end
 
 end
 
-println("Everything Set")
+Log_Simulation_Tail()
