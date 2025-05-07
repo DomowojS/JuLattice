@@ -3,16 +3,19 @@
 ############################
 include("src/Plotter.jl")
 include("src/Logger.jl")
+include("src/ConfigReader.jl")
+include("src/Simulation_SetUp.jl")
 
 using Revise, MeshGrid, GLMakie
-using .Plotter, .Logger, .SimulationCore
+using .Plotter, .Logger, .ConfigReader, .Simulation_SetUp #, .SimulationCore
 
 ## User Settings
 # Domain Settings
 length_X = 4;              # m
 length_Y = 1;              # m 
 
-# Cylinder Definition
+# Object definition
+Type = "Cylinder"
 Radius   = 0.1    # m
 Position = [1, 0.5] # m
 
@@ -25,8 +28,14 @@ Kinematic_Viscosity = 0.001; # m^2/s
 Simulation_Time = 8000;     # s
 delta_x = 0.01;             # discretisation in time and space
 τ = 0.65;
-Re = (Inflow_Velocity .* Radius)/Kinematic_Viscosity;
-Re_Log=floor(Int,Re)
+
+# Boundary conditions
+Left_BC     = "Velocity"
+Left_BC_Velocity = Inflow_Velocity
+
+Right_BC    = "ZeroGradient"
+Top_BC      = "NoSlip"
+Bottom_BC   = "NoSlip"
 
 # Plot Requests
 Plotvx = true;
@@ -34,46 +43,46 @@ Plotvy = true;
 Plotvorticity = true;
 
 
+if Left_BC !="Velocity" 
+    if && (@isdefined Left_BC_Velocity) == false
+    Left_BC_Velocity = 0
+    warning("Left BC defined as 'Velocity' but no value provided.")
+end
+if Right_BC =="Velocity" && (@isdefined Right_BC_Velocity) == false
+    Right_BC_Velocity = 0
+    warning("Right BC defined as 'Velocity' but no value provided.")
+end
+if Top_BC =="Velocity" && (@isdefined Top_BC_Velocity) == false
+    Top_BC_Velocity = 0
+    warning("Top BC defined as 'Velocity' but no value provided.")
+end
+if Bottom_BC =="Velocity" && (@isdefined Bottom_BC_Velocity) == false
+    Bottom_BC_Velocity = 0
+    warning("Bottom BC defined as 'Velocity' but no value provided.")
+end
+
+config = ReadConfig(length_X, length_Y, Type, Radius, Position, Fluid_Density, Inflow_Velocity, 
+                    Kinematic_Viscosity, Simulation_Time, delta_x, τ, 
+                    Left_BC, Right_BC, Top_BC, Bottom_BC, Left_BC_Velocity, Right_BC_Velocity, Top_BC_Velocity, Bottom_BC_Velocity, 
+                    Plotvx, Plotvy, Plotvorticity)
+
+
 #### Run Simulation #####
 Log_Simulation_Header()
-## Compute timestep from relaxation time
-# Time step from relaxation time
-lattice_speedOfSound = 1 / √3;
-delta_t = ((τ - 0.5) * lattice_speedOfSound^2 * delta_x^2) / Kinematic_Viscosity
 
-## Convert user settings to lattice units
-# Domain
-gridlengthX  = ceil(Int, length_X / delta_x);
-gridlengthY  = ceil(Int, length_Y / delta_x);
+simulation, fluid, object = Set_Simulation_Params(config)
+
+
 
 # Cylinder
 cylinder_radius  = Radius/delta_x;
 cylinder_position = Position ./ delta_x;
+        #ReynoldsCheck
+        lattice_Re = (lattice_inflow_velocity .* cylinder_radius)/lattice_viscosity;
 
-# Fluid
-fluiddensity = 100;
-lattice_inflow_velocity = Inflow_Velocity * (delta_t / delta_x);
-lattice_viscosity = lattice_speedOfSound^2 * (τ -0.5);
-#ReynoldsCheck
-lattice_Re = (lattice_inflow_velocity .* cylinder_radius)/lattice_viscosity;
-lattice_Re_Log=floor(Int,lattice_Re)
 
 #Log 
 Log_Discretization_Settings(delta_x, delta_t, lattice_Re_Log)
-
-# Simulation Settings
-simulationTime = ceil(Int, Simulation_Time / delta_t);
-Q   = 9;
-
-velocity_vector = [     [0, -1, 0, 1, 0, -1, -1, 1, 1],
-                        [0, 0, 1, 0, -1, -1, 1, 1, -1]];
-
-velocity_vector_x = reshape(velocity_vector[1,],1,1,Q)
-velocity_vector_y = reshape(velocity_vector[2,],1,1,Q)
-
-weights =   [4/9, 1/9, 1/9, 1/9, 1/9, 1/36, 1/36, 1/36, 1/36];
-weights =   reshape(weights,1,1,Q);
-
 # create grid
 gridX, gridY = meshgrid(1:gridlengthX, 1:gridlengthY);
 gridX, gridY = gridX', gridY';
@@ -177,7 +186,7 @@ for i in 1:simulationTime
             vorticity[cylinder] .= NaN
 
             if ((i % 100 == 0)) || (i == simulationTime)
-                Simulation_RuntimeLog(i, simulationTime)
+                Log_Simulation_Runtime(i, simulationTime)
             end
             # Update the observables
             if Plotvorticity==true 
