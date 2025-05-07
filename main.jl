@@ -6,7 +6,7 @@ include("src/Logger.jl")
 include("src/ConfigReader.jl")
 include("src/Simulation_SetUp.jl")
 
-using Revise, MeshGrid, GLMakie
+using Revise, GLMakie
 using .Plotter, .Logger, .ConfigReader, .Simulation_SetUp #, .SimulationCore
 
 ## User Settings
@@ -15,7 +15,7 @@ length_X = 4;              # m
 length_Y = 1;              # m 
 
 # Object definition
-Type = "Cylinder"
+Type = "Cylinder";
 Radius   = 0.1    # m
 Position = [1, 0.5] # m
 
@@ -42,24 +42,36 @@ Plotvx = true;
 Plotvy = true;
 Plotvorticity = true;
 
-
-if Left_BC !="Velocity" 
-    if && (@isdefined Left_BC_Velocity) == false
+if !@isdefined Left_BC_Velocity
     Left_BC_Velocity = 0
+    if Left_BC == "Velocity"
     warning("Left BC defined as 'Velocity' but no value provided.")
+    end
 end
-if Right_BC =="Velocity" && (@isdefined Right_BC_Velocity) == false
+if !@isdefined Right_BC_Velocity
     Right_BC_Velocity = 0
+    if Right_BC == "Velocity"
     warning("Right BC defined as 'Velocity' but no value provided.")
+    end 
 end
-if Top_BC =="Velocity" && (@isdefined Top_BC_Velocity) == false
+if !@isdefined Top_BC_Velocity
     Top_BC_Velocity = 0
+    if Top_BC == "Velocity"
     warning("Top BC defined as 'Velocity' but no value provided.")
+    end
 end
-if Bottom_BC =="Velocity" && (@isdefined Bottom_BC_Velocity) == false
+if !@isdefined Bottom_BC_Velocity
     Bottom_BC_Velocity = 0
+    if Bottom_BC == "Velocity"
     warning("Bottom BC defined as 'Velocity' but no value provided.")
+    end
 end
+
+### Verify User Input ###
+Verification(length_X, length_Y, Type, Radius, Position, Fluid_Density, Inflow_Velocity, 
+Kinematic_Viscosity, Simulation_Time, delta_x, τ, 
+Left_BC, Right_BC, Top_BC, Bottom_BC, Left_BC_Velocity, Right_BC_Velocity, Top_BC_Velocity, Bottom_BC_Velocity, 
+Plotvx, Plotvy, Plotvorticity)
 
 config = ReadConfig(length_X, length_Y, Type, Radius, Position, Fluid_Density, Inflow_Velocity, 
                     Kinematic_Viscosity, Simulation_Time, delta_x, τ, 
@@ -67,49 +79,31 @@ config = ReadConfig(length_X, length_Y, Type, Radius, Position, Fluid_Density, I
                     Plotvx, Plotvy, Plotvorticity)
 
 
+
 #### Run Simulation #####
 Log_Simulation_Header()
 
-simulation, fluid, object = Set_Simulation_Params(config)
+## Setup and initialization
+simulation, fluid   = Set_Simulation_Params(config)
 
+grid                = Create_Grid(simulation)
+mutable_grid        = Initialize_Distributions(simulation, fluid, grid)
 
-
+object              = Create_Object(config, simulation, fluid)
 # Cylinder
 cylinder_radius  = Radius/delta_x;
 cylinder_position = Position ./ delta_x;
         #ReynoldsCheck
         lattice_Re = (lattice_inflow_velocity .* cylinder_radius)/lattice_viscosity;
-
-
-#Log 
-Log_Discretization_Settings(delta_x, delta_t, lattice_Re_Log)
-# create grid
-gridX, gridY = meshgrid(1:gridlengthX, 1:gridlengthY);
-gridX, gridY = gridX', gridY';
-
 # create object indetifier
 cylinder = (gridX.-cylinder_position[1]).^2 + (gridY.-cylinder_position[2]).^2 .< cylinder_radius.^2;
 
-# create boundary indetifiers
-walls = gridY .== 1 .|| gridY .== gridlengthY;
-inlet = gridX .== 1;
-outlet = gridX .== gridlengthX;
+#Log 
+Log_Discretization_Settings(delta_x, delta_t, lattice_Re_Log)
 
-# Initialize distributions arrays
-distributions = ones(gridlengthX, gridlengthY, Q) .+ 0.01*rand(gridlengthX, gridlengthY, Q);
-distributions[:,:,4] .+= 2 .* (1 .+ 0.2 .* cos.(2 .* π .*gridX ./ gridlengthX .*4));
-distributions_equilibrium = ones(gridlengthX, gridlengthY, Q);
 
-# Initialize macroscopic density and scale distribution
-densityGrid = sum(distributions, dims=3);
-distributions .*= fluiddensity ./ densityGrid;
 
-# Initialize macroscopic velocity arrays
-velocityX   = zeros(gridlengthX, gridlengthY);
-velocityY   = zeros(gridlengthX, gridlengthY);
 
-# Initialise dotproduct array 
-dotprod_velocities = zeros(gridlengthX, gridlengthY, Q);
 
 if any((Plotvorticity, Plotvx, Plotvy))
     if Plotvorticity==true 
