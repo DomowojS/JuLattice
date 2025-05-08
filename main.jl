@@ -1,13 +1,15 @@
 ############################
 ## Main file for JuLattice #
 ############################
-include("src/Plotter.jl")
 include("src/Logger.jl")
 include("src/ConfigReader.jl")
 include("src/Simulation_SetUp.jl")
+include("src/Object_SetUp.jl")
+include("src/Boundary_Conditions_SetUp.jl")
+include("src/Plotter.jl")
 
 using Revise, GLMakie
-using .Plotter, .Logger, .ConfigReader, .Simulation_SetUp #, .SimulationCore
+using .Plotter, .Logger, .ConfigReader, .Simulation_SetUp, .Object_SetUp, .Boundary_Conditions_SetUp #, .SimulationCore
 
 ## User Settings
 # Domain Settings
@@ -91,10 +93,12 @@ mutable_grid        = Initialize_Distributions(simulation, fluid, grid)
 
 object              = Create_Object(config, simulation, fluid, grid)
 
+boundary_conditions = Create_Boundary_Conditions(grid, config)
+
 #Log 
 Log_Discretization_Settings(simulation.delta_x, simulation.delta_t, object.lattice_Reynolds)
 
-
+#=
 
 
 
@@ -194,5 +198,5 @@ for i in 1:simulationTime
         end
 
 end
-
+=#
 Log_Simulation_Tail()
