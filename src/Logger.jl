@@ -5,10 +5,10 @@ export Log_Simulation_Runtime, Log_Discretization_Settings, Log_Simulation_Heade
         println("Time Step: $i / $simulationTime")
     end#Log_Simulation_Runtime
 
-    function Log_Discretization_Settings(delta_x::Float64, delta_t::Float64, lattice_Re_Log::Int64)
+    function Log_Discretization_Settings(delta_x::Float64, delta_t::Float64, lattice_Reynolds::Float64)
         println("Δx: $delta_x m")
         println("Δt: $delta_t s")
-        println("The Reynoldsnumber is $(floor(Int,lattice_Re))")
+        println("The Reynoldsnumber is $(floor(Int,lattice_Reynolds))")
     end#Log_Discretization_Settings
 
     function Log_Simulation_Header()

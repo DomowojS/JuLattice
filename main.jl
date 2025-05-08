@@ -15,7 +15,7 @@ length_X = 4;              # m
 length_Y = 1;              # m 
 
 # Object definition
-Type = "Cylinder";
+Object = "Cylinder";
 Radius   = 0.1    # m
 Position = [1, 0.5] # m
 
@@ -68,12 +68,12 @@ if !@isdefined Bottom_BC_Velocity
 end
 
 ### Verify User Input ###
-Verification(length_X, length_Y, Type, Radius, Position, Fluid_Density, Inflow_Velocity, 
+Verification(length_X, length_Y, Object, Radius, Position, Fluid_Density, Inflow_Velocity, 
 Kinematic_Viscosity, Simulation_Time, delta_x, τ, 
 Left_BC, Right_BC, Top_BC, Bottom_BC, Left_BC_Velocity, Right_BC_Velocity, Top_BC_Velocity, Bottom_BC_Velocity, 
 Plotvx, Plotvy, Plotvorticity)
 
-config = ReadConfig(length_X, length_Y, Type, Radius, Position, Fluid_Density, Inflow_Velocity, 
+config = ReadConfig(length_X, length_Y, Object, Radius, Position, Fluid_Density, Inflow_Velocity, 
                     Kinematic_Viscosity, Simulation_Time, delta_x, τ, 
                     Left_BC, Right_BC, Top_BC, Bottom_BC, Left_BC_Velocity, Right_BC_Velocity, Top_BC_Velocity, Bottom_BC_Velocity, 
                     Plotvx, Plotvy, Plotvorticity)
@@ -89,17 +89,10 @@ simulation, fluid   = Set_Simulation_Params(config)
 grid                = Create_Grid(simulation)
 mutable_grid        = Initialize_Distributions(simulation, fluid, grid)
 
-object              = Create_Object(config, simulation, fluid)
-# Cylinder
-cylinder_radius  = Radius/delta_x;
-cylinder_position = Position ./ delta_x;
-        #ReynoldsCheck
-        lattice_Re = (lattice_inflow_velocity .* cylinder_radius)/lattice_viscosity;
-# create object indetifier
-cylinder = (gridX.-cylinder_position[1]).^2 + (gridY.-cylinder_position[2]).^2 .< cylinder_radius.^2;
+object              = Create_Object(config, simulation, fluid, grid)
 
 #Log 
-Log_Discretization_Settings(delta_x, delta_t, lattice_Re_Log)
+Log_Discretization_Settings(simulation.delta_x, simulation.delta_t, object.lattice_Reynolds)
 
 
 

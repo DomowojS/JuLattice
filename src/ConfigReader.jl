@@ -7,7 +7,7 @@ struct Config
     length_Y::Real; 
     Object_Type::String; 
     Object_Radius::Real; 
-    Position::Vector{Float64}; 
+    Object_Position::Vector{Float64}; 
     Fluid_Density::Real; Inflow_Velocity::Real; 
     Kinematic_Viscosity::Real; 
     Simulation_Time::Real; 
