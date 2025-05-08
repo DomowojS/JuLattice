@@ -6,6 +6,7 @@ export Create_Object, Cylinder, Rectangle, none
 
     #Structs
     Base.@kwdef struct Cylinder <: Geometry
+        Type::String
         Radius::Real
         Position::Vector{Float64}
         lattice_radius::Union{Real, Nothing} = nothing
@@ -15,6 +16,7 @@ export Create_Object, Cylinder, Rectangle, none
     end#Cylinder
 
     Base.@kwdef struct Rectangle <: Geometry
+        Type::String
         Width::Real
         Height::Real
         Angle::Real
@@ -27,6 +29,7 @@ export Create_Object, Cylinder, Rectangle, none
     end#Rectangle
 
     struct none <: Geometry
+        Type::String
         mask::BitMatrix
         lattice_Reynolds::Float64
     end#Rectangle
@@ -37,9 +40,9 @@ export Create_Object, Cylinder, Rectangle, none
         if isdefined(config, :Object_Type)
             type = config.Object_Type
                 if type == "Cylinder"
-                    object = Cylinder(Radius=config.Object_Radius, Position=config.Object_Position)
+                    object = Cylinder(Type="Cylinder", Radius=config.Object_Radius, Position=config.Object_Position)
                 elseif type == "Rectangle"
-                    object = Rectangle(Width=config.Object_Width, Height=config.Object_Height, Position=config.Object_Position)  
+                    object = Rectangle(Type="Rectangle", Width=config.Object_Width, Height=config.Object_Height, Position=config.Object_Position)  
                 else 
                     error("Unsupported geometry type: $type")
                 end
@@ -53,11 +56,11 @@ export Create_Object, Cylinder, Rectangle, none
         lattice_Reynolds = Compute_Reynolds_Number(grid, fluid, lattice_dimensions)
         
         if type == "Cylinder"
-            return Cylinder(config.Object_Radius, config.Object_Position, lattice_dimensions.Radius, lattice_dimensions.Position, mask, lattice_Reynolds)
+            return Cylinder("Cylinder", config.Object_Radius, config.Object_Position, lattice_dimensions.Radius, lattice_dimensions.Position, mask, lattice_Reynolds)
         elseif type == "Rectangle"
-            return Rectangle(config.Object_Width, config.Object_Height, config.Object_Angle, lattice_dimensions.Width, lattice_dimensions.Height, lattice_dimensions.Position, lattice_position, mask, lattice_Reynolds)
+            return Rectangle("Rectangle", config.Object_Width, config.Object_Height, config.Object_Angle, lattice_dimensions.Width, lattice_dimensions.Height, lattice_dimensions.Position, lattice_position, mask, lattice_Reynolds)
         else
-            return none(mask, lattice_Reynolds)
+            return none("none", mask, lattice_Reynolds)
         end                
     end#Create_Object
 

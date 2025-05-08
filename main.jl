@@ -93,7 +93,7 @@ mutable_grid        = Initialize_Distributions(simulation, fluid, grid)
 
 object              = Create_Object(config, simulation, fluid, grid)
 
-boundary_conditions = Create_Boundary_Conditions(grid, config)
+boundary_conditions = Create_Boundary_Conditions(config, fluid, object)
 
 #Log 
 Log_Discretization_Settings(simulation.delta_x, simulation.delta_t, object.lattice_Reynolds)
@@ -119,6 +119,8 @@ if any((Plotvorticity, Plotvx, Plotvy))
         display(screen3, fig_vy)
     end
 end
+
+
 
 println("#################################")
 println("Starting Simulation:")
