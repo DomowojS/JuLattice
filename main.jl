@@ -1,3 +1,5 @@
+module JuLattice
+
 ############################
 ## Main file for JuLattice #
 ############################
@@ -96,12 +98,9 @@ object              = Create_Object(config, simulation, fluid, grid)
 boundary_conditions = Create_Boundary_Conditions(config, fluid, object)
 
 #Log 
-Log_Discretization_Settings(simulation.delta_x, simulation.delta_t, object.lattice_Reynolds)
+Log_Discretization_Settings(simulation.delta_x, simulation.delta_t, object.lattice_Reynolds, grid.gridX, )
 
-#=
-
-
-
+## Plot Stuff to be moved 
 if any((Plotvorticity, Plotvx, Plotvy))
     if Plotvorticity==true 
         vorticity, vorticity_obs, text_obj, step_text, fig_vorticity = Create_Plot(gridlengthX, gridlengthY)
@@ -119,86 +118,14 @@ if any((Plotvorticity, Plotvx, Plotvy))
         display(screen3, fig_vy)
     end
 end
-
-
-
+##############################
 println("#################################")
 println("Starting Simulation:")
-# Run Simulation Loop
-for i in 1:simulationTime
 
-    # Get Macroscopic values
-    global densityGrid = sum(distributions, dims=3);
-    velocityX .= (1 ./ densityGrid) .* sum(distributions.*velocity_vector_x, dims=3); 
-    velocityY .= (1 ./ densityGrid) .* sum(distributions.*velocity_vector_y, dims=3); 
-
-    ## Apply Collision
-    # Compute equilibrium state
-    dotprod_velocities .= (velocity_vector_x .* velocityX) .+ (velocity_vector_y .* velocityY);
-    distributions_equilibrium .= weights .* densityGrid .*(1 .+ 3 .*dotprod_velocities .+ 4.5 .*dotprod_velocities.^2 .- 1.5 .*(velocityX.^2 .+ velocityY.^2));
-    # Relax towards equilibrium
-    distributions .+= -(1/τ) .* (distributions .- distributions_equilibrium);
-
-    # Stream 
-    for j in 1:Q
-        distributions[:,:,j] = circshift(distributions[:,:,j], (velocity_vector_x[j], velocity_vector_y[j]))
-    end
-
-    ## Apply Boundary conditions
-    #Inlet velocity bc (unknown: f_1, f_8, f_9)
-    densityGrid[inlet, :] .= (sum(distributions[inlet, [1,3,5]], dims=2).+ 2 .*sum(distributions[inlet, [2,6,7]], dims=2)) ./ (1-lattice_inflow_velocity)
-    distributions[inlet, 4] .= distributions[inlet, 2] .+ (2/3 .* densityGrid[inlet,:] .* lattice_inflow_velocity)
-    distributions[inlet, 8] .= distributions[inlet, 6] .+ (1/6 .* densityGrid[inlet,:] .* lattice_inflow_velocity) .- (1/2 .* (distributions[inlet, 3] .- distributions[inlet, 5]))
-    distributions[inlet, 9] .= distributions[inlet, 7] .+ (1/6 .* densityGrid[inlet,:] .* lattice_inflow_velocity) .+ (1/2 .* (distributions[inlet, 3] .- distributions[inlet, 5]))
+Run_Simulation!(simulation, fluid, grid, mutable_grid, object, boundary_conditions)
 
 
-    #Outlet zero gradient bc
-    distributions[outlet, [4, 8, 9]] .= distributions[gridlengthX-1, :, [4, 8, 9]]
 
-    #No Slip Walls
-    distributions[walls, 1:Q] .= distributions[walls, [1,4,5,2,3,8,9,6,7]];
-
-    # Apply object boundary condition
-    distributions[cylinder, 1:Q] .= distributions[cylinder, [1,4,5,2,3,8,9,6,7]];
-
-        # Plot of the field
-        if ((i % 10 == 0)) || (i == simulationTime)
-            # Set velocities inside the cylinder to zero
-            velocityX[cylinder] .= NaN
-            velocityY[cylinder] .= NaN
-
-            # Compute vorticity
-            fill!(vorticity, 0.0)
-            dv_dx = circshift(velocityY, (-1, 0)) .- circshift(velocityY, (1, 0))
-            du_dy = circshift(velocityX, (0, -1)) .- circshift(velocityX, (0, 1))
-            vorticity .= dv_dx .- du_dy
-            vorticity[inlet] .= 0.0
-            vorticity[outlet] .= 0.0
-
-            # Mask the cylinder region
-            vorticity[cylinder] .= NaN
-
-            if ((i % 100 == 0)) || (i == simulationTime)
-                Log_Simulation_Runtime(i, simulationTime)
-            end
-            # Update the observables
-            if Plotvorticity==true 
-                vorticity_obs[] = copy(vorticity) 
-                step_text[] = "Time step: $i, $(floor(Int, i*delta_t))s"
-            end
-            if Plotvx==true 
-                velocityX_obs[] = copy(velocityX) 
-                step_text_vx[] = "Time step: $i, $(floor(Int, i*delta_t))s"
-            end
-            if Plotvy==true 
-                velocityY_obs[] = copy(velocityY) 
-                step_text_vy[] = "Time step: $i, $(floor(Int, i*delta_t))s"
-            end
-
-            yield()
-            sleep(0.05)
-        end
+Log_Simulation_Tail()
 
 end
-=#
-Log_Simulation_Tail()

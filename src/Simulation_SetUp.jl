@@ -6,6 +6,7 @@ export Set_Simulation_Params, Create_Grid, Initialize_Distributions, Simulation_
     struct Simulation_Params
         delta_x::Real;
         delta_t::Real;
+        τ::Real;
         time_steps::Int64;
         gridlengthX::Int64;
         gridlengthY::Int64;
@@ -40,6 +41,7 @@ export Set_Simulation_Params, Create_Grid, Initialize_Distributions, Simulation_
         velocityX::Matrix{Float64}
         velocityY::Matrix{Float64}
         dotprod_velocity::Array{Float64, 3}
+        vorticity::Matrix{Float64}
     end#Mutable_Grid
 
 #Functions
@@ -65,7 +67,7 @@ export Set_Simulation_Params, Create_Grid, Initialize_Distributions, Simulation_
         weights =   reshape(weights,1,1,Q);
 
 
-        simulation = Simulation_Params(delta_x, delta_t, time_steps, gridlengthX, gridlengthY, Q, velocity_vector_x, velocity_vector_y, weights);
+        simulation = Simulation_Params(delta_x, delta_t, τ, time_steps, gridlengthX, gridlengthY, Q, velocity_vector_x, velocity_vector_y, weights);
         fluid      = Fluid(config.Kinematic_Viscosity, config.Fluid_Density, config.Inflow_Velocity, fluiddensity, lattice_inflow_velocity, lattice_viscosity);
         
         return simulation, fluid
@@ -129,7 +131,10 @@ export Set_Simulation_Params, Create_Grid, Initialize_Distributions, Simulation_
         # Initialise dotproduct array 
         dotprod_velocities = zeros(gridlengthX, gridlengthY, Q);
 
-        mutable_grid = Mutable_Grid(distributions, distributions_equilibrium, densityGrid, velocityX, velocityY, dotprod_velocities)
+        # Initialise vorticity matrix
+        vorticity   = zeros(gridlengthX, gridlengthY);
+
+        mutable_grid = Mutable_Grid(distributions, distributions_equilibrium, densityGrid, velocityX, velocityY, dotprod_velocities, vorticity)
 
         return mutable_grid
 
