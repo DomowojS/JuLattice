@@ -1,5 +1,6 @@
 module Boundary_Conditions_SetUp
-export Create_Boundary_Conditions
+using ..ConfigReader, ..Simulation_SetUp, ..Object_SetUp
+export Create_Boundary_Conditions, NoSlip, Velocity, ZeroGradient
 
     #Types
     abstract type BoundaryCondition end
@@ -20,7 +21,7 @@ export Create_Boundary_Conditions
     end
 
     #Functions
-    function Create_Boundary_Conditions(config, fluid, object)
+    function Create_Boundary_Conditions(config::Config, fluid::Fluid, object::Geometry)
         # Merge all conditions to one tuple
         boundary_conditions = NamedTuple()
 
@@ -29,7 +30,7 @@ export Create_Boundary_Conditions
         return boundary_conditions
     end#Create_Boundary_Conditions
 
-    function BC_for_DomainWalls(boundary_conditions, config, fluid)
+    function BC_for_DomainWalls(boundary_conditions, config::Config, fluid::Fluid)
         i=0
         for key in [:Left_BC, :Right_BC, :Top_BC, :Bottom_BC]
             i += 1
@@ -57,7 +58,7 @@ export Create_Boundary_Conditions
         end
     end#BC_for_DomainWalls
 
-    function BC_for_Object(boundary_conditions, object)
+    function BC_for_Object(boundary_conditions, object::Geometry)
         if object.Type != "none"
             instance = NoSlip("NoSlip")
             boundary_conditions = merge(boundary_conditions, NamedTuple{(:Object,)}((instance,)))

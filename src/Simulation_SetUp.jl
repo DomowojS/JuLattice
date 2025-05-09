@@ -1,5 +1,5 @@
 module Simulation_SetUp
-using MeshGrid
+using MeshGrid, ..ConfigReader
 export Set_Simulation_Params, Create_Grid, Initialize_Distributions, Simulation_Params, Simulation_Params, Fluid, Grid, Mutable_Grid
 
 #Structs
@@ -45,7 +45,7 @@ export Set_Simulation_Params, Create_Grid, Initialize_Distributions, Simulation_
     end#Mutable_Grid
 
 #Functions
-    function Set_Simulation_Params(config)
+    function Set_Simulation_Params(config::Config)
         #Fixed values and read from config
         delta_x = config.delta_x 
         τ       = config.τ

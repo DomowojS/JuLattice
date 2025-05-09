@@ -1,5 +1,5 @@
 module ConfigReader
-export ReadConfig, Verification
+export ReadConfig, Verification, Config
 
 #Struct
 struct Config

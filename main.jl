@@ -99,7 +99,7 @@ boundary_conditions = Create_Boundary_Conditions(config, fluid, object)
 
 #Log 
 Log_Discretization_Settings(simulation.delta_x, simulation.delta_t, object.lattice_Reynolds, grid.gridX, )
-
+#=
 ## Plot Stuff to be moved 
 if any((Plotvorticity, Plotvx, Plotvy))
     if Plotvorticity==true 
@@ -124,7 +124,7 @@ println("Starting Simulation:")
 
 Run_Simulation!(simulation, fluid, grid, mutable_grid, object, boundary_conditions)
 
-
+=#
 
 Log_Simulation_Tail()
 

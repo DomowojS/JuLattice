@@ -1,5 +1,6 @@
 module Object_SetUp
-export Create_Object, Cylinder, Rectangle, none
+using ..ConfigReader, ..Simulation_SetUp
+export Create_Object, Geometry, Cylinder, Rectangle, none
 
     #Types
     abstract type Geometry end
@@ -36,7 +37,7 @@ export Create_Object, Cylinder, Rectangle, none
 
 
     #Object definitions
-    function Create_Object(config, simulation, fluid, grid)
+    function Create_Object(config::Config, simulation::Simulation_Params, fluid::Fluid, grid::Grid)
         if isdefined(config, :Object_Type)
             type = config.Object_Type
                 if type == "Cylinder"
@@ -77,7 +78,7 @@ export Create_Object, Cylinder, Rectangle, none
         return (Type="Rectangle", Width=lattice_width, Height=lattice_height, Angle=object.Angle, Position=lattice_position)
     end#Convert_to_Lattice_Units
 
-    function Set_Object_Mask(grid, lattice_dimensions::NamedTuple{(:Type, :Radius, :Position)})
+    function Set_Object_Mask(grid::Grid, lattice_dimensions::NamedTuple{(:Type, :Radius, :Position)})
         gridX = grid.gridX
         gridY = grid.gridY
         Radius     = lattice_dimensions.Radius
@@ -87,7 +88,7 @@ export Create_Object, Cylinder, Rectangle, none
         return (gridX.-Position_X).^2 + (gridY.-Position_Y).^2 .< Radius.^2;
     end#Set_Object_Mask
 
-    function Set_Object_Mask(grid, lattice_dimensions::NamedTuple{(:Type, :Width, :Height, :Angle, :Position)})
+    function Set_Object_Mask(grid::Grid, lattice_dimensions::NamedTuple{(:Type, :Width, :Height, :Angle, :Position)})
         gridX = grid.gridX
         gridY = grid.gridY        
         Width     = lattice_dimensions.Width
@@ -110,12 +111,12 @@ export Create_Object, Cylinder, Rectangle, none
 
     end#Set_Object_Mask
 
-    function Set_Object_Mask(grid, lattice_dimensions::Nothing)
+    function Set_Object_Mask(grid::Grid, lattice_dimensions::Nothing)
         gridX = grid.gridX
         return falses(gridX)
     end#Set_Object_Mask
 
-    function Compute_Reynolds_Number(grid, fluid, lattice_dimensions::NamedTuple{(:Type, :Radius, :Position)})      
+    function Compute_Reynolds_Number(grid::Grid, fluid::Fluid, lattice_dimensions::NamedTuple{(:Type, :Radius, :Position)})      
         lattice_inflow_velocity = fluid.lattice_inflow_velocity
         lattice_viscosity = fluid.lattice_viscosity
         Characteristic_Length = lattice_dimensions.Radius
@@ -125,7 +126,7 @@ export Create_Object, Cylinder, Rectangle, none
         return lattice_Reynolds
     end#Compute_Reynolds_Number
 
-    function Compute_Reynolds_Number(grid, fluid, lattice_dimensions::NamedTuple{(:Type, :Width, :Height, :Angle, :Position)})
+    function Compute_Reynolds_Number(grid::Grid, fluid::Fluid, lattice_dimensions::NamedTuple{(:Type, :Width, :Height, :Angle, :Position)})
         gridY = grid.gridY
 
         lattice_inflow_velocity = fluid.lattice_inflow_velocity
@@ -137,7 +138,7 @@ export Create_Object, Cylinder, Rectangle, none
         return lattice_Reynolds
     end#Compute_Reynolds_Number
 
-    function Compute_Reynolds_Number(grid, fluid, lattice_dimensions::Nothing)
+    function Compute_Reynolds_Number(grid::Grid, fluid::Fluid, lattice_dimensions::Nothing)
         gridY = grid.gridY
 
         lattice_inflow_velocity = fluid.lattice_inflow_velocity
