@@ -1,7 +1,8 @@
 module SimulationCore
+using ..ConfigReader, .. Simulation_SetUp, ..Object_SetUp, ..Boundary_Conditions_SetUp
 export Run_Simulation
 
-function Run_Simulation(simulation, fluid, grid, mutable_grid, object, boundary_conditions)
+function Run_Simulation(simulation::Simulation_Params, fluid::Fluid, grid::Grid, mutable_grid::Mutable_Grid, object::Geometry, boundary_conditions)
     time_steps = simulation.time_steps
     τ = simulation.τ
     velocity_vector_x = simulation.velocity_vector_x
@@ -72,7 +73,7 @@ function Run_Simulation(simulation, fluid, grid, mutable_grid, object, boundary_
 
     end#Run_Simulation
 
-    function Get_Macroscopic_Values!(simulation, mutable_grid)
+    function Get_Macroscopic_Values!(simulation::Simulation_Params, mutable_grid::Mutable_Grid)
         # Assign pointers
         velocity_vector_x = simulation.velocity_vector_x
         velocity_vector_y = simulation.velocity_vector_y
@@ -86,7 +87,7 @@ function Run_Simulation(simulation, fluid, grid, mutable_grid, object, boundary_
         mutable_grid.velocityY .= (1 ./ mutable_grid.densityGrid) .* sum(distributions.*velocity_vector_y, dims=3); 
     end#Get_Macroscopic_Values
 
-    function Apply_Collision!(simulation, mutable_grid)
+    function Apply_Collision!(simulation::Simulation_Params, mutable_grid::Mutable_Grid)
         # Assign pointers
         densityGrid = mutable_grid.densityGrid
         distributions = mutable_grid.distributions
@@ -105,7 +106,7 @@ function Run_Simulation(simulation, fluid, grid, mutable_grid, object, boundary_
         mutable_grid.distributions .+= -(1/τ) .* (distributions .- mutable_grid.distributions_equilibrium);
     end#Apply_Collision
 
-    function Stream!(simulation, mutable_grid)
+    function Stream!(simulation::Simulation_Params, mutable_grid::Mutable_Grid)
         #Assign pointers
         velocity_vector_x = simulation.velocity_vector_x
         velocity_vector_y = simulation.velocity_vector_y
@@ -117,27 +118,20 @@ function Run_Simulation(simulation, fluid, grid, mutable_grid, object, boundary_
     
     end#Stream
 
-    function Apply_Boundary_Conditions!(simulation, mutable_grid, grid, object, boundary_conditions)
+    function Apply_Boundary_Conditions!(simulation::Simulation_Params, mutable_grid::Mutable_Grid, grid::Grid, object::Geometry, boundary_conditions)
 
-        if isdefined(boundary_condition, :Left)
+        for side in (:Left, :Right, :Top, :Bottom, :Object)
+            if side == :Object
+                mask = object.mask
+            else
+                mask = getproperty(grid, Symbol(string(side), "_Boundary"))
+            end
 
+            if isdefined(boundary_conditions, side)
+                Boundary_Condition!(mutable_grid, mask, boundary_conditions[side])
+            end
         end
 
-        if isdefined(boundary_condition, :Right)
-
-        end
-
-        if isdefined(boundary_condition, :Top)
-
-        end
-
-        if isdefined(boundary_condition, :Bottom)
-
-        end
-
-        if isdefined(boundary_condition, :Object)
-            Boundary_Condition!(mutable_grid, object)
-        end
         ## Apply Boundary conditions
         #Inlet velocity bc (unknown: f_1, f_8, f_9)
         densityGrid[inlet, :] .= (sum(distributions[inlet, [1,3,5]], dims=2).+ 2 .*sum(distributions[inlet, [2,6,7]], dims=2)) ./ (1-lattice_inflow_velocity)
@@ -145,19 +139,40 @@ function Run_Simulation(simulation, fluid, grid, mutable_grid, object, boundary_
         distributions[inlet, 8] .= distributions[inlet, 6] .+ (1/6 .* densityGrid[inlet,:] .* lattice_inflow_velocity) .- (1/2 .* (distributions[inlet, 3] .- distributions[inlet, 5]))
         distributions[inlet, 9] .= distributions[inlet, 7] .+ (1/6 .* densityGrid[inlet,:] .* lattice_inflow_velocity) .+ (1/2 .* (distributions[inlet, 3] .- distributions[inlet, 5]))
 
-
-        #Outlet zero gradient bc
-        distributions[outlet, [4, 8, 9]] .= distributions[gridlengthX-1, :, [4, 8, 9]]
-
-        #No Slip Walls
-        distributions[walls, 1:Q] .= distributions[walls, [1,4,5,2,3,8,9,6,7]];
-
-        # Apply object boundary condition
-        distributions[cylinder, 1:Q] .= distributions[cylinder, [1,4,5,2,3,8,9,6,7]];
-
     end#Apply_Boundary_Conditions
 
-    Boundary_Condition(mutable_grid, object::Object)
+    function Boundary_Condition!(mutable_grid::Mutable_Grid, mask::BitMatrix, type::NoSlip)
+        mutable_grid.distributions[mask, 1:Q] .= mutable_grid.distributions[mask, [1,4,5,2,3,8,9,6,7]];
+    end#Boundary_Condition
 
+    function Boundary_Condition!(mutable_grid::Mutable_Grid, mask::BitMatrix, object::Geometry, type::Velocity)
+
+    end#Boundary_Condition
+
+    function Boundary_Condition!(mutable_grid::Mutable_Grid, mask::BitMatrix, object::Geometry, type::Velocity)
+
+    end#Boundary_Condition
+    function Boundary_Condition!(mutable_grid::Mutable_Grid, mask::BitMatrix, object::Geometry, type::Velocity)
+
+    end#Boundary_Condition
+
+    function Boundary_Condition!(mutable_grid::Mutable_Grid, mask::BitMatrix, object::Geometry, type::Velocity)
+
+    end#Boundary_Condition
+
+    function Boundary_Condition!(mutable_grid::Mutable_Grid, mask::BitMatrix, object::Geometry, type::ZeroGradient)
+        distributions[mask, [4, 8, 9]] .= distributions[gridlengthX-1, :, [4, 8, 9]]
+    end#Boundary_Condition
+
+    function Boundary_Condition!(mutable_grid::Mutable_Grid, mask::BitMatrix, object::Geometry, type::ZeroGradient)
+
+    end#Boundary_Condition
+
+    function Boundary_Condition!(mutable_grid::Mutable_Grid, mask::BitMatrix, object::Geometry, type::ZeroGradient)
+
+    end#Boundary_Condition
+
+    function Boundary_Condition!(mutable_grid::Mutable_Grid, mask::BitMatrix, object::Geometry, type::ZeroGradient)
+    end#Boundary_Condition
 
 end#SimulationCore
