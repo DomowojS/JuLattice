@@ -18,6 +18,11 @@ export Log_Simulation_Runtime, Log_Discretization_Settings, Log_Simulation_Heade
         println("#############################")
     end#Log_Simulation_Header
 
+    function Log_Simulation_Start()
+        println("#################################")
+        println("Starting Simulation:")
+    end#Log_Simuation_Start
+
     function Log_Simulation_Tail()
         println("Simulation finished.")
         println("#############################")

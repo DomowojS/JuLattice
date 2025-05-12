@@ -98,7 +98,7 @@ export Create_Plot, Set_Up_Figures, Update_Figures!
     end#Plot_vx
 
 ## Update Plot
-    function Update_Figures!(config::Config, simulation::Simulation_Params, mutable_grid::Mutable_Grid, object::Geometry, plot_data::Dict{Symbol, Any}, i, time_steps)
+    function Update_Figures!(config::Config, simulation::Simulation_Params, mutable_grid::Mutable_Grid, object::Union{Cylinder, Rectangle}, plot_data::Dict{Symbol, Any}, i, time_steps)
             mutable_grid.velocityX[object.mask] .= NaN
             mutable_grid.velocityY[object.mask] .= NaN
             mutable_grid.vorticity[object.mask] .= NaN
@@ -125,6 +125,31 @@ export Create_Plot, Set_Up_Figures, Update_Figures!
             yield()
             sleep(0.05)
     end#Update_Figures
+
+    function Update_Figures!(config::Config, simulation::Simulation_Params, mutable_grid::Mutable_Grid, object::none, plot_data::Dict{Symbol, Any}, i, time_steps)
+
+        if ((i % 100 == 0)) || (i == time_steps)
+            Log_Simulation_Runtime(i, time_steps)
+        end
+
+        # Update the observables
+        if config.Plotvorticity
+            Compute_Vorticity!(mutable_grid)            
+            plot_data[:vorticity_obs][] = mutable_grid.vorticity
+            plot_data[:step_text_vorticity][] = "Time step: $i, $(floor(Int, i*simulation.delta_t))s"
+        end
+        if config.Plotvx 
+            plot_data[:velocityX_obs][] = mutable_grid.velocityX
+            plot_data[:step_text_vx][] = "Time step: $i, $(floor(Int, i*simulation.delta_t))s"
+        end
+        if config.Plotvy 
+            plot_data[:velocityY_obs][] = mutable_grid.velocityY 
+            plot_data[:step_text_vy][] = "Time step: $i, $(floor(Int, i*simulation.delta_t))s"
+        end
+
+        yield()
+        sleep(0.05)
+end#Update_Figures
 
     #Computations for plots
     function Compute_Vorticity!(mutable_grid::Mutable_Grid)
