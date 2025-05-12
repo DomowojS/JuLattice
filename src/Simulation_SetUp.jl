@@ -34,7 +34,7 @@ export Set_Simulation_Params, Create_Grid, Initialize_Distributions, Simulation_
         Bottom_Boundary::BitMatrix
     end#Grid
 
-    struct Mutable_Grid
+    mutable struct Mutable_Grid
         distributions::Array{Float64, 3}
         distributions_equilibrium::Array{Float64, 3}
         densityGrid::Array{Float64, 3}
