@@ -50,7 +50,7 @@ export Create_Object, Geometry, Cylinder, Rectangle, none
             lattice_dimensions = Convert_to_Lattice_Units(simulation.delta_x, object)
         else
             lattice_dimensions = nothing
-            info("No Object in flow specified")
+            @info "Nothing in flow skipping object set-up"
         end
 
         mask = Set_Object_Mask(grid, lattice_dimensions)

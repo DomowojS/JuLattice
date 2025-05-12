@@ -1,5 +1,4 @@
 module JuLattice
-
     ############################
     ## Main file for JuLattice #
     ############################
@@ -12,10 +11,13 @@ module JuLattice
     include("src/SimulationCore.jl")
 
 
-    using Revise, GLMakie
+    using Revise
     using .Logger, .ConfigReader, .Simulation_SetUp, .Object_SetUp, .Boundary_Conditions_SetUp, .Plotter, .SimulationCore
 
-    function run()
+    function run(json_path::String)
+
+        config = Read_Config_From_JSON(json_path)
+
         ## User Settings
         # Domain Settings
         length_X = 4;              # m
@@ -74,18 +76,10 @@ module JuLattice
             end
         end
 
-        ### Verify User Input ###
-        Verification(length_X, length_Y, Object, Radius, Position, Fluid_Density, Inflow_Velocity, 
-        Kinematic_Viscosity, Simulation_Time, delta_x, τ, 
-        Left_BC, Right_BC, Top_BC, Bottom_BC, Left_BC_Velocity, Right_BC_Velocity, Top_BC_Velocity, Bottom_BC_Velocity, 
-        Plotvx, Plotvy, Plotvorticity)
-
         config = ReadConfig(length_X, length_Y, Object, Radius, Position, Fluid_Density, Inflow_Velocity, 
                             Kinematic_Viscosity, Simulation_Time, delta_x, τ, 
                             Left_BC, Right_BC, Top_BC, Bottom_BC, Left_BC_Velocity, Right_BC_Velocity, Top_BC_Velocity, Bottom_BC_Velocity, 
                             Plotvx, Plotvy, Plotvorticity)
-
-
 
         Log_Simulation_Header()
 
