@@ -98,7 +98,7 @@ object              = Create_Object(config, simulation, fluid, grid)
 boundary_conditions = Create_Boundary_Conditions(config, fluid, object)
 
 #Log 
-Log_Discretization_Settings(simulation.delta_x, simulation.delta_t, object.lattice_Reynolds, grid.gridX, )
+Log_Discretization_Settings(simulation.delta_x, simulation.delta_t, object.lattice_Reynolds, grid.gridX)
 #=
 ## Plot Stuff to be moved 
 if any((Plotvorticity, Plotvx, Plotvy))
