@@ -1,5 +1,5 @@
 module Logger
-export Log_Simulation_Runtime, Log_Discretization_Settings, Log_Simulation_Header, Log_Simulation_Tail
+export Log_Simulation_Runtime, Log_Discretization_Settings, Log_Simulation_Header, Log_Simulation_Tail, Log_Simulation_Start
 
     function Log_Simulation_Runtime(i::Int64, simulationTime::Int64)
         println("Time Step: $i / $simulationTime")

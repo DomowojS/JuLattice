@@ -38,7 +38,7 @@ export Create_Object, Geometry, Cylinder, Rectangle, none
 
     #Object definitions
     function Create_Object(config::Config, simulation::Simulation_Params, fluid::Fluid, grid::Grid)
-        if isdefined(config, :Object_Type)
+        if config.Object_Type in ["Cylinder", "Rectangle"]
             type = config.Object_Type
                 if type == "Cylinder"
                     object = Cylinder(Type="Cylinder", Radius=config.Object_Radius, Position=config.Object_Position)
@@ -50,7 +50,6 @@ export Create_Object, Geometry, Cylinder, Rectangle, none
             lattice_dimensions = Convert_to_Lattice_Units(simulation.delta_x, object)
         else
             lattice_dimensions = nothing
-            @info "Nothing in flow skipping object set-up"
         end
 
         mask = Set_Object_Mask(grid, lattice_dimensions)

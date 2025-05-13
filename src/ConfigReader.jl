@@ -1,34 +1,37 @@
 module ConfigReader
 using JSON
-export ReadConfig, Verification, Config, Read_Config_From_JSON
+export Config, Create_Config_From_JSON
 
-#Type
-abstract type ConfigGroup end
+    #Type
+    abstract type ConfigGroup end
 
-#Struct
-struct Config
-    length_X::Real; 
-    length_Y::Real; 
-    Object_Type::String; 
-    Object_Radius::Real; 
-    Object_Position::Vector{Real}; 
-    Fluid_Density::Real; Inflow_Velocity::Real; 
-    Kinematic_Viscosity::Real; 
-    Simulation_Time::Real; 
-    delta_x::Real; 
-    τ::Real; 
-    Left_BC::String; 
-    Right_BC::String;
-    Top_BC::String;
-    Bottom_BC::String;
-    Left_BC_Velocity::Real;
-    Right_BC_Velocity::Real;
-    Top_BC_Velocity::Real;
-    Bottom_BC_Velocity::Real;
-    Plotvx::Bool; 
-    Plotvy::Bool; 
-    Plotvorticity::Bool;
-end#config
+    #Struct
+    struct Config
+        length_X::Real; 
+        length_Y::Real; 
+        Object_Type::String; 
+        Object_Radius::Real;
+        Object_Width::Real;
+        Object_Height::Real;
+        Object_Angle::Real; 
+        Object_Position::Vector{Real}; 
+        Fluid_Density::Real; Inflow_Velocity::Real; 
+        Kinematic_Viscosity::Real; 
+        Simulation_Time::Real; 
+        delta_x::Real; 
+        τ::Real; 
+        Left_BC::String; 
+        Right_BC::String;
+        Top_BC::String;
+        Bottom_BC::String;
+        Left_BC_Velocity::Real;
+        Right_BC_Velocity::Real;
+        Top_BC_Velocity::Real;
+        Bottom_BC_Velocity::Real;
+        Plotvx::Bool; 
+        Plotvy::Bool; 
+        Plotvorticity::Bool;
+    end#config
 
     struct Config_Domain <: ConfigGroup
         data::Dict{String, Any}
@@ -54,41 +57,201 @@ end#config
         data::Dict{String, Any}
     end
 
+    function Create_Config_From_JSON(json_path::String)
+        config_dictionary = Read_Config_From_JSON(json_path)
 
+        config_struct     = Create_Struct_From_Dict(config_dictionary)
+
+        return config_struct
+
+    end#Create_Config_From_JSON
+    
     function Read_Config_From_JSON(json_path::String)
         config_data = JSON.parsefile(json_path)
-
+        config_objects = Dict{Symbol, Any}()
+    
         # Required groups
-        for (key, constructor, name) in [
-            ("domain",      Config_Domain,      "Domain"),
-            ("fluid",       Config_Fluid,       "Fluid"),
-            ("simulation",  Config_Simulation,  "Simulation")
-            ]
-            if haskey(config_data, key)
-                @eval $(Symbol(key)) = $constructor(config_data[$key])
-                Verify_Settings(@eval $(Symbol(s)))
+        required_configs = [
+            (:domain, Config_Domain, "domain"),
+            (:fluid, Config_Fluid, "fluid"),
+            (:simulation, Config_Simulation, "simulation")
+        ]
+    
+        for (key, constructor, name) in required_configs
+            if haskey(config_data, name)
+                config_objects[key] = constructor(config_data[name])
+                Verify_Settings(config_objects[key])
             else
-                error("$name not defined as own group '$key' in JSON file")
+                error("$name not defined as own group in JSON file")
             end
         end
-
+    
         # Optional groups
-        for (key, constructor, name) in [
-            ("object",             Config_Object, "Object"),
-            ("boundary_conditions", Config_BC,    "Boundary Conditions"),
-            ("plotting",           Config_Plot,   "Plotting")
-            ]   
-            if haskey(config_data, key)
-                @eval $(Symbol(key)) = $constructor(config_data[$key])
-                Verify_Settings(@eval $(Symbol(s)))
+        optional_configs = [
+            (:object, Config_Object, "Object"),
+            (:boundary_conditions, Config_BC, "Boundary Conditions"),
+            (:plotting, Config_Plot, "Plotting")
+        ]
+    
+        for (key, constructor, name) in optional_configs
+            string_key = String(key)
+            if haskey(config_data, string_key)
+                config_objects[key] = constructor(config_data[string_key])
+                Verify_Settings(config_objects[key])
             else
                 @info "No $name defined in JSON file"
             end
         end
-
-        
-
+    
+        return config_objects
     end#Read_Config_From_JSON
+
+    function Create_Struct_From_Dict(config_dictionary::Dict{Symbol, Any})
+        
+        flattened_dictionary = Flatten_Dictionary(config_dictionary)
+        
+        config_struct = Struct_From_Dictionary(flattened_dictionary)
+
+        return config_struct
+
+    end#Create_Struct_From_Dict
+
+    function Flatten_Dictionary(config_dictionary::Dict{Symbol, Any})
+        defaults = Dict{String, Any}()
+
+        defaults = Dict(
+            :length_X => 1.0,
+            :length_Y => 1.0,
+            :Object_Type => "None",
+            :Object_Radius => 0.0,
+            :Object_Width => 0.0,
+            :Object_Height => 0.0,
+            :Object_Angle => 0.0,
+            :Object_Position => [0.0, 0.0],
+            :Fluid_Density => 1000.0,
+            :Inflow_Velocity => 0.0,
+            :Kinematic_Viscosity => 0.001,
+            :Simulation_Time => 1000,
+            :delta_x => 0.01,
+            :τ => 0.65,
+            :Left_BC => "NoSlip",
+            :Right_BC => "NoSlip",
+            :Top_BC => "NoSlip",
+            :Bottom_BC => "NoSlip",
+            :Left_BC_Velocity => 0.0,
+            :Right_BC_Velocity => 0.0,
+            :Top_BC_Velocity => 0.0,
+            :Bottom_BC_Velocity => 0.0,
+            :Plotvx => false,
+            :Plotvy => false,
+            :Plotvorticity => false
+        )
+
+        flattened_dictionary=copy(defaults)
+
+        mappings = Dict(
+            :domain => [
+                ("length_X", :length_X),
+                ("length_Y", :length_Y)
+            ],
+            :object => [
+                ("type", :Object_Type),
+                ("radius", :Object_Radius),
+                ("width", :Object_Width),
+                ("height", :Object_Height),
+                ("rotation", :Object_Angle),
+                ("position", :Object_Position)
+            ],
+            :fluid => [
+                ("density", :Fluid_Density),
+                ("inflow_velocity", :Inflow_Velocity),
+                ("kinematic_viscosity", :Kinematic_Viscosity)
+            ],
+            :simulation => [
+                ("time", :Simulation_Time),
+                ("delta_x", :delta_x),
+                ("τ", :τ)
+            ],
+            :plotting => [
+                ("velocity_x", :Plotvx),
+                ("velocity_y", :Plotvy),
+                ("vorticity", :Plotvorticity)
+            ]
+        )
+        
+        # Process mappings for each section
+        for (section, keymap) in mappings
+            if haskey(config_dictionary, section)
+                section_data = config_dictionary[section].data
+                for (source_key, target_key) in keymap
+                    if haskey(section_data, source_key)
+                        flattened_dictionary[target_key] = section_data[source_key]
+                    end
+                end
+            end
+        end
+        
+        # Special handling for boundary conditions because of its nested structure
+        if haskey(config_dictionary, :boundary_conditions)
+            bc_data = config_dictionary[:boundary_conditions].data
+            
+            # Process each boundary (left, right, top, bottom)
+            for (boundary, value) in bc_data
+                # Capitalize first letter of boundary name (e.g., "left" -> "Left")
+                boundary_prefix = uppercase(first(boundary)) * lowercase(boundary[2:end])
+                
+                # Handle boundary type
+                if haskey(value, "type")
+                    bc_key = Symbol(boundary_prefix * "_BC")
+                    flattened_dictionary[bc_key] = value["type"]
+                end
+                
+                # Handle velocity if present
+                if haskey(value, "velocity")
+                    velocity_key = Symbol(boundary_prefix * "_BC_Velocity")
+                    flattened_dictionary[velocity_key] = value["velocity"]
+                end
+            end
+        end
+        
+        return flattened_dictionary
+
+    end#Flatten_Dictionary
+
+    function Struct_From_Dictionary(flattened_dictionary::Dict{Symbol, Any})
+        dict = flattened_dictionary
+
+        config = Config(
+            dict[:length_X],
+            dict[:length_Y],
+            dict[:Object_Type],
+            dict[:Object_Radius],
+            dict[:Object_Width],
+            dict[:Object_Height],
+            dict[:Object_Angle],
+            dict[:Object_Position],
+            dict[:Fluid_Density],
+            dict[:Inflow_Velocity],
+            dict[:Kinematic_Viscosity],
+            dict[:Simulation_Time],
+            dict[:delta_x],
+            dict[:τ],
+            dict[:Left_BC],
+            dict[:Right_BC],
+            dict[:Top_BC],
+            dict[:Bottom_BC],
+            dict[:Left_BC_Velocity],
+            dict[:Right_BC_Velocity],
+            dict[:Top_BC_Velocity],
+            dict[:Bottom_BC_Velocity],
+            dict[:Plotvx],
+            dict[:Plotvy],
+            dict[:Plotvorticity]
+        )
+        
+        return config
+
+    end#Struct_From_Dictionary
 
     function Verify_Settings(domain::Config_Domain)
         for key in ["length_X", "length_Y"]
@@ -114,23 +277,23 @@ end#config
         obj_type = data["type"]
 
         if obj_type == "Cylinder"
-            required_keys = ["Radius", "Position"]
+            required_keys = ["radius", "position"]
             for key in required_keys
                 if !haskey(data, key)
                     error("Cylinder object must define '$key'")
                 end
             end
 
-            radius = data["Radius"]
-            position = data["Position"]
+            radius = data["radius"]
+            position = data["position"]
 
             if !(isa(radius, Real) && radius > 0)
-                error("'Radius' must be a positive real number.")
+                error("'radius' must be a positive real number.")
             end
 
             if !(isa(position, AbstractVector) && length(position) == 2 &&
                 all(x -> isa(x, Real) && x > 0, position))
-                error("'Position' must be a vector of two positive real numbers.")
+                error("'position' must be a vector of two positive real numbers.")
             end
 
         elseif obj_type == "Rectangle"
@@ -157,7 +320,7 @@ end#config
             end
             if !(isa(position, AbstractVector) && length(position) == 2 &&
                 all(x -> isa(x, Real) && x > 0, position))
-                error("'Position' must be a vector of two positive real numbers.")
+                error("'position' must be a vector of two positive real numbers.")
             end
 
         else
@@ -172,7 +335,9 @@ end#config
                 error("Fluid object must define '$key'")
             end    
             
-            if !(isa(key, Real) && radius > 0)
+            val = fluid.data[key]
+
+            if !(isa(val, Real) && val > 0)
             error("'$key' must be a positive real number.")
             end
         end
@@ -189,41 +354,43 @@ end#config
                 error("Simulation object must define '$key'")
             end    
             
-            if !(isa(key, Real) && radius > 0)
+            val = simulation.data[key]
+
+            if !(isa(val, Real) && val > 0)
             error("'$key' must be a positive real number.")
             end
         end
 
-        if simulation.data["τ"] < 0.6 || simulation.data[τ] > 1
+        if simulation.data["τ"] < 0.6 || simulation.data["τ"] > 1
             @warn "Recommended settings for relaxation time is 0.6 < τ < 1.0."
         end
 
     end#Verify_Settings
 
     function Verify_Settings(boundary_conditions::Config_BC)
-        for key in ["left", "right", "Top", "Bottom"]
+        for key in ["left", "right", "top", "bottom"]
             if !haskey(boundary_conditions.data, key)
                 @info "No boundary condition defined for $key side of the domain. Default: Periodic BC."
-            end
-
-            if boundary_conditions.data[key]["type"] == "Velocity" && !haskey(boundary_conditions.data[key], "velocity") 
-                error("No velocity defined for velocity boundary condition for $key side of the domain!")
-            end
-
-            allowed_types = ["Velocity", "ZeroGradient", "NoSlip"]
-            if boundary_conditions["data"][key]["type"] in allowed_types
-                # Valid type
             else
-                @warn "Invalid boundary condition type: $(boundary_conditions["data"][key]["type"]) for $key side of the domain.'"
-                @warn "Default, periodic BC will be used instead."
+                if boundary_conditions.data[key]["type"] == "Velocity" && !haskey(boundary_conditions.data[key], "velocity") 
+                    error("No velocity defined for velocity boundary condition for $key side of the domain!")
+                end
+    
+                allowed_types = ["Velocity", "ZeroGradient", "NoSlip"]
+                if boundary_conditions.data[key]["type"] in allowed_types
+                    # Valid type
+                else
+                    @warn "Invalid boundary condition type: $(boundary_conditions["data"][key]["type"]) for $key side of the domain.'"
+                    @warn "Default, periodic BC will be used instead."
+                end
             end
         end
     end#Verify_Settings
 
     function Verify_Settings(plot::Config_Plot)
-        plotcounter += 0
+        plotcounter = 0
 
-        for key in ["Velocity_x", "Velocity_y", "Vorticity"]
+        for key in ["velocity_x", "velocity_y", "vorticity"]
             if haskey(plot.data, key) && plot.data[key] == true
                 @info "$key will be plotted" 
             end
@@ -235,25 +402,10 @@ end#config
         end
     end#Verify_Settings
 
-
     function ReadConfig(length_X::Real, length_Y::Real, Object_Type::String, Object_Radius::Real, Position::Vector{Float64}, Fluid_Density::Real, Inflow_Velocity::Real, Kinematic_Viscosity::Real, Simulation_Time::Real, delta_x::Real, τ::Real, Left_BC::String, Right_BC::String, Top_BC::String, Bottom_BC::String, Left_BC_Velocity::Real, Right_BC_Velocity::Real, Top_BC_Velocity::Real, Bottom_BC_Velocity::Real, Plotvx::Bool, Plotvy::Bool, Plotvorticity::Bool)
         config = Config(length_X::Real, length_Y::Real, Object_Type::String, Object_Radius::Real, Position::Vector{Float64}, Fluid_Density::Real, Inflow_Velocity::Real, Kinematic_Viscosity::Real, Simulation_Time::Real, delta_x::Real, τ::Real, Left_BC::String, Right_BC::String, Top_BC::String, Bottom_BC::String, Left_BC_Velocity::Real, Right_BC_Velocity::Real, Top_BC_Velocity::Real, Bottom_BC_Velocity::Real, Plotvx::Bool, Plotvy::Bool, Plotvorticity::Bool)
     return config
 
     end#ReadConfig
-
-    function Verification(length_X::Real, length_Y::Real, Object_Type::String, Object_Radius::Real, Position::Vector{Float64}, Fluid_Density::Real, Inflow_Velocity::Real, Kinematic_Viscosity::Real, Simulation_Time::Real, delta_x::Real, τ::Real, Left_BC::String, Right_BC::String, Top_BC::String, Bottom_BC::String, Left_BC_Velocity::Real, Right_BC_Velocity::Real, Top_BC_Velocity::Real, Bottom_BC_Velocity::Real, Plotvx::Bool, Plotvy::Bool, Plotvorticity::Bool)
-        #Object
-            #Type Allowed? Rectangular/ Circular
-            #Right Settings for type? Radius Position ...
-            #Position within domain?
-                #-> Error if no, warning if close to domain
-            #Compute Reynolds number
-                #If above 100 warning 
-            #If no object --> Set object definition to 0 and print info
-        #τ --> If not between 0.6 and 2 warning. If above 1.0 warning.
-        #BC --> Copy from main file
-    end#Verification
-
 
 end#ConfigReader
