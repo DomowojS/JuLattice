@@ -51,31 +51,6 @@ module JuLattice
         Plotvy = false;
         Plotvorticity = true;
 
-        if !@isdefined Left_BC_Velocity
-            Left_BC_Velocity = 0
-            if Left_BC == "Velocity"
-            warning("Left BC defined as 'Velocity' but no value provided.")
-            end
-        end
-        if !@isdefined Right_BC_Velocity
-            Right_BC_Velocity = 0
-            if Right_BC == "Velocity"
-            warning("Right BC defined as 'Velocity' but no value provided.")
-            end 
-        end
-        if !@isdefined Top_BC_Velocity
-            Top_BC_Velocity = 0
-            if Top_BC == "Velocity"
-            warning("Top BC defined as 'Velocity' but no value provided.")
-            end
-        end
-        if !@isdefined Bottom_BC_Velocity
-            Bottom_BC_Velocity = 0
-            if Bottom_BC == "Velocity"
-            warning("Bottom BC defined as 'Velocity' but no value provided.")
-            end
-        end
-
         config = ReadConfig(length_X, length_Y, Object, Radius, Position, Fluid_Density, Inflow_Velocity, 
                             Kinematic_Viscosity, Simulation_Time, delta_x, τ, 
                             Left_BC, Right_BC, Top_BC, Bottom_BC, Left_BC_Velocity, Right_BC_Velocity, Top_BC_Velocity, Bottom_BC_Velocity, 

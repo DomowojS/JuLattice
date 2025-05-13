@@ -200,25 +200,25 @@ end#config
 
     end#Verify_Settings
 
-function Verify_Settings(boundary_conditions::Config_BC)
-    for key in ["left", "right", "Top", "Bottom"]
-        if !haskey(boundary_conditions.data, key)
-            @info "No boundary condition defined for $key side of the domain. Default: Periodic BC."
-        end
+    function Verify_Settings(boundary_conditions::Config_BC)
+        for key in ["left", "right", "Top", "Bottom"]
+            if !haskey(boundary_conditions.data, key)
+                @info "No boundary condition defined for $key side of the domain. Default: Periodic BC."
+            end
 
-        if boundary_conditions.data[key]["type"] == "Velocity" && !haskey(boundary_conditions.data[key], "velocity") 
-            error("No velocity defined for velocity boundary condition for $key side of the domain!")
-        end
+            if boundary_conditions.data[key]["type"] == "Velocity" && !haskey(boundary_conditions.data[key], "velocity") 
+                error("No velocity defined for velocity boundary condition for $key side of the domain!")
+            end
 
-        allowed_types = ["Velocity", "ZeroGradient", "NoSlip"]
-        if boundary_conditions["data"][key]["type"] in allowed_types
-            # Valid type
-        else
-            @warn "Invalid boundary condition type: $(boundary_conditions["data"][key]["type"]) for $key side of the domain.'"
-            @warn "Default, periodic BC will be used instead."
+            allowed_types = ["Velocity", "ZeroGradient", "NoSlip"]
+            if boundary_conditions["data"][key]["type"] in allowed_types
+                # Valid type
+            else
+                @warn "Invalid boundary condition type: $(boundary_conditions["data"][key]["type"]) for $key side of the domain.'"
+                @warn "Default, periodic BC will be used instead."
+            end
         end
-    end
-end#Verify_Settings
+    end#Verify_Settings
 
     function Verify_Settings(plot::Config_Plot)
         plotcounter += 0
