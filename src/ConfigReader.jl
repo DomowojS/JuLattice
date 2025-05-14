@@ -15,6 +15,7 @@ export Config, Create_Config_From_JSON
         Object_Height::Real;
         Object_Angle::Real; 
         Object_Position::Vector{Real}; 
+        Object_path_to_png::String;
         Fluid_Density::Real; Inflow_Velocity::Real; 
         Kinematic_Viscosity::Real; 
         Simulation_Time::Real; 
@@ -133,6 +134,7 @@ export Config, Create_Config_From_JSON
             :Object_Height => 0.0,
             :Object_Angle => 0.0,
             :Object_Position => [0.0, 0.0],
+            :Object_path_to_png =>"",
             :Fluid_Density => 1000.0,
             :Inflow_Velocity => 0.0,
             :Kinematic_Viscosity => 0.001,
@@ -165,7 +167,8 @@ export Config, Create_Config_From_JSON
                 ("width", :Object_Width),
                 ("height", :Object_Height),
                 ("rotation", :Object_Angle),
-                ("position", :Object_Position)
+                ("position", :Object_Position),
+                ("path_to_png", :Object_path_to_png)
             ],
             :fluid => [
                 ("density", :Fluid_Density),
@@ -235,6 +238,7 @@ export Config, Create_Config_From_JSON
             dict[:Object_Height],
             dict[:Object_Angle],
             dict[:Object_Position],
+            dict[:Object_path_to_png],
             dict[:Fluid_Density],
             dict[:Inflow_Velocity],
             dict[:Kinematic_Viscosity],
@@ -301,11 +305,11 @@ export Config, Create_Config_From_JSON
                 error("'position' must be a vector of two positive real numbers.")
             end
 
-        elseif obj_type == "Rectangle"
+        elseif obj_type == "Rectangle" || obj_type == "Custom"
             required_keys = ["width", "height", "position", "rotation"]
             for key in required_keys
                 if !haskey(data, key)
-                    error("Rectangle object must define '$key'")
+                    error("$obj_type object must define '$key'")
                 end
             end
 
@@ -327,9 +331,28 @@ export Config, Create_Config_From_JSON
                 all(x -> isa(x, Real) && x > 0, position))
                 error("'position' must be a vector of two positive real numbers.")
             end
+            if obj_type =="Custom"
+                if haskey(data, "path_to_png")
+                    png_path = data["path_to_png"]
+                    if isfile(png_path)
+                        # Check if the file is a PNG by examining extension
+                        if lowercase(splitext(png_path)[2]) == ".png"
+                            @info("Png $png_path will be used as object")
+                        else
+                            error("Specified file is not a PNG: $png_path")
+                            # Handle non-PNG file here
+                        end
+                    else
+                        error("Specified file does not exist: $png_path")
+                    end
+                else
+                    error("'path_to_png' not specified for custom object")
+                    # Handle missing key here
+                end
+            end
 
         else
-            @warn "Unsupported object type '$obj_type'. Only 'Cylinder' and 'Rectangle' are allowed. Object will be omitted."
+            @warn "Unsupported object type '$obj_type'. Only 'Cylinder' and 'Rectangle' or 'custom' are allowed. Object will be omitted."
         end
     end#Verify_Settings
 

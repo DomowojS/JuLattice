@@ -98,7 +98,7 @@ export Create_Plot, Set_Up_Figures, Update_Figures!
     end#Plot_vx
 
 ## Update Plot
-    function Update_Figures!(config::Config, simulation::Simulation_Params, mutable_grid::Mutable_Grid, object::Union{Cylinder, Rectangle}, plot_data::Dict{Symbol, Any}, i, time_steps)
+    function Update_Figures!(config::Config, simulation::Simulation_Params, mutable_grid::Mutable_Grid, object::Union{Cylinder, Rectangle, Custom}, plot_data::Dict{Symbol, Any}, i, time_steps)
             mutable_grid.velocityX[object.mask] .= NaN
             mutable_grid.velocityY[object.mask] .= NaN
             mutable_grid.vorticity[object.mask] .= NaN

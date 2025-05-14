@@ -117,7 +117,7 @@ export Set_Simulation_Params, Create_Grid, Initialize_Distributions, Simulation_
         
         # Initialize distributions arrays
         distributions = ones(gridlengthX, gridlengthY, Q) .+ 0.01*rand(gridlengthX, gridlengthY, Q);
-        distributions[:,:,4] .+= 2 .* (1 .+ 0.2 .* cos.(2 .* π .*gridX ./ gridlengthX .*4));
+        distributions[:,:,4] .+= 2 .* (0.1 .+ 0.2 .* cos.(2 .* π .*gridX ./ gridlengthX .*4));
         distributions_equilibrium = ones(gridlengthX, gridlengthY, Q);
 
         # Initialize density and scale distribution
