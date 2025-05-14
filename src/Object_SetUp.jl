@@ -115,7 +115,7 @@ export Create_Object, Geometry, Cylinder, Rectangle, none
         return falses(size(gridX))
     end#Set_Object_Mask
 
-    function Compute_Reynolds_Number(grid::Grid, fluid::Fluid, lattice_dimensions::NamedTuple{(:Type, :Radius, :Position)})      
+    function Compute_Reynolds_Number(grid::Grid, fluid::Fluid, lattice_dimensions::NamedTuple{(:Type, :Radius, :Position)}, mask::BitMatrix)      
         lattice_inflow_velocity = fluid.lattice_inflow_velocity
         lattice_viscosity = fluid.lattice_viscosity
         Characteristic_Length = lattice_dimensions.Radius
@@ -137,7 +137,7 @@ export Create_Object, Geometry, Cylinder, Rectangle, none
         return lattice_Reynolds
     end#Compute_Reynolds_Number
 
-    function Compute_Reynolds_Number(grid::Grid, fluid::Fluid, lattice_dimensions::Nothing)
+    function Compute_Reynolds_Number(grid::Grid, fluid::Fluid, lattice_dimensions::Nothing, mask::BitMatrix)
         gridY = grid.gridY
 
         lattice_inflow_velocity = fluid.lattice_inflow_velocity
