@@ -20,6 +20,7 @@ export Create_Boundary_Conditions, NoSlip, Velocity, ZeroGradient
         Type::String
     end
 
+
     #Functions
     function Create_Boundary_Conditions(config::Config, fluid::Fluid, object::Geometry)
         # Merge all conditions to one tuple
@@ -62,8 +63,8 @@ export Create_Boundary_Conditions, NoSlip, Velocity, ZeroGradient
         if object.Type != "none"
             instance = NoSlip("NoSlip")
             boundary_conditions = merge(boundary_conditions, NamedTuple{(:Object,)}((instance,)))
-            return boundary_conditions
         end
+        return boundary_conditions
     end#BC_for_Object
 
 end#Boundary_Conditions_SetUp

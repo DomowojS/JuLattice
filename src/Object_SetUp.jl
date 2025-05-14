@@ -55,9 +55,9 @@ export Create_Object, Geometry, Cylinder, Rectangle, none
         mask = Set_Object_Mask(grid, lattice_dimensions)
         lattice_Reynolds = Compute_Reynolds_Number(grid, fluid, lattice_dimensions)
         
-        if type == "Cylinder"
+        if config.Object_Type == "Cylinder"
             return Cylinder("Cylinder", config.Object_Radius, config.Object_Position, lattice_dimensions.Radius, lattice_dimensions.Position, mask, lattice_Reynolds)
-        elseif type == "Rectangle"
+        elseif config.Object_Type == "Rectangle"
             return Rectangle("Rectangle", config.Object_Width, config.Object_Height, config.Object_Angle, lattice_dimensions.Width, lattice_dimensions.Height, lattice_dimensions.Position, lattice_position, mask, lattice_Reynolds)
         else
             return none("none", mask, lattice_Reynolds)
@@ -112,7 +112,7 @@ export Create_Object, Geometry, Cylinder, Rectangle, none
 
     function Set_Object_Mask(grid::Grid, lattice_dimensions::Nothing)
         gridX = grid.gridX
-        return falses(gridX)
+        return falses(size(gridX))
     end#Set_Object_Mask
 
     function Compute_Reynolds_Number(grid::Grid, fluid::Fluid, lattice_dimensions::NamedTuple{(:Type, :Radius, :Position)})      

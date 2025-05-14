@@ -67,7 +67,12 @@ export Config, Create_Config_From_JSON
     end#Create_Config_From_JSON
     
     function Read_Config_From_JSON(json_path::String)
-        config_data = JSON.parsefile(json_path)
+        
+        #Open Json file seperately - to prevent saving issues
+        config_data = open(json_path, "r") do file
+            JSON.parse(read(file, String))
+        end
+
         config_objects = Dict{Symbol, Any}()
     
         # Required groups
