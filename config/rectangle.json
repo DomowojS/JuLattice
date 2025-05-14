@@ -1,0 +1,50 @@
+{
+  "domain": {
+    "length_X": 4,
+    "length_Y": 1
+  },
+
+  "objects": {
+      "type": "cylinder",
+      "width": 0.1,
+      "height": 0.1,
+      "rotation": 0,
+      "position": [1.0, 0.5]
+    },
+
+  "fluid": {
+    "density": 1000.0,
+    "inflow_velocity": 0.4,
+    "kinematic_viscosity": 0.001
+  },
+
+  "simulation": {
+    "time": 8000,
+    "delta_x": 0.01,
+    "τ": 0.65
+  },
+
+  "boundary_conditions": {
+    "left": {
+      "type": "Velocity",
+      "velocity": 0.4
+    },
+
+    "right": {
+      "type": "ZeroGradient"
+    },
+    "top": {
+      "type": "NoSlip"
+    },
+    "bottom": {
+      "type": "NoSlip"
+    }
+  },
+  
+  "plotting": {
+    "velocity_x": true,
+    "velocity_y": true,
+    "vorticity": true
+  }
+}
+
