@@ -113,7 +113,7 @@ export Create_Object, Geometry, Cylinder, Rectangle, Custom, none
         return (gridX.-Position_X).^2 + (gridY.-Position_Y).^2 .< Radius.^2;
     end#Set_Object_Mask
 
-    function Set_Object_Mask(grid::Grid, lattice_dimensions::NamedTuple{(:Type, :Width, :Height, :Angle, :Position, :Path)})
+    function Set_Object_Mask(grid::Grid, lattice_dimensions::NamedTuple{(:Type, :Width, :Height, :Angle, :Position)})
 
         img = load(lattice_dimensions.Path)
         custom_object = BitMatrix(Gray.(img) .> 0.5)
