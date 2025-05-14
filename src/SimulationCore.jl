@@ -130,4 +130,7 @@ function Run_Simulation!(config::Config, simulation::Simulation_Params, fluid::F
         end
     end#Boundary_Condition
 
+    function Boundary_Condition!(simulation::Simulation_Params, grid::Grid, mutable_grid::Mutable_Grid, fluid::Fluid, mask::BitMatrix, type::Periodic, side::Symbol)
+        #Nothing happens for periodic (stream function cirshift already works periodic)
+    end#Boundary_Condition
 end#SimulationCore

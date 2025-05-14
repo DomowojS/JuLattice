@@ -1,6 +1,6 @@
 module Boundary_Conditions_SetUp
 using ..ConfigReader, ..Simulation_SetUp, ..Object_SetUp
-export Create_Boundary_Conditions, NoSlip, Velocity, ZeroGradient
+export Create_Boundary_Conditions, NoSlip, Velocity, ZeroGradient, Periodic
 
     #Types
     abstract type BoundaryCondition end
@@ -20,6 +20,9 @@ export Create_Boundary_Conditions, NoSlip, Velocity, ZeroGradient
         Type::String
     end
 
+    struct Periodic <: BoundaryCondition
+        Type::String
+    end
 
     #Functions
     function Create_Boundary_Conditions(config::Config, fluid::Fluid, object::Geometry)
@@ -47,7 +50,7 @@ export Create_Boundary_Conditions, NoSlip, Velocity, ZeroGradient
                 elseif type == "ZeroGradient"
                     ZeroGradient("ZeroGradient")
                 else
-                    error("Unsupported $(key)_BC type:  $type")
+                    Periodic("Periodic")
                 end
         
                 boundary_conditions = merge(boundary_conditions, NamedTuple{(varname,)}((instance,)))
