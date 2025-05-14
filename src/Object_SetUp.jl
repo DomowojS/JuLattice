@@ -43,7 +43,7 @@ export Create_Object, Geometry, Cylinder, Rectangle, none
                 if type == "Cylinder"
                     object = Cylinder(Type="Cylinder", Radius=config.Object_Radius, Position=config.Object_Position)
                 elseif type == "Rectangle"
-                    object = Rectangle(Type="Rectangle", Width=config.Object_Width, Height=config.Object_Height, Position=config.Object_Position)  
+                    object = Rectangle(Type="Rectangle", Width=config.Object_Width, Height=config.Object_Height, Angle=config.Object_Angle, Position=config.Object_Position)  
                 else 
                     error("Unsupported geometry type: $type")
                 end
@@ -53,12 +53,12 @@ export Create_Object, Geometry, Cylinder, Rectangle, none
         end
 
         mask = Set_Object_Mask(grid, lattice_dimensions)
-        lattice_Reynolds = Compute_Reynolds_Number(grid, fluid, lattice_dimensions)
+        lattice_Reynolds = Compute_Reynolds_Number(grid, fluid, lattice_dimensions, mask)
         
         if config.Object_Type == "Cylinder"
             return Cylinder("Cylinder", config.Object_Radius, config.Object_Position, lattice_dimensions.Radius, lattice_dimensions.Position, mask, lattice_Reynolds)
         elseif config.Object_Type == "Rectangle"
-            return Rectangle("Rectangle", config.Object_Width, config.Object_Height, config.Object_Angle, lattice_dimensions.Width, lattice_dimensions.Height, lattice_dimensions.Position, lattice_position, mask, lattice_Reynolds)
+            return Rectangle("Rectangle", config.Object_Width, config.Object_Height, config.Object_Angle, config.Object_Position, lattice_dimensions.Width, lattice_dimensions.Height, lattice_dimensions.Position, mask, lattice_Reynolds)
         else
             return none("none", mask, lattice_Reynolds)
         end                
@@ -71,8 +71,8 @@ export Create_Object, Geometry, Cylinder, Rectangle, none
     end#Convert_to_Lattice_Units
 
     function Convert_to_Lattice_Units(delta_x::Real, object::Rectangle)
-        lattice_width  = object.width/delta_x;
-        lattice_height = object.height/delta_x;
+        lattice_width  = object.Width/delta_x;
+        lattice_height = object.Height/delta_x;
         lattice_position = object.Position ./ delta_x;
         return (Type="Rectangle", Width=lattice_width, Height=lattice_height, Angle=object.Angle, Position=lattice_position)
     end#Convert_to_Lattice_Units
@@ -125,7 +125,7 @@ export Create_Object, Geometry, Cylinder, Rectangle, none
         return lattice_Reynolds
     end#Compute_Reynolds_Number
 
-    function Compute_Reynolds_Number(grid::Grid, fluid::Fluid, lattice_dimensions::NamedTuple{(:Type, :Width, :Height, :Angle, :Position)})
+    function Compute_Reynolds_Number(grid::Grid, fluid::Fluid, lattice_dimensions::NamedTuple{(:Type, :Width, :Height, :Angle, :Position)}, mask::BitMatrix)
         gridY = grid.gridY
 
         lattice_inflow_velocity = fluid.lattice_inflow_velocity

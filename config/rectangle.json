@@ -4,11 +4,11 @@
     "length_Y": 1
   },
 
-  "objects": {
-      "type": "rectangle",
-      "width": 0.1,
+  "object": {
+      "type": "Rectangle",
+      "width": 0.2,
       "height": 0.1,
-      "rotation": 0,
+      "rotation": 45,
       "position": [1.0, 0.5]
     },
 
