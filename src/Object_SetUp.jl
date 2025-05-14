@@ -114,6 +114,28 @@ export Create_Object, Geometry, Cylinder, Rectangle, Custom, none
     end#Set_Object_Mask
 
     function Set_Object_Mask(grid::Grid, lattice_dimensions::NamedTuple{(:Type, :Width, :Height, :Angle, :Position)})
+        gridX = grid.gridX
+        gridY = grid.gridY        
+        Width     = lattice_dimensions.Width
+        Height    = lattice_dimensions.Height
+        Angle     = deg2rad(lattice_dimensions.Angle)
+        Position_X = lattice_dimensions.Position[1]
+        Position_Y = lattice_dimensions.Position[2]
+           
+        # Translate grid points to the rectangle center
+        gridX_rel = gridX .- Position_X
+        gridY_rel = gridY .- Position_Y
+
+        # Rotate the grid points around the center (Position_X, Position_Y)
+        rotatedX = gridX_rel .* cos(Angle) .+ gridY_rel .* sin(Angle)
+        rotatedY = -gridX_rel .* sin(Angle) .+ gridY_rel .* cos(Angle)
+
+        # Now check if the points are within the bounds of the rotated rectangle
+        return abs.(rotatedX) .<= Width / 2 .&& abs.(rotatedY) .<= Height / 2
+
+    end#Set_Object_Mask
+
+    function Set_Object_Mask(grid::Grid, lattice_dimensions::NamedTuple{(:Type, :Width, :Height, :Angle, :Position, :Path)})
 
         img = load(lattice_dimensions.Path)
         custom_object = BitMatrix(Gray.(img) .> 0.5)
