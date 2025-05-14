@@ -139,10 +139,10 @@ export Config, Create_Config_From_JSON
             :Simulation_Time => 1000,
             :delta_x => 0.01,
             :τ => 0.65,
-            :Left_BC => "NoSlip",
-            :Right_BC => "NoSlip",
-            :Top_BC => "NoSlip",
-            :Bottom_BC => "NoSlip",
+            :Left_BC => "Periodic",
+            :Right_BC => "Periodic",
+            :Top_BC => "Periodic",
+            :Bottom_BC => "Periodic",
             :Left_BC_Velocity => 0.0,
             :Right_BC_Velocity => 0.0,
             :Top_BC_Velocity => 0.0,
@@ -381,7 +381,7 @@ export Config, Create_Config_From_JSON
                     error("No velocity defined for velocity boundary condition for $key side of the domain!")
                 end
     
-                allowed_types = ["Velocity", "ZeroGradient", "NoSlip"]
+                allowed_types = ["Velocity", "ZeroGradient", "NoSlip", "Periodic"]
                 if boundary_conditions.data[key]["type"] in allowed_types
                     # Valid type
                 else
