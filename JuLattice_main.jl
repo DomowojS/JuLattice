@@ -4,8 +4,8 @@
 include("src/Plotter.jl")
 include("src/Logger.jl")
 
-using Revise, MeshGrid, GLMakie
-using .Plotter, .Logger, .SimulationCore
+using MeshGrid, GLMakie
+using .Plotter, .Logger
 
 ## User Settings
 # Domain Settings
@@ -177,7 +177,7 @@ for i in 1:simulationTime
             vorticity[cylinder] .= NaN
 
             if ((i % 100 == 0)) || (i == simulationTime)
-                Simulation_RuntimeLog(i, simulationTime)
+                Log_Simulation_Runtime(i, simulationTime)
             end
             # Update the observables
             if Plotvorticity==true 
