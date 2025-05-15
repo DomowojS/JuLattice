@@ -16,7 +16,8 @@ export Config, Create_Config_From_JSON
         Object_Angle::Real; 
         Object_Position::Vector{Real}; 
         Object_path_to_png::String;
-        Fluid_Density::Real; Inflow_Velocity::Real; 
+        Fluid_Density::Real; 
+        Inflow_Velocity::Real; 
         Kinematic_Viscosity::Real; 
         Simulation_Time::Real; 
         delta_x::Real; 
