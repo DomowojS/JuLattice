@@ -66,7 +66,7 @@ function Run_Simulation!(config::Config, simulation::Simulation_Params, fluid::F
     
     end#Stream
 
-    function Apply_Boundary_Conditions!(simulation::Simulation_Params, grid::Grid, mutable_grid::Mutable_Grid, fluid::Fluid, object::Geometry, boundary_conditions)
+    function Apply_Boundary_Conditions!(simulation::Simulation_Params, grid::Grid, mutable_grid::Mutable_Grid, fluid::Fluid, object::Geometry, boundary_conditions::NamedTuple)
 
         for side in (:Left, :Right, :Top, :Bottom, :Object)
             if side == :Object

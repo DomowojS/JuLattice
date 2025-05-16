@@ -73,12 +73,12 @@ export Set_Simulation_Params, Create_Grid, Initialize_Distributions, Simulation_
         return simulation, fluid
     end#Set_Simulation_Params
 
-    function Compute_Time_Step(delta_x, τ, Kinematic_Viscosity, lattice_speedOfSound)
+    function Compute_Time_Step(delta_x::Real, τ::Real, Kinematic_Viscosity::Real, lattice_speedOfSound::Float64)
         delta_t = ((τ - 0.5) * lattice_speedOfSound^2 * delta_x^2) / Kinematic_Viscosity
         return delta_t
     end#Compute_TimeStep
 
-    function Convert_to_Lattice_Units(delta_t, delta_x, Inflow_Velocity, lattice_speedOfSound, τ, simulation_time, length_X, length_Y)
+    function Convert_to_Lattice_Units(delta_t::Real, delta_x::Real, Inflow_Velocity::Real, lattice_speedOfSound::Float64, τ::Real, simulation_time::Real, length_X::Real, length_Y::Real)
         lattice_inflow_velocity = Inflow_Velocity * (delta_t / delta_x);
         lattice_viscosity   = lattice_speedOfSound^2 * (τ -0.5);
         time_steps     = ceil(Int, simulation_time / delta_t);

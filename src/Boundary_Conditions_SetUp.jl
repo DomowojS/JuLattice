@@ -34,7 +34,7 @@ export Create_Boundary_Conditions, NoSlip, Velocity, ZeroGradient, Periodic
         return boundary_conditions
     end#Create_Boundary_Conditions
 
-    function BC_for_DomainWalls(boundary_conditions, config::Config, fluid::Fluid)
+    function BC_for_DomainWalls(boundary_conditions::NamedTuple, config::Config, fluid::Fluid)
         i=0
         for key in [:Left_BC, :Right_BC, :Top_BC, :Bottom_BC]
             i += 1
@@ -62,7 +62,7 @@ export Create_Boundary_Conditions, NoSlip, Velocity, ZeroGradient, Periodic
         end
     end#BC_for_DomainWalls
 
-    function BC_for_Object(boundary_conditions, object::Geometry)
+    function BC_for_Object(boundary_conditions::NamedTuple, object::Geometry)
         if object.Type != "none"
             instance = NoSlip("NoSlip")
             boundary_conditions = merge(boundary_conditions, NamedTuple{(:Object,)}((instance,)))
