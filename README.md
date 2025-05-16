@@ -56,4 +56,4 @@ All simulation settings are defined in JSON files located in the config/ directo
 The user only needs to modify these configuration files to define new simulation setups—no code modification is required.
 
 ## License
-This project is licensed under the MIT License. See the LICENSE file for details.
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
