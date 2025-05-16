@@ -11,8 +11,7 @@
 - Written in pure Julia
 
 ## Requirements
-
-- Julia ≥ **1.9.0**
+![Julia version](https://img.shields.io/badge/julia-1.9%2B-blue)
 
 ## Getting Started
 
