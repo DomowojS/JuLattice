@@ -1,5 +1,5 @@
 # JuLattice
-
+![Demo](media/Vorticity_Cylinder.gif)
 **JuLattice** is a 2D Lattice Boltzmann Method (LBM) solver written in Julia. It implements the D2Q9 lattice scheme and uses the Bhatnagar-Gross-Krook (BGK) approximation for collision, where a single relaxation time (defined by the user) governs the simulation dynamics.
 
 ## Features
