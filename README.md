@@ -20,7 +20,7 @@
 Open a terminal and run:
 
 ```bash
-git clone https://github.com/yourusername/JuLattice.git](https://github.com/DomowojS/JuLattice.git
+git clone https://github.com/DomowojS/JuLattice.git
 cd JuLattice
 ```
 ## 2. Activate the project environment
