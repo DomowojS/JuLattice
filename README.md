@@ -57,3 +57,11 @@ The user only needs to modify these configuration files to define new simulation
 
 ## License
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+
+## Other Branches
+### [`JuLattice_for_teaching`](https://github.com/DomowojS/JuLattice/tree/JuLattice_for_teaching)
+
+This branch contains a simplified, hard-coded version of JuLattice used for educational purposes.  
+It is less modular but more straightforward, intended to demonstrate the core Lattice Boltzmann logic without configuration overhead.
+
+> **Note**: For a full-featured version with configuration files and plotting, use the [`main`](https://github.com/DomowojS/JuLattice/tree/main) branch.
