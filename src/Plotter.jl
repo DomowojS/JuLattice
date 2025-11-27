@@ -1,6 +1,6 @@
 module Plotter
 using GLMakie
-export Create_Plot
+export Create_Plot, Create_Plot3D
 
 ## Set up Plot 
     function Create_Plot(gridlengthX::Int64, gridlengthY::Int64)
@@ -57,7 +57,22 @@ export Create_Plot
                 return velocity_obs, text_obj, step_text, fig
     end#Plot_vx
 
+    function Create_Plot3D(nx::Int, ny::Int, nz::Int, field3d::Array{<:Real,3}; title="Test123")
+        # Initialize Plot arrays
+        vol_obs = Observable(Float32.(field3d))
+        # Set up the figure and axis with explicit sizing
+        fig = Figure(size = (900, 700))
+        ax  = Axis3(fig[1, 1], title = title)
 
+        plt = volume!(ax, vol_obs; colormap = :turbo, transparency = true)
+        Colorbar(fig[1, 2], plt, label = title)
+
+        #Create a text element for time step display
+        step_text = Observable("Time step: 0, 0s")
+        text!(ax, 1, 1, nz, text = step_text, color = :white, fontsize = 22, align = (:left, :bottom))
+
+        return vol_obs, step_text, fig
+    end
 ## Update Plot
 
 end#module
