@@ -32,7 +32,7 @@ Re = (Inflow_Velocity .* 2 .* Radius)/Kinematic_Viscosity;
 Re_Log=floor(Int,Re)
 
 # Plot Requests (Flags)
-Plotvx = false;
+Plotvx = true;
 Plotvy = false;
 Plotvz = false;
 Plotvorticity = true;
@@ -162,48 +162,28 @@ if any((Plotvorticity, Plotvx, Plotvy, Plotvz))
     #     screenOmega = GLMakie.Screen()
     #     display(screenOmega, fig_omega)
     # end
-    
-    # Bildschirmgröße ermitteln
-    #Default
-    screen_width = 1920
-    screen_height = 1080
-
-    try
-        monitor = GLMakie.GLFW.GetPrimaryMonitor()
-        mode = GLMakie.GLFW.GetVideoMode(monitor)
-        global screen_width = mode.width
-        global screen_height = mode.height
-    catch
-    end
-
-    gap = 20
-    window_width = Int(floor((screen_width - 3*gap) / 2))
-    window_height = Int(floor((screen_height - 3*gap) / 2))
-
-    ###DEBUG###
-    println("Screen Resolution: $(screen_width) x $(screen_height)")
 
     if Plotvx==true
         #xy slice at z=midZ
-        vx_xy_obs, step_text_vx_xy, fig_vx_xy = Create_Plot_XY(gridlengthX, gridlengthY, velocityX[:,:,midZ]; width=window_width, height=window_height, title="v_x at z=$(midZ)")
-        screen_vx_xy = GLMakie.Screen(position=(gap, gap))
+        vx_xy_obs, step_text_vx_xy, fig_vx_xy = Create_Plot_XY(gridlengthX, gridlengthY, velocityX[:,:,midZ]; title="v_x at z=$(midZ)")
+        screen_vx_xy = GLMakie.Screen()
         display(screen_vx_xy, fig_vx_xy)
 
         #xz slice at y=midY
-        vx_xz_obs, step_text_vx_xz, fig_vx_xz = Create_Plot_XZ(gridlengthX, gridlengthZ, velocityX[:,midY,:]; width=window_width, height=window_height, title="v_x at y=$(midY)")
-        screen_vx_xz = GLMakie.Screen(position=(window_width + 2*gap, gap))
+        vx_xz_obs, step_text_vx_xz, fig_vx_xz = Create_Plot_XZ(gridlengthX, gridlengthZ, velocityX[:,midY,:]; title="v_x at y=$(midY)")
+        screen_vx_xz = GLMakie.Screen()
         display(screen_vx_xz, fig_vx_xz)
     end
 
     if Plotvorticity == true
         #xy slice at z=midZ
-        omega_xy_obs, step_text_omega_xy, fig_omega_xy = Create_Vorticity_XY(gridlengthX, gridlengthY, omegaMag[:,:,midZ]; width=window_width, height=window_height, title = "|ω| at z=$(midZ)")
-        screen_omega_xy = GLMakie.Screen(position=(gap, window_height + 2*gap))
+        omega_xy_obs, step_text_omega_xy, fig_omega_xy = Create_Vorticity_XY(gridlengthX, gridlengthY, omegaMag[:,:,midZ]; title = "|ω| at z=$(midZ)")
+        screen_omega_xy = GLMakie.Screen()
         display(screen_omega_xy, fig_omega_xy)
 
         #xz slice at y=midY
-        omega_xz_obs, step_text_omega_xz, fig_omega_xz = Create_Vorticity_XZ(gridlengthX, gridlengthZ, omegaMag[:,midY,:]; width=window_width, height=window_height, title = "|ω| at y=$(midY)")
-        screen_omega_xz = GLMakie.Screen(position=(window_width + 2*gap, window_height + 2*gap))
+        omega_xz_obs, step_text_omega_xz, fig_omega_xz = Create_Vorticity_XZ(gridlengthX, gridlengthZ, omegaMag[:,midY,:]; title = "|ω| at y=$(midY)")
+        screen_omega_xz = GLMakie.Screen()
         display(screen_omega_xz, fig_omega_xz)    
     end
 

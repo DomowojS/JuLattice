@@ -19,9 +19,9 @@ export Create_Plot_XY, Create_Plot_XZ, Create_Vorticity_XY, Create_Vorticity_XZ
     end
 ######################################################
 
-    function Create_Plot_XY(nx::Int, ny::Int, field2d::Array{<:Real, 2}; width=900, height=400, title="vx slice XY")
+    function Create_Plot_XY(nx::Int, ny::Int, field2d::Array{<:Real, 2}; title="vx slice XY")
         vx_obs = Observable(field2d)
-        fig = Figure(size = (width, height))
+        fig = Figure(size = (900, 400))
         ax = Axis(fig[1,1], aspect = DataAspect(), title = title)
         colorrange =(-0.2, 0.2)
         hm = heatmap!(ax, 1:nx, 1:ny, vx_obs; 
@@ -36,9 +36,9 @@ export Create_Plot_XY, Create_Plot_XZ, Create_Vorticity_XY, Create_Vorticity_XZ
         return vx_obs, step_text, fig
     end
 
-    function Create_Plot_XZ(nx::Int, nz::Int, field2d::Array{<:Real, 2}; width=900, height=400, title="vx slice XZ")
+    function Create_Plot_XZ(nx::Int, nz::Int, field2d::Array{<:Real, 2}; title="vx slice XZ")
         vx_obs = Observable(field2d)
-        fig = Figure(size = (width, height))
+        fig = Figure(size = (900, 400))
         ax = Axis(fig[1,1], aspect = DataAspect(), title = title)
         hm = heatmap!(ax, 1:nx, 1:nz, vx_obs; colormap = :inferno, nan_color= :white, colorrange = (-0.2, 0.2))
         Colorbar(fig[1, 2], hm, label = "Lattice_Velocity")
@@ -48,9 +48,9 @@ export Create_Plot_XY, Create_Plot_XZ, Create_Vorticity_XY, Create_Vorticity_XZ
         return vx_obs, step_text, fig
     end
 
-    function Create_Vorticity_XY(nx::Int, ny::Int, vorticity_XY::Array{<:Real, 2}; width=900, height=400, title="|ω| slice XY")
+    function Create_Vorticity_XY(nx::Int, ny::Int, vorticity_XY::Array{<:Real, 2}; title="|ω| slice XY")
         omega_obs = Observable(vorticity_XY)
-        fig = Figure(size = (width, height))
+        fig = Figure(size = (900, 400))
         ax = Axis(fig[1,1], aspect = DataAspect(), title = title)
         hm = heatmap!(ax, 1:nx, 1:ny, omega_obs;
                       colormap = transparency_map_vorticity(),
@@ -65,9 +65,9 @@ export Create_Plot_XY, Create_Plot_XZ, Create_Vorticity_XY, Create_Vorticity_XZ
         return omega_obs, step_text, fig
     end
 
-    function Create_Vorticity_XZ(nx::Int, nz::Int, vorticity_XZ::Array{<:Real, 2}; width=900, height=400, title="|ω| slice XZ")
+    function Create_Vorticity_XZ(nx::Int, nz::Int, vorticity_XZ::Array{<:Real, 2}; title="|ω| slice XZ")
         omega_obs = Observable(vorticity_XZ)
-        fig = Figure(size = (width, height))
+        fig = Figure(size = (900, 400))
         ax = Axis(fig[1,1], aspect = DataAspect(), title = title)
         hm = heatmap!(ax, 1:nx, 1:nz, omega_obs;
                       colormap = transparency_map_vorticity(),
