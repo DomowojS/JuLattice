@@ -7,6 +7,9 @@ include("src/Logger.jl")
 using MeshGrid, GLMakie
 using .Plotter, .Logger
 
+using Random
+
+
 ####################################  Initialize  ####################################
 ## User Settings
 # Domain Settings
@@ -34,7 +37,6 @@ Plotvx = true;
 Plotvy = true;
 Plotvorticity = true;
 
-
 #### Run Simulation #####
 Log_Simulation_Header()
 ## Compute timestep from relaxation time
@@ -55,6 +57,7 @@ cylinder_position = Position ./ delta_x;
 fluiddensity = 100;
 lattice_inflow_velocity = Inflow_Velocity * (delta_t / delta_x);
 lattice_viscosity = lattice_speedOfSound^2 * (τ -0.5);
+
 #ReynoldsCheck
 lattice_Re = (lattice_inflow_velocity .* cylinder_radius)/lattice_viscosity;
 lattice_Re_Log=floor(Int,lattice_Re)
@@ -113,10 +116,10 @@ for x in 1:gridlengthX
 
         f00[x,y] = rho_init * (-2.0 + 3.0*ux*ux) * (-2.0 + 3.0*uy*uy) / 9.0
 
-        fm0[x,y] = rho_init * (1.0 - 3.0*ux + 3.0*ux*ux) * (-2.0 + 3.0*uy*uy) / 18.0
-        fp0[x,y] = rho_init * (1.0 + 3.0*ux + 3.0*ux*ux) * (-2.0 + 3.0*uy*uy) / 18.0
-        f0m[x,y] = rho_init * (-2.0 + 3.0*ux*ux) * (1.0 - 3.0*uy + 3.0*uy*uy) / 18.0
-        f0p[x,y] = rho_init * (-2.0 + 3.0*ux*ux) * (1.0 + 3.0*uy + 3.0*uy*uy) / 18.0
+        fm0[x,y] = rho_init * (1.0 - 3.0*ux + 3.0*ux*ux) * (-2.0 + 3.0*uy*uy) / -18.0 #statt / 18
+        fp0[x,y] = rho_init * (1.0 + 3.0*ux + 3.0*ux*ux) * (-2.0 + 3.0*uy*uy) / -18.0
+        f0m[x,y] = rho_init * (-2.0 + 3.0*ux*ux) * (1.0 - 3.0*uy + 3.0*uy*uy) / -18.0
+        f0p[x,y] = rho_init * (-2.0 + 3.0*ux*ux) * (1.0 + 3.0*uy + 3.0*uy*uy) / -18.0
 
         fmm[x,y] = rho_init * (1.0 - 3.0*ux + 3.0*ux*ux) * (1.0 - 3.0*uy + 3.0*uy*uy) / 36.0
         fmp[x,y] = rho_init * (1.0 - 3.0*ux + 3.0*ux*ux) * (1.0 + 3.0*uy + 3.0*uy*uy) / 36.0
@@ -135,8 +138,18 @@ for x in 1:gridlengthX
         # fmp[x][y]=((rho[x][y]*(1 + 3*(u[x][y]*u[x][y]) - 3*u[x][y])*(1 + 3*(v[x][y]*v[x][y]) + 3*v[x][y]))/36.);
         # fpm[x][y]=((rho[x][y]*(1 + 3*(u[x][y]*u[x][y]) + 3*u[x][y])*(1 + 3*(v[x][y]*v[x][y]) - 3*v[x][y]))/36.);
         # fpp[x][y]=((rho[x][y]*(1 + 3*(u[x][y]*u[x][y]) + 3*u[x][y])*(1 + 3*(v[x][y]*v[x][y]) + 3*v[x][y]))/36.);
+    
     end
 end
+
+# #add noise to distributions
+# Random.seed!(123456)
+# const noise_factor = 1e-4
+# f_list = (f00, fm0, f0m, fp0, f0p, fmm, fmp, fpm, fpp)
+
+# for f in f_list
+#     f .+= noise_factor .* f * (2 .* rand(size(f)) .- 1.0)
+# end
 
 #initialise fS-Arrays for the first time
 f00S .= f00
@@ -151,6 +164,22 @@ fmpS .= fmp
 fpmS .= fpm
 fppS .= fpp
 
+#DEBUG Density check
+
+for x in 1:gridlengthX
+    for y in 1:gridlengthY
+        
+        rho_check = f00[x,y] + fm0[x,y] + fp0[x,y] + f0m[x,y] + f0p[x,y] +
+                    fmm[x,y] + fmp[x,y] + fpm[x,y] + fpp[x,y]
+        
+        rho_fluiddensity = fluiddensity
+
+        if abs(rho_check - rho_fluiddensity) > 0.01 * rho_fluiddensity
+            println("=== DENSITY CHECK ===")
+            println("rho_check: $rho_check , fluiddensity: $rho_fluiddensity")
+        end
+    end
+end
 
 # create grid
 gridX, gridY = meshgrid(1:gridlengthX, 1:gridlengthY);
@@ -160,7 +189,7 @@ gridX, gridY = gridX', gridY';
 cylinder = (gridX.-cylinder_position[1]).^2 + (gridY.-cylinder_position[2]).^2 .< cylinder_radius.^2;
 
 # create boundary indetifiers
-walls = gridY .== 1 .|| gridY .== gridlengthY;
+walls = gridY .== 1 .| gridY .== gridlengthY;
 inlet = gridX .== 1;
 outlet = gridX .== gridlengthX;
 
@@ -250,6 +279,34 @@ for i in 1:simulationTime
         end
     end
 
+
+    ##### Boundary Conditions #####
+    #Bounceback walls
+    for x in 1:cols
+        #bottom wall (y=1)
+        f0pS[x, 1] = f0mS[x, 1]   #top = bottom
+        fppS[x, 1] = fmmS[x, 1]   #right-top = left-bottom
+        fmpS[x, 1] = fpmS[x, 1]   #left-top = right-bottom
+
+        #top wall(y=rows)
+        f0mS[x, rows] = f0pS[x, rows] #bottom = top
+        fmmS[x, rows] = fppS[x, rows] #left-bottom = right-top
+        fpmS[x, rows] = fmpS[x, rows] #right-bottom = left-top
+    end
+
+    #Bounceback cylinder
+    for x in 1:cols
+        for y in 1:rows
+            if cylinder[x,y]
+                fp0S[x,y], fm0S[x,y] = fm0S[x,y], fp0S[x,y] #horizontal getauscht
+                f0pS[x,y], f0mS[x,y] = f0mS[x,y], f0pS[x,y] #vertikal getauscht
+                fppS[x,y], fmmS[x,y] = fmmS[x,y], fppS[x,y] #diagonal getauscht rechtsoben <-> linksunten
+                fpmS[x,y], fmpS[x,y] = fmpS[x,y], fpmS[x,y] #diagonal getauscht rechtsunten <-> linksoben
+            end
+        end
+    end
+    ##### Boundary Conditions #####
+
     #Swap: copy new distributions to array
     f00 .= f00S
     fm0 .= fm0S
@@ -260,33 +317,6 @@ for i in 1:simulationTime
     fmp .= fmpS
     fpp .= fppS
     fpm .= fpmS
-    
-    ##### Boundary Conditions #####
-    #Bounceback walls
-    for x in 1:cols
-        #bottom wall (y=1)
-        f0p[x, 1] = f0m[x, 1]   #top = bottom
-        fpp[x, 1] = fmm[x, 1]   #right-top = left-bottom
-        fmp[x, 1] = fpm[x, 1]   #left-top = right-bottom
-
-        #top wall(y=rows)
-        f0m[x, rows] = f0p[x, rows] #bottom = top
-        fmm[x, rows] = fpp[x, rows] #left-bottom = right-top
-        fpm[x, rows] = fmp[x, rows] #right-bottom = left-top
-    end
-
-    #Bounceback cylinder
-    for x in 1:cols
-        for y in 1:rows
-            if cylinder[x,y]
-                fp0[x,y], fm0[x,y] = fm0[x,y], fp0[x,y] #horizontal getauscht
-                f0p[x,y], f0m[x,y] = f0m[x,y], f0p[x,y] #vertikal getauscht
-                fpp[x,y], fmm[x,y] = fmm[x,y], fpp[x,y] #diagonal getauscht rechtsoben <-> linksunten
-                fpm[x,y], fmp[x,y] = fmp[x,y], fpm[x,y] #diagonal getauscht rechtsunten <-> linksoben
-            end
-        end
-    end
-    ##### Boundary Conditions #####
 
     ###### NEW STABILIZATION #####
 
@@ -329,17 +359,40 @@ for i in 1:simulationTime
 
         # Plot of the field
         if ((i % 10 == 0)) || (i == simulationTime)
+
+            # #DEBUG print min/max of u and v
+            umax = maximum(u)
+            umin = minimum(u)
+            vmax = maximum(v)
+            vmin = minimum(v)
+            # println("Step $i — u min/max: $(round(umin, sigdigits=6)) / $(round(umax, sigdigits=6)) 
+            #             | v min/max: $(round(vmin, sigdigits=6)) / $(round(vmax, sigdigits=6))")
+
+            #DEBUG print min/max of u and v in physical units
+            vel_factor = delta_x / delta_t
+            umin_phys = umin * vel_factor
+            umax_phys = umax * vel_factor
+            vmin_phys = vmin * vel_factor
+            vmax_phys = vmax * vel_factor
+            # println("         u min/max (phys m/s): $(round(umin_phys, sigdigits=6)) / $(round(umax_phys, sigdigits=6)) 
+            #             | v min/max (phys m/s): $(round(vmin_phys, sigdigits=6)) / $(round(vmax_phys, sigdigits=6))")
+
+
+
+
             # Set velocities inside the cylinder to zero
-            u[cylinder] .= NaN
-            v[cylinder] .= NaN
+            u_plot = copy(u)
+            v_plot = copy(v)
+            u_plot[cylinder] .= NaN
+            v_plot[cylinder] .= NaN
 
             # velocityX[cylinder] .= NaN
             # velocityY[cylinder] .= NaN
 
             # Compute vorticity
             fill!(vorticity, 0.0)
-            dv_dx = circshift(v, (-1, 0)) .- circshift(v, (1, 0))
-            du_dy = circshift(u, (0, -1)) .- circshift(u, (0, 1))
+            dv_dx = circshift(v_plot, (-1, 0)) .- circshift(v_plot, (1, 0))
+            du_dy = circshift(u_plot, (0, -1)) .- circshift(u_plot, (0, 1))
             vorticity .= dv_dx .- du_dy
             vorticity[inlet] .= 0.0
             vorticity[outlet] .= 0.0
@@ -356,11 +409,11 @@ for i in 1:simulationTime
                 step_text[] = "Time step: $i, $(floor(Int, i*delta_t))s"
             end
             if Plotvx==true 
-                velocityX_obs[] = copy(u) 
+                velocityX_obs[] = copy(u_plot) 
                 step_text_vx[] = "Time step: $i, $(floor(Int, i*delta_t))s"
             end
             if Plotvy==true 
-                velocityY_obs[] = copy(v) 
+                velocityY_obs[] = copy(v_plot) 
                 step_text_vy[] = "Time step: $i, $(floor(Int, i*delta_t))s"
             end
 
