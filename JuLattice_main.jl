@@ -21,14 +21,18 @@ function run_JuLattice()
     Position = [1, 0.5] # m
 
     # Fluid Settings 
-    Fluid_Density = 1000.0;       # kg/m^3
+    fluiddensity = 100.0; #1000.0       # kg/m^3
     Inflow_Velocity = 0.4;      # m/s
     Kinematic_Viscosity = 0.001; # m^2/s 
+    
 
     # Simulation Settings
     Simulation_Time = 8000;     # s
-    delta_x = 0.01;             # discretisation in time and space
-    τ = 0.65;
+    delta_x = 0.01;             # Grid spacing (physical units per lattice unit)
+    Mach_Number = 0.1;          # Target Mach number (Ma = U_lattice/c_s)
+                                # Keep Ma < 0.1 for incompressible flow!
+
+    # Compute Reynolds number (for reference)
     Re = (Inflow_Velocity .* Radius)/Kinematic_Viscosity;
     Re_Log=floor(Int,Re)
 
@@ -39,10 +43,27 @@ function run_JuLattice()
 
     #### Run Simulation #####
     Log_Simulation_Header()
-    ## Compute timestep from relaxation time
-    # Time step from relaxation time
+
+    ##-------- Compute LBM Parameters from Mach Number --------##
+    # Fixed lattice constant
     lattice_speedOfSound = 1 / √3;
-    delta_t = ((τ - 0.5) * lattice_speedOfSound^2 * delta_x^2) / Kinematic_Viscosity
+    
+    # Step 1: Lattice velocity from Mach number
+    lattice_inflow_velocity = Mach_Number * lattice_speedOfSound
+    
+    # Step 2: Timestep from velocity scaling
+    # U_phys = (dx/dt) * U_lattice => dt = dx * U_lattice / U_phys
+    delta_t = delta_x * lattice_inflow_velocity / Inflow_Velocity
+
+    # Step 3: Lattice viscosity from physical viscosity
+    # nu_phys = (dx²/dt) * nu_lattice => nu_lattice = nu_phys * dt/dx²
+    lattice_viscosity = Kinematic_Viscosity * delta_t / (delta_x * delta_x)
+
+    # Step 4: Relaxation time and omega from lattice viscosity
+    # nu_lattice = c_s² * (tau - 0.5) => tau = nu_lattice / c_s² + 0.5
+    τ = lattice_viscosity / (lattice_speedOfSound * lattice_speedOfSound) + 0.5
+    omega  = 1.0 / τ
+
 
     ## Convert user settings to lattice units
     # Domain
@@ -53,12 +74,7 @@ function run_JuLattice()
     cylinder_radius  = Radius/delta_x;
     cylinder_position = Position ./ delta_x;
 
-    # Fluid
-    fluiddensity = 100;
-    lattice_inflow_velocity = Inflow_Velocity * (delta_t / delta_x);
-    lattice_viscosity = lattice_speedOfSound^2 * (τ -0.5);
-
-    #ReynoldsCheck
+    # Verify Reynolds number consistency (lattice vs physical)
     lattice_Re = (lattice_inflow_velocity .* cylinder_radius)/lattice_viscosity;
     lattice_Re_Log=floor(Int,lattice_Re)
 
@@ -67,7 +83,6 @@ function run_JuLattice()
 
     # Simulation Settings
     simulationTime = ceil(Int, Simulation_Time / delta_t);
-    # Q   = 9;
 
     #Define arrays for each direction D2Q9
     f00 = zeros(gridlengthX, gridlengthY) #center
