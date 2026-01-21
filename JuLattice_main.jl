@@ -187,6 +187,7 @@ gridX, gridY = gridX', gridY';
 
 # create object indetifier
 cylinder = (gridX.-cylinder_position[1]).^2 + (gridY.-cylinder_position[2]).^2 .< cylinder_radius.^2;
+cylinder_indices = findall(cylinder)
 
 # create boundary indetifiers
 walls = gridY .== 1 .| gridY .== gridlengthY;
@@ -295,15 +296,23 @@ for i in 1:simulationTime
     end
 
     #Bounceback cylinder
-    for x in 1:cols
-        for y in 1:rows
-            if cylinder[x,y]
-                fp0S[x,y], fm0S[x,y] = fm0S[x,y], fp0S[x,y] #horizontal getauscht
-                f0pS[x,y], f0mS[x,y] = f0mS[x,y], f0pS[x,y] #vertikal getauscht
-                fppS[x,y], fmmS[x,y] = fmmS[x,y], fppS[x,y] #diagonal getauscht rechtsoben <-> linksunten
-                fpmS[x,y], fmpS[x,y] = fmpS[x,y], fpmS[x,y] #diagonal getauscht rechtsunten <-> linksoben
-            end
-        end
+    # for x in 1:cols
+    #     for y in 1:rows
+    #         if cylinder[x,y]
+    #             fp0S[x,y], fm0S[x,y] = fm0S[x,y], fp0S[x,y] #horizontal getauscht
+    #             f0pS[x,y], f0mS[x,y] = f0mS[x,y], f0pS[x,y] #vertikal getauscht
+    #             fppS[x,y], fmmS[x,y] = fmmS[x,y], fppS[x,y] #diagonal getauscht rechtsoben <-> linksunten
+    #             fpmS[x,y], fmpS[x,y] = fmpS[x,y], fpmS[x,y] #diagonal getauscht rechtsunten <-> linksoben
+    #         end
+    #     end
+    # end
+
+    for i in cylinder_indices
+        x, y = Tuple(i)
+        fp0S[x,y], fm0S[x,y] = fm0S[x,y], fp0S[x,y] #horizontal getauscht
+        f0pS[x,y], f0mS[x,y] = f0mS[x,y], f0pS[x,y] #vertikal getauscht
+        fppS[x,y], fmmS[x,y] = fmmS[x,y], fppS[x,y] #diagonal getauscht rechtsoben <-> linksunten
+        fpmS[x,y], fmpS[x,y] = fmpS[x,y], fpmS[x,y] #diagonal getauscht rechtsunten <-> linksoben
     end
     ##### Boundary Conditions #####
 
