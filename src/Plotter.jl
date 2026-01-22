@@ -31,8 +31,9 @@ export Create_Plot_XY, Create_Plot_XZ, Create_Vorticity_XY, Create_Vorticity_XZ
 
         Colorbar(fig[1, 2], hm, label = "Lattice_Velocity")
         xlims!(ax, 1, nx); ylims!(ax, 1, ny)
+        
         step_text = Observable("Time step: 0, 0s")
-        text!(ax, ceil(Int, nx*0.05), ceil(Int, ny*0.05), text = step_text, color = :black, fontsize = 14)
+        Label(fig[2, 1:2], step_text, fontsize=14, halign = :left, padding = (10, 0, 5, 0))
         return vx_obs, step_text, fig
     end
 
@@ -43,8 +44,9 @@ export Create_Plot_XY, Create_Plot_XZ, Create_Vorticity_XY, Create_Vorticity_XZ
         hm = heatmap!(ax, 1:nx, 1:nz, vx_obs; colormap = :inferno, nan_color= :white, colorrange = (-0.2, 0.2))
         Colorbar(fig[1, 2], hm, label = "Lattice_Velocity")
         xlims!(ax, 1, nx); ylims!(ax, 1, nz)
+
         step_text = Observable("Time step: 0, 0s")
-        text!(ax, ceil(Int, nx*0.05), ceil(Int, nz*0.05), text = step_text, color = :black, fontsize = 14)
+        Label(fig[2, 1:2], step_text, fontsize=14, halign = :left, padding = (10, 0, 5, 0))
         return vx_obs, step_text, fig
     end
 
