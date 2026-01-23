@@ -157,16 +157,6 @@ function run_JuLattice()
         end
     end
 
-    # #add noise to distributions
-    # Random.seed!(123456)
-    # const noise_factor = 1e-4
-    # f_list = (f00, fm0, f0m, fp0, f0p, fmm, fmp, fpm, fpp)
-
-    # for f in f_list
-    #     f .+= noise_factor .* f * (2 .* rand(size(f)) .- 1.0)
-    # end
-
-    #initialise fS-Arrays for the first time
     f00S .= f00
 
     fm0S .= fm0
@@ -208,22 +198,6 @@ function run_JuLattice()
     walls = gridY .== 1 .| gridY .== gridlengthY;
     inlet = gridX .== 1;
     outlet = gridX .== gridlengthX;
-
-    # # Initialize distributions arrays
-    # distributions = ones(gridlengthX, gridlengthY, Q) .+ 0.01*rand(gridlengthX, gridlengthY, Q);
-    # distributions[:,:,4] .+= 2 .* (1 .+ 0.2 .* cos.(2 .* π .*gridX ./ gridlengthX .*4));
-    # distributions_equilibrium = ones(gridlengthX, gridlengthY, Q);
-
-    # # Initialize macroscopic density and scale distribution
-    # densityGrid = sum(distributions, dims=3);
-    # distributions .*= fluiddensity ./ densityGrid;
-
-    # # Initialize macroscopic velocity arrays
-    # velocityX   = zeros(gridlengthX, gridlengthY);
-    # velocityY   = zeros(gridlengthX, gridlengthY);
-
-    # # Initialise dotproduct array 
-    # dotprod_velocities = zeros(gridlengthX, gridlengthY, Q);
 
     if any((Plotvorticity, Plotvx, Plotvy))
         if Plotvorticity==true 
@@ -330,28 +304,6 @@ function run_JuLattice()
             fpmS[x,y], fmpS[x,y] = fmpS[x,y], fpmS[x,y] #diagonal getauscht rechtsunten <-> linksoben
         end
         ##### Boundary Conditions #####
-
-        # #Swap: COPY new distributions to array
-        # f00 .= f00S
-        # fm0 .= fm0S
-        # f0m .= f0mS
-        # fp0 .= fp0S
-        # f0p .= f0pS
-        # fmm .= fmmS
-        # fmp .= fmpS
-        # fpp .= fppS
-        # fpm .= fpmS
-
-        # #Swap: SWAP POINTERS new distributions to array
-        # global f00, f00S = f00S, f00
-        # global fm0, fm0S = fm0S, fm0
-        # global f0m, f0mS = f0mS, f0m
-        # global fp0, fp0S = fp0S, fp0
-        # global f0p, f0pS = f0pS, f0p
-        # global fmm, fmmS = fmmS, fmm
-        # global fmp, fmpS = fmpS, fmp
-        # global fpp, fppS = fppS, fpp
-        # global fpm, fpmS = fpmS, fpm
         
         #Swap: SWAP POINTERS new distributions to array
         f00, f00S = f00S, f00
@@ -366,26 +318,7 @@ function run_JuLattice()
 
         ###### NEW STABILIZATION #####
 
-
-
-
-        # # Get Macroscopic values
-        # global densityGrid = sum(distributions, dims=3);
-        # velocityX .= (1 ./ densityGrid) .* sum(distributions.*velocity_vector_x, dims=3); 
-        # velocityY .= (1 ./ densityGrid) .* sum(distributions.*velocity_vector_y, dims=3); 
-
-        # ## Apply Collision
-        # # Compute equilibrium state
-        # dotprod_velocities .= (velocity_vector_x .* velocityX) .+ (velocity_vector_y .* velocityY);
-        # distributions_equilibrium .= weights .* densityGrid .*(1 .+ 3 .*dotprod_velocities .+ 4.5 .*dotprod_velocities.^2 .- 1.5 .*(velocityX.^2 .+ velocityY.^2));
-        # # Relax towards equilibrium
-        # distributions .+= -(1/τ) .* (distributions .- distributions_equilibrium);
-
-        # # Stream 
-        # for j in 1:Q
-        #     distributions[:,:,j] = circshift(distributions[:,:,j], (velocity_vector_x[j], velocity_vector_y[j]))
-        # end
-
+        # old BC's
         # ## Apply Boundary conditions
         # #Inlet velocity bc (unknown: f_1, f_8, f_9)
         # densityGrid[inlet, :] .= (sum(distributions[inlet, [1,3,5]], dims=2).+ 2 .*sum(distributions[inlet, [2,6,7]], dims=2)) ./ (1-lattice_inflow_velocity)
@@ -397,31 +330,26 @@ function run_JuLattice()
         # #Outlet zero gradient bc
         # distributions[outlet, [4, 8, 9]] .= distributions[gridlengthX-1, :, [4, 8, 9]]
 
-        # #No Slip Walls
-        # distributions[walls, 1:Q] .= distributions[walls, [1,4,5,2,3,8,9,6,7]];
-
-        # # Apply object boundary condition
-        # distributions[cylinder, 1:Q] .= distributions[cylinder, [1,4,5,2,3,8,9,6,7]];
 
             # Plot of the field
             if ((i % 10 == 0)) || (i == simulationTime)
 
-                # #DEBUG print min/max of u and v
-                umax = maximum(u)
-                umin = minimum(u)
-                vmax = maximum(v)
-                vmin = minimum(v)
-                # println("Step $i — u min/max: $(round(umin, sigdigits=6)) / $(round(umax, sigdigits=6)) 
-                #             | v min/max: $(round(vmin, sigdigits=6)) / $(round(vmax, sigdigits=6))")
+                # # #DEBUG print min/max of u and v
+                # umax = maximum(u)
+                # umin = minimum(u)
+                # vmax = maximum(v)
+                # vmin = minimum(v)
+                # # println("Step $i — u min/max: $(round(umin, sigdigits=6)) / $(round(umax, sigdigits=6)) 
+                # #             | v min/max: $(round(vmin, sigdigits=6)) / $(round(vmax, sigdigits=6))")
 
-                #DEBUG print min/max of u and v in physical units
-                vel_factor = delta_x / delta_t
-                umin_phys = umin * vel_factor
-                umax_phys = umax * vel_factor
-                vmin_phys = vmin * vel_factor
-                vmax_phys = vmax * vel_factor
-                # println("         u min/max (phys m/s): $(round(umin_phys, sigdigits=6)) / $(round(umax_phys, sigdigits=6)) 
-                #             | v min/max (phys m/s): $(round(vmin_phys, sigdigits=6)) / $(round(vmax_phys, sigdigits=6))")
+                # #DEBUG print min/max of u and v in physical units
+                # vel_factor = delta_x / delta_t
+                # umin_phys = umin * vel_factor
+                # umax_phys = umax * vel_factor
+                # vmin_phys = vmin * vel_factor
+                # vmax_phys = vmax * vel_factor
+                # # println("         u min/max (phys m/s): $(round(umin_phys, sigdigits=6)) / $(round(umax_phys, sigdigits=6)) 
+                # #             | v min/max (phys m/s): $(round(vmin_phys, sigdigits=6)) / $(round(vmax_phys, sigdigits=6))")
 
 
 
@@ -431,9 +359,6 @@ function run_JuLattice()
                 v_plot = copy(v)
                 u_plot[cylinder] .= NaN
                 v_plot[cylinder] .= NaN
-
-                # velocityX[cylinder] .= NaN
-                # velocityY[cylinder] .= NaN
 
                 # Compute vorticity
                 fill!(vorticity, 0.0)
