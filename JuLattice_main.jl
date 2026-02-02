@@ -114,10 +114,6 @@ function run_JuLattice()
     #define omega
     omega = 1.0 / τ
 
-    #grid dimensions
-    rows = gridlengthY
-    cols = gridlengthX
-
     #Initialise distribution functions 
     for x in 1:gridlengthX
         for y in 1:gridlengthY
@@ -139,21 +135,7 @@ function run_JuLattice()
             fmm[x,y] = rho_init * (1.0 - 3.0*ux + 3.0*ux*ux) * (1.0 - 3.0*uy + 3.0*uy*uy) / 36.0
             fmp[x,y] = rho_init * (1.0 - 3.0*ux + 3.0*ux*ux) * (1.0 + 3.0*uy + 3.0*uy*uy) / 36.0
             fpm[x,y] = rho_init * (1.0 + 3.0*ux + 3.0*ux*ux) * (1.0 - 3.0*uy + 3.0*uy*uy) / 36.0
-            fpp[x,y] = rho_init * (1.0 + 3.0*ux + 3.0*ux*ux) * (1.0 + 3.0*uy + 3.0*uy*uy) / 36.0
-
-            # #C++ Formeln
-            # f00[x][y]=(((-2 + 3*(u[x][y]*u[x][y]))*(-2 + 3*(v[x][y]*v[x][y]))*rho[x][y])/9.);
-        
-            # fm0[x][y]=(-0.05555555555555555*((-2 + 3*(v[x][y]*v[x][y]))*rho[x][y]*(1 + 3*(u[x][y]*u[x][y]) - 3*u[x][y])));
-            # fp0[x][y]=(-0.05555555555555555*((-2 + 3*(v[x][y]*v[x][y]))*rho[x][y]*(1 + 3*(u[x][y]*u[x][y]) + 3*u[x][y])));
-            # f0m[x][y]=(-0.05555555555555555*((-2 + 3*(u[x][y]*u[x][y]))*rho[x][y]*(1 + 3*(v[x][y]*v[x][y]) - 3*v[x][y])));
-            # f0p[x][y]=(-0.05555555555555555*((-2 + 3*(u[x][y]*u[x][y]))*rho[x][y]*(1 + 3*(v[x][y]*v[x][y]) + 3*v[x][y])));
-            
-            # fmm[x][y]=((rho[x][y]*(1 - 3*u[x][y] + 3*(u[x][y]*u[x][y]))*(1 - 3*v[x][y] + 3*(v[x][y]*v[x][y])))/36.);
-            # fmp[x][y]=((rho[x][y]*(1 + 3*(u[x][y]*u[x][y]) - 3*u[x][y])*(1 + 3*(v[x][y]*v[x][y]) + 3*v[x][y]))/36.);
-            # fpm[x][y]=((rho[x][y]*(1 + 3*(u[x][y]*u[x][y]) + 3*u[x][y])*(1 + 3*(v[x][y]*v[x][y]) - 3*v[x][y]))/36.);
-            # fpp[x][y]=((rho[x][y]*(1 + 3*(u[x][y]*u[x][y]) + 3*u[x][y])*(1 + 3*(v[x][y]*v[x][y]) + 3*v[x][y]))/36.);
-        
+            fpp[x,y] = rho_init * (1.0 + 3.0*ux + 3.0*ux*ux) * (1.0 + 3.0*uy + 3.0*uy*uy) / 36.0       
         end
     end
 
@@ -225,9 +207,8 @@ function run_JuLattice()
     # Run Simulation Loop
     for i in 1:simulationTime
 
-        ###### NEW STABILIZATION #####
-        for x in 2:cols-1
-            for y in 2:rows-1
+        for x in 2:gridlengthX-1
+            for y in 2:gridlengthY-1
                 # Get Macroscopic values
                 rho[x, y] = f00[x, y] + (((fmm[x, y] + fpp[x, y]) + (fmp[x, y] + fpm[x, y])) + 
                                         ((fm0[x, y] + fp0[x, y]) + (f0p[x, y] + f0m[x, y])))
@@ -271,38 +252,47 @@ function run_JuLattice()
 
 
         ##### Boundary Conditions #####
-        #Bounceback walls
-        for x in 1:cols
-            #bottom wall (y=1)
-            f0pS[x, 1] = f0mS[x, 1]   #top = bottom
-            fppS[x, 1] = fmmS[x, 1]   #right-top = left-bottom
-            fmpS[x, 1] = fpmS[x, 1]   #left-top = right-bottom
+        # Periodic inlet / outlet
+        # inlet (left)
+        fp0S[2, 2:gridlengthY-1] .= fp0S[gridlengthX, 2:gridlengthY-1]
+        fppS[2, 2:gridlengthY-1] .= fppS[gridlengthX, 2:gridlengthY-1]
+        fpmS[2, 2:gridlengthY-1] .= fpmS[gridlengthX, 2:gridlengthY-1]
 
-            #top wall(y=rows)
-            f0mS[x, rows] = f0pS[x, rows] #bottom = top
-            fmmS[x, rows] = fppS[x, rows] #left-bottom = right-top
-            fpmS[x, rows] = fmpS[x, rows] #right-bottom = left-top
-        end
+        # outlet (right)
+        fm0S[gridlengthX-1, 2:gridlengthY-1] .= fm0S[1, 2:gridlengthY-1]
+        fmpS[gridlengthX-1, 2:gridlengthY-1] .= fmpS[1, 2:gridlengthY-1]
+        fmmS[gridlengthX-1, 2:gridlengthY-1] .= fmmS[1, 2:gridlengthY-1]
 
-        #Bounceback cylinder
-        # for x in 1:cols
-        #     for y in 1:rows
-        #         if cylinder[x,y]
-        #             fp0S[x,y], fm0S[x,y] = fm0S[x,y], fp0S[x,y] #horizontal getauscht
-        #             f0pS[x,y], f0mS[x,y] = f0mS[x,y], f0pS[x,y] #vertikal getauscht
-        #             fppS[x,y], fmmS[x,y] = fmmS[x,y], fppS[x,y] #diagonal getauscht rechtsoben <-> linksunten
-        #             fpmS[x,y], fmpS[x,y] = fmpS[x,y], fpmS[x,y] #diagonal getauscht rechtsunten <-> linksoben
-        #         end
-        #     end
-        # end
+        # # Periodic corners - diagonal swap from "ghost"-cells to "real"-cells
+        # fppS[2, 2] = fppS[gridlengthX, gridlengthY]
+        # fpmS[2, gridlengthY-1] = fpmS[gridlengthX, 1]
+        # fmpS[gridlengthX-1, 2] = fmpS[1, gridlengthY]
+        # fmmS[gridlengthX-1, gridlengthY-1] = fmmS[1, 1]
 
-        for idx in cylinder_indices
-            x, y = Tuple(idx)
-            fp0S[x,y], fm0S[x,y] = fm0S[x,y], fp0S[x,y] #horizontal getauscht
-            f0pS[x,y], f0mS[x,y] = f0mS[x,y], f0pS[x,y] #vertikal getauscht
-            fppS[x,y], fmmS[x,y] = fmmS[x,y], fppS[x,y] #diagonal getauscht rechtsoben <-> linksunten
-            fpmS[x,y], fmpS[x,y] = fmpS[x,y], fpmS[x,y] #diagonal getauscht rechtsunten <-> linksoben
-        end
+        # Bounceback walls
+        # Bounce back for all walls simultaneously
+        # from 2 to gridlengthX-1 for separate corner handling
+        # bottom wall (y=1) streams in (y=2)
+        f0pS[2:gridlengthX-1, 2] .= f0mS[2:gridlengthX-1, 1]                                    # top = bottom
+        fppS[2:gridlengthX-1, 2] .= fmmS[2:gridlengthX-1, 1]                                    # right-top = left-bottom
+        fmpS[2:gridlengthX-1, 2] .= fpmS[2:gridlengthX-1, 1]                                    # left-top = right-bottom
+
+        # top wall (y=gridlengthY)
+        f0mS[2:gridlengthX-1, gridlengthY-1] = f0pS[2:gridlengthX-1, gridlengthY]                 # bottom = top
+        fmmS[2:gridlengthX-1, gridlengthY-1] = fppS[2:gridlengthX-1, gridlengthY]                 # left-bottom = right-top
+        fpmS[2:gridlengthX-1, gridlengthY-1] = fmpS[2:gridlengthX-1, gridlengthY]                 # right-bottom = left-top
+
+        # Bounceback Corners
+        fpmS[2, gridlengthY-1] = fmpS[1, gridlengthY]                           # top-left
+        fmmS[gridlengthX-1, gridlengthY-1] = fppS[gridlengthX, gridlengthY]     # top right
+        fppS[2, 2] = fmmS[1, 1]                                                 # bot left
+        fmpS[gridlengthX-1, 2] = fpmS[gridlengthX, 1]                           # bot right
+
+        # Bounceback cylinder
+        fp0S[cylinder_indices], fm0S[cylinder_indices] = fm0S[cylinder_indices], fp0S[cylinder_indices] #horizontal getauscht
+        f0pS[cylinder_indices], f0mS[cylinder_indices] = f0mS[cylinder_indices], f0pS[cylinder_indices] #vertikal getauscht
+        fppS[cylinder_indices], fmmS[cylinder_indices] = fmmS[cylinder_indices], fppS[cylinder_indices] #diagonal getauscht rechtsoben <-> linksunten
+        fpmS[cylinder_indices], fmpS[cylinder_indices] = fmpS[cylinder_indices], fpmS[cylinder_indices] #diagonal getauscht rechtsunten <-> linksoben
         ##### Boundary Conditions #####
         
         #Swap: SWAP POINTERS new distributions to array
@@ -316,7 +306,6 @@ function run_JuLattice()
         fpp, fppS = fppS, fpp
         fpm, fpmS = fpmS, fpm
 
-        ###### NEW STABILIZATION #####
 
         # old BC's
         # ## Apply Boundary conditions
