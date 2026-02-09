@@ -16,7 +16,7 @@ export Create_Plot
         hm = heatmap!(ax, 1:gridlengthX, 1:gridlengthY, vorticity_obs, 
                     colormap = :curl, 
                     nan_color = :black,
-                    colorrange = (-0.2, 0.2))
+                    colorrange = (-0.2, 0.2), interpolate = false)
         Colorbar(fig[1, 2], hm, label = "Lattice_Vorticity")
         rowsize!(fig.layout, 1, ax.scene.viewport[].widths[2])
         # Set axis limits explicitly
@@ -42,7 +42,7 @@ export Create_Plot
         hm = heatmap!(ax, 1:gridlengthX, 1:gridlengthY, velocity_obs, 
                     colormap = :inferno, 
                     nan_color = :black,
-                    colorrange = (-0.2, 0.2))
+                    colorrange = (-0.2, 0.2), interpolate = false)
         Colorbar(fig[1, 2], hm, label = "Lattice_Velocity_$Direction")
         rowsize!(fig.layout, 1, ax.scene.viewport[].widths[2])
         # Set axis limits explicitly

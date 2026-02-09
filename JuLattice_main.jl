@@ -324,8 +324,8 @@ function run_JuLattice()
                 # umin = minimum(u)
                 # vmax = maximum(v)
                 # vmin = minimum(v)
-                # # println("Step $i — u min/max: $(round(umin, sigdigits=6)) / $(round(umax, sigdigits=6)) 
-                # #             | v min/max: $(round(vmin, sigdigits=6)) / $(round(vmax, sigdigits=6))")
+                # println("Step $i — u min/max: $(round(umin, sigdigits=6)) / $(round(umax, sigdigits=6)) 
+                #             | v min/max: $(round(vmin, sigdigits=6)) / $(round(vmax, sigdigits=6))")
 
                 # #DEBUG print min/max of u and v in physical units
                 # vel_factor = delta_x / delta_t
@@ -333,8 +333,8 @@ function run_JuLattice()
                 # umax_phys = umax * vel_factor
                 # vmin_phys = vmin * vel_factor
                 # vmax_phys = vmax * vel_factor
-                # # println("         u min/max (phys m/s): $(round(umin_phys, sigdigits=6)) / $(round(umax_phys, sigdigits=6)) 
-                # #             | v min/max (phys m/s): $(round(vmin_phys, sigdigits=6)) / $(round(vmax_phys, sigdigits=6))")
+                # println("         u min/max (phys m/s): $(round(umin_phys, sigdigits=6)) / $(round(umax_phys, sigdigits=6)) 
+                #             | v min/max (phys m/s): $(round(vmin_phys, sigdigits=6)) / $(round(vmax_phys, sigdigits=6))")
 
 
 
@@ -342,8 +342,13 @@ function run_JuLattice()
                 # Set velocities inside the cylinder to zero
                 u_plot = copy(u)
                 v_plot = copy(v)
-                u_plot[cylinder] .= NaN
-                v_plot[cylinder] .= NaN
+                # u_plot[cylinder] .= NaN
+                # v_plot[cylinder] .= NaN
+
+                # DEBUG
+                println("  u im Zylinder - min/max: $(minimum(u_plot[cylinder])) / $(maximum(u_plot[cylinder]))")
+                println("  v im Zylinder - min/max: $(minimum(v_plot[cylinder])) / $(maximum(v_plot[cylinder]))")
+                
 
                 # Compute vorticity
                 fill!(vorticity, 0.0)
