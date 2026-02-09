@@ -27,7 +27,7 @@ function run_JuLattice()
     
 
     # Simulation Settings
-    Simulation_Time = 8000;     # s
+    Simulation_Time = 120;     # s
     delta_x = 0.01;             # Grid spacing (physical units per lattice unit)
     Mach_Number = 0.1;          # Target Mach number (Ma = U_lattice/c_s)
                                 # Keep Ma < 0.1 for incompressible flow!
@@ -83,6 +83,12 @@ function run_JuLattice()
 
     # Simulation Settings
     simulationTime = ceil(Int, Simulation_Time / delta_t);
+
+    # Output Simulation Time
+    sim_minutes = floor(Int, Simulation_Time / 60)
+    sim_seconds = Simulation_Time % 60
+    println("physical simulation time: $(sim_minutes) min $(sim_seconds) s")
+    println("Timesteps: $(simulationTime)")
 
     #Define arrays for each direction D2Q9
     f00 = zeros(gridlengthX, gridlengthY) #center
@@ -252,7 +258,7 @@ function run_JuLattice()
 
 
         ##### Boundary Conditions #####
-        # Periodic inlet / outlet
+        ## Periodic inlet / outlet
         # inlet (left)
         fp0S[2, 2:gridlengthY-1] .= fp0S[gridlengthX, 2:gridlengthY-1]
         fppS[2, 2:gridlengthY-1] .= fppS[gridlengthX, 2:gridlengthY-1]
@@ -263,36 +269,26 @@ function run_JuLattice()
         fmpS[gridlengthX-1, 2:gridlengthY-1] .= fmpS[1, 2:gridlengthY-1]
         fmmS[gridlengthX-1, 2:gridlengthY-1] .= fmmS[1, 2:gridlengthY-1]
 
-        # # Periodic corners - diagonal swap from "ghost"-cells to "real"-cells
-        # fppS[2, 2] = fppS[gridlengthX, gridlengthY]
-        # fpmS[2, gridlengthY-1] = fpmS[gridlengthX, 1]
-        # fmpS[gridlengthX-1, 2] = fmpS[1, gridlengthY]
-        # fmmS[gridlengthX-1, gridlengthY-1] = fmmS[1, 1]
-
-        # Bounceback walls
-        # Bounce back for all walls simultaneously
-        # from 2 to gridlengthX-1 for separate corner handling
+        ## Bounceback walls
         # bottom wall (y=1) streams in (y=2)
-        f0pS[2:gridlengthX-1, 2] .= f0mS[2:gridlengthX-1, 1]                                    # top = bottom
-        fppS[2:gridlengthX-1, 2] .= fmmS[2:gridlengthX-1, 1]                                    # right-top = left-bottom
-        fmpS[2:gridlengthX-1, 2] .= fpmS[2:gridlengthX-1, 1]                                    # left-top = right-bottom
+        f0pS[2:gridlengthX-1, 2] .= f0mS[2:gridlengthX-1, 1]        # top = bottom
+        # diagonals streaming back to origin node
+        fppS[2:gridlengthX-1, 2] .= fmmS[1:gridlengthX-2, 1]        # right-top = left-bottom
+        fmpS[2:gridlengthX-1, 2] .= fpmS[3:gridlengthX,   1]        # left-top = right-bottom                          
 
-        # top wall (y=gridlengthY)
-        f0mS[2:gridlengthX-1, gridlengthY-1] = f0pS[2:gridlengthX-1, gridlengthY]                 # bottom = top
-        fmmS[2:gridlengthX-1, gridlengthY-1] = fppS[2:gridlengthX-1, gridlengthY]                 # left-bottom = right-top
-        fpmS[2:gridlengthX-1, gridlengthY-1] = fmpS[2:gridlengthX-1, gridlengthY]                 # right-bottom = left-top
+        # top wall (y=gridlengthY) streams in (y=gridlengthY-1)
+        f0mS[2:gridlengthX-1, gridlengthY-1] .= f0pS[2:gridlengthX-1, gridlengthY]          # bottom = top
+        # diagonals streaming back to origin node
+        fmmS[2:gridlengthX-1, gridlengthY-1] .= fppS[3:gridlengthX, gridlengthY]            # left-bottom = right-top
+        fpmS[2:gridlengthX-1, gridlengthY-1] .= fmpS[1:gridlengthX-2, gridlengthY]          # right-bottom = left-top
 
-        # Bounceback Corners
-        fpmS[2, gridlengthY-1] = fmpS[1, gridlengthY]                           # top-left
-        fmmS[gridlengthX-1, gridlengthY-1] = fppS[gridlengthX, gridlengthY]     # top right
-        fppS[2, 2] = fmmS[1, 1]                                                 # bot left
-        fmpS[gridlengthX-1, 2] = fpmS[gridlengthX, 1]                           # bot right
 
-        # Bounceback cylinder
+        ## Bounceback cylinder
         fp0S[cylinder_indices], fm0S[cylinder_indices] = fm0S[cylinder_indices], fp0S[cylinder_indices] #horizontal getauscht
         f0pS[cylinder_indices], f0mS[cylinder_indices] = f0mS[cylinder_indices], f0pS[cylinder_indices] #vertikal getauscht
         fppS[cylinder_indices], fmmS[cylinder_indices] = fmmS[cylinder_indices], fppS[cylinder_indices] #diagonal getauscht rechtsoben <-> linksunten
         fpmS[cylinder_indices], fmpS[cylinder_indices] = fmpS[cylinder_indices], fpmS[cylinder_indices] #diagonal getauscht rechtsunten <-> linksoben
+        
         ##### Boundary Conditions #####
         
         #Swap: SWAP POINTERS new distributions to array
