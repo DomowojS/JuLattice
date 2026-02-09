@@ -441,116 +441,95 @@ function run_JuLattice()
         end
 
         ###### (new) Boundary Conditions ######
-        #Bounceback walls
-
-        for x in 1:gridlengthX
-            for y in 1:gridlengthY
-                #bottom wall (z=1)
-                f00pS[x,y,1] = f00mS[x,y,1] #mitte
-                f0mpS[x,y,1] = f0pmS[x,y,1] #4 kanten oben -> unten
-                fm0pS[x,y,1] = fp0mS[x,y,1] 
-                f0ppS[x,y,1] = f0mmS[x,y,1]
-                fp0pS[x,y,1] = fm0mS[x,y,1]
-                
-                #top wall (z=rows)
-                f00mS[x,y,gridlengthZ] = f00pS[x,y,gridlengthZ]  #mitte
-                f0pmS[x,y,gridlengthZ] = f0mpS[x,y,gridlengthZ]  #4 kanten unten -> oben
-                fp0mS[x,y,gridlengthZ] = fm0pS[x,y,gridlengthZ]  
-                f0mmS[x,y,gridlengthZ] = f0ppS[x,y,gridlengthZ]
-                fm0mS[x,y,gridlengthZ] = fp0pS[x,y,gridlengthZ] 
-                
-
-            end
-        end
+        # periodic inlet/outlet
+        # right side
+        fp00S[2, 2:gridlengthY-1, gridlengthZ-1] .= fp00S[gridlengthX, 2:gridlengthY-1, gridlengthZ-1]
+        fp0pS[2, 2:gridlengthY-1, gridlengthZ-1] .= fp0pS[gridlengthX, 2:gridlengthY-1, gridlengthZ-1]
+        fp0mS[2, 2:gridlengthY-1, gridlengthZ-1] .= fp0mS[gridlengthX, 2:gridlengthY-1, gridlengthZ-1]
+        fpm0S[2, 2:gridlengthY-1, gridlengthZ-1] .= fpm0S[gridlengthX, 2:gridlengthY-1, gridlengthZ-1]
+        fpp0S[2, 2:gridlengthY-1, gridlengthZ-1] .= fpp0S[gridlengthX, 2:gridlengthY-1, gridlengthZ-1]
         
-        for x in 1:gridlengthX
-            for z in 1:gridlengthZ
-                #front wall (y=1)
-                f0m0S[x,1,z] = f0p0S[x,1,z]   #mitte
-                f0mpS[x,1,z] = f0pmS[x,1,z]   #4 kanten
-                fpm0S[x,1,z] = fmp0S[x,1,z]
-                f0mmS[x,1,z] = f0ppS[x,1,z]
-                fmm0S[x,1,z] = fpp0S[x,1,z]
+        # left side
+        fm00S[gridlengthX-1, 2:gridlengthY-1, gridlengthZ-1] .= fm00S[1, 2:gridlengthY-1, gridlengthZ-1]
+        fmm0S[gridlengthX-1, 2:gridlengthY-1, gridlengthZ-1] .= fmm0S[1, 2:gridlengthY-1, gridlengthZ-1]
+        fmp0S[gridlengthX-1, 2:gridlengthY-1, gridlengthZ-1] .= fmp0S[1, 2:gridlengthY-1, gridlengthZ-1]
+        fm0mS[gridlengthX-1, 2:gridlengthY-1, gridlengthZ-1] .= fm0mS[1, 2:gridlengthY-1, gridlengthZ-1]
+        fm0pS[gridlengthX-1, 2:gridlengthY-1, gridlengthZ-1] .= fm0pS[1, 2:gridlengthY-1, gridlengthZ-1]
 
-                #back wall (y=)
-                f0p0S[x,gridlengthY,z] = f0m0S[x,gridlengthY,z]   #mitte
-                f0pmS[x,gridlengthY,z] = f0mpS[x,gridlengthY,z]   #4 kanten
-                fmp0S[x,gridlengthY,z] = fpm0S[x,gridlengthY,z]
-                f0ppS[x,gridlengthY,z] = f0mmS[x,gridlengthY,z]
-                fpp0S[x,gridlengthY,z] = fmm0S[x,gridlengthY,z]
-            end
-        end
+        # Bounceback walls
         
-        # #Bounceback sphere
-        # for x in 1:gridlengthX
-        #     for y in 1:gridlengthY
-        #         for z in 1:gridlengthZ
-        #             if sphere[x,y,z]
-        #                 # Cell faces - swap
-        #                 fp00S[x,y,z], fm00S[x,y,z] = fm00S[x,y,z], fp00S[x,y,z]  # X-Richtung
-        #                 f0p0S[x,y,z], f0m0S[x,y,z] = f0m0S[x,y,z], f0p0S[x,y,z]  # Y-Richtung
-        #                 f00pS[x,y,z], f00mS[x,y,z] = f00mS[x,y,z], f00pS[x,y,z]  # Z-Richtung
-                        
-        #                 # XY-plane edges
-        #                 fpp0S[x,y,z], fmm0S[x,y,z] = fmm0S[x,y,z], fpp0S[x,y,z]   
-        #                 fpm0S[x,y,z], fmp0S[x,y,z] = fmp0S[x,y,z], fpm0S[x,y,z]   
-                        
-        #                 # XZ-plane edges
-        #                 fp0pS[x,y,z], fm0mS[x,y,z] = fm0mS[x,y,z], fp0pS[x,y,z]  
-        #                 fp0mS[x,y,z], fm0pS[x,y,z] = fm0pS[x,y,z], fp0mS[x,y,z]  
-                        
-        #                 # YZ-plane edges
-        #                 f0ppS[x,y,z], f0mmS[x,y,z] = f0mmS[x,y,z], f0ppS[x,y,z]  
-        #                 f0pmS[x,y,z], f0mpS[x,y,z] = f0mpS[x,y,z], f0pmS[x,y,z] 
-        #             end 
+        # bottom wall (z=1)
+        f00pS[2:gridlengthX-1, 2:gridlengthY-1, 2] .= f00mS[2:gridlengthX-1, 2:gridlengthY-1, 1] #mitte
+        f0mpS[2:gridlengthX-1, 2:gridlengthY-1, 2] .= f0pmS[2:gridlengthX-1, 2:gridlengthY-1, 1] #4 kanten unten -> oben
+        fm0pS[2:gridlengthX-1, 2:gridlengthY-1, 2] .= fp0mS[2:gridlengthX-1, 2:gridlengthY-1, 1] 
+        f0ppS[2:gridlengthX-1, 2:gridlengthY-1, 2] .= f0mmS[2:gridlengthX-1, 2:gridlengthY-1, 1]
+        fp0pS[2:gridlengthX-1, 2:gridlengthY-1, 2] .= fm0mS[2:gridlengthX-1, 2:gridlengthY-1, 1]
 
-        #         end
-        #     end
+        # top wall (z=gridlengthZ)
+        f00mS[2:gridlengthX-1, 2:gridlengthY-1, gridlengthZ-1] .= f00pS[2:gridlenghtX-1, 2:gridlengthY-1, gridlengthZ]  #mitte
+        f0pmS[2:gridlengthX-1, 2:gridlengthY-1, gridlengthZ-1] .= f0mpS[2:gridlenghtX-1, 2:gridlengthY-1, gridlengthZ]  #4 kanten oben -> unten
+        fp0mS[2:gridlengthX-1, 2:gridlengthY-1, gridlengthZ-1] .= fm0pS[2:gridlenghtX-1, 2:gridlengthY-1, gridlengthZ]  
+        f0mmS[2:gridlengthX-1, 2:gridlengthY-1, gridlengthZ-1] .= f0ppS[2:gridlenghtX-1, 2:gridlengthY-1, gridlengthZ]
+        fm0mS[2:gridlengthX-1, 2:gridlengthY-1, gridlengthZ-1] .= fp0pS[2:gridlenghtX-1, 2:gridlengthY-1, gridlengthZ]
+
+        # front wall (y=1)
+        f0m0S[2:gridlengthX-1, 2, gridlengthZ-1] .= f0p0S[2:gridlengthX-1, 1, gridlengthZ-1]   #mitte
+        f0mpS[2:gridlengthX-1, 2, gridlengthZ-1] .= f0pmS[2:gridlengthX-1, 1, gridlengthZ-1]   #4 kanten
+        fpm0S[2:gridlengthX-1, 2, gridlengthZ-1] .= fmp0S[2:gridlengthX-1, 1, gridlengthZ-1]
+        f0mmS[2:gridlengthX-1, 2, gridlengthZ-1] .= f0ppS[2:gridlengthX-1, 1, gridlengthZ-1]
+        fmm0S[2:gridlengthX-1, 2, gridlengthZ-1] .= fpp0S[2:gridlengthX-1, 1, gridlengthZ-1]
+
+        # back wall (y=gridlengthY)
+        f0p0S[2:gridlengthX-1, gridlengthY-1, gridlengthZ-1] .= f0m0S[2:gridlengthX-1, gridlengthY, gridlengthZ-1]   #mitte
+        f0pmS[2:gridlengthX-1, gridlengthY-1, gridlengthZ-1] .= f0mpS[2:gridlengthX-1, gridlengthY, gridlengthZ-1]   #4 kanten
+        fmp0S[2:gridlengthX-1, gridlengthY-1, gridlengthZ-1] .= fpm0S[2:gridlengthX-1, gridlengthY, gridlengthZ-1]
+        f0ppS[2:gridlengthX-1, gridlengthY-1, gridlengthZ-1] .= f0mmS[2:gridlengthX-1, gridlengthY, gridlengthZ-1]
+        fpp0S[2:gridlengthX-1, gridlengthY-1, gridlengthZ-1] .= fmm0S[2:gridlengthX-1, gridlengthY, gridlengthZ-1]
+
+        # Edges and Corners Bounceback
+        
+
+
+
+        # Sphere Bounceback
+        # Cell faces - swap (vectorized)
+        fp00S[sphere_indices], fm00S[sphere_indices] = fm00S[sphere_indices], fp00S[sphere_indices]
+        f0p0S[sphere_indices], f0m0S[sphere_indices] = f0m0S[sphere_indices], f0p0S[sphere_indices]
+        f00pS[sphere_indices], f00mS[sphere_indices] = f00mS[sphere_indices], f00pS[sphere_indices]
+
+        # XY-plane edges (vectorized)
+        fpp0S[sphere_indices], fmm0S[sphere_indices] = fmm0S[sphere_indices], fpp0S[sphere_indices]
+        fpm0S[sphere_indices], fmp0S[sphere_indices] = fmp0S[sphere_indices], fpm0S[sphere_indices]
+
+        # XZ-plane edges (vectorized)
+        fp0pS[sphere_indices], fm0mS[sphere_indices] = fm0mS[sphere_indices], fp0pS[sphere_indices]
+        fp0mS[sphere_indices], fm0pS[sphere_indices] = fm0pS[sphere_indices], fp0mS[sphere_indices]
+
+        # YZ-plane edges (vectorized)
+        f0ppS[sphere_indices], f0mmS[sphere_indices] = f0mmS[sphere_indices], f0ppS[sphere_indices]
+        f0pmS[sphere_indices], f0mpS[sphere_indices] = f0mpS[sphere_indices], f0pmS[sphere_indices]
+        
+        # for idx in sphere_indices
+        #     x, y, z = Tuple(idx)    
+
+        #     # Cell faces - swap
+        #     fp00S[x,y,z], fm00S[x,y,z] = fm00S[x,y,z], fp00S[x,y,z]  # X-Richtung
+        #     f0p0S[x,y,z], f0m0S[x,y,z] = f0m0S[x,y,z], f0p0S[x,y,z]  # Y-Richtung
+        #     f00pS[x,y,z], f00mS[x,y,z] = f00mS[x,y,z], f00pS[x,y,z]  # Z-Richtung
+
+        #     # XY-plane edges
+        #     fpp0S[x,y,z], fmm0S[x,y,z] = fmm0S[x,y,z], fpp0S[x,y,z]   
+        #     fpm0S[x,y,z], fmp0S[x,y,z] = fmp0S[x,y,z], fpm0S[x,y,z]   
+
+        #     # XZ-plane edges
+        #     fp0pS[x,y,z], fm0mS[x,y,z] = fm0mS[x,y,z], fp0pS[x,y,z]  
+        #     fp0mS[x,y,z], fm0pS[x,y,z] = fm0pS[x,y,z], fp0mS[x,y,z]  
+
+        #     # YZ-plane edges
+        #     f0ppS[x,y,z], f0mmS[x,y,z] = f0mmS[x,y,z], f0ppS[x,y,z]  
+        #     f0pmS[x,y,z], f0mpS[x,y,z] = f0mpS[x,y,z], f0pmS[x,y,z]
         # end 
-
-        for idx in sphere_indices
-            x, y, z = Tuple(idx)    
-
-            # Cell faces - swap
-            fp00S[x,y,z], fm00S[x,y,z] = fm00S[x,y,z], fp00S[x,y,z]  # X-Richtung
-            f0p0S[x,y,z], f0m0S[x,y,z] = f0m0S[x,y,z], f0p0S[x,y,z]  # Y-Richtung
-            f00pS[x,y,z], f00mS[x,y,z] = f00mS[x,y,z], f00pS[x,y,z]  # Z-Richtung
-
-            # XY-plane edges
-            fpp0S[x,y,z], fmm0S[x,y,z] = fmm0S[x,y,z], fpp0S[x,y,z]   
-            fpm0S[x,y,z], fmp0S[x,y,z] = fmp0S[x,y,z], fpm0S[x,y,z]   
-
-            # XZ-plane edges
-            fp0pS[x,y,z], fm0mS[x,y,z] = fm0mS[x,y,z], fp0pS[x,y,z]  
-            fp0mS[x,y,z], fm0pS[x,y,z] = fm0pS[x,y,z], fp0mS[x,y,z]  
-
-            # YZ-plane edges
-            f0ppS[x,y,z], f0mmS[x,y,z] = f0mmS[x,y,z], f0ppS[x,y,z]  
-            f0pmS[x,y,z], f0mpS[x,y,z] = f0mpS[x,y,z], f0pmS[x,y,z]
-        end 
-
         ###### (new) Boundary Conditions ######
-
-        #Swap copy f_eq to new distributions
-        # f000 .= f000S
-        # fm00 .= fm00S
-        # fp00 .= fp00S
-        # f0m0 .= f0m0S
-        # f0p0 .= f0p0S
-        # f00m .= f00mS
-        # f00p .= f00pS
-        # fmm0 .= fmm0S
-        # fmp0 .= fmp0S
-        # fpm0 .= fpm0S
-        # fpp0 .= fpp0S
-        # fm0m .= fm0mS
-        # fm0p .= fm0pS
-        # fp0m .= fp0mS
-        # fp0p .= fp0pS
-        # f0mm .= f0mmS
-        # f0mp .= f0mpS
-        # f0pm .= f0pmS
-        # f0pp .= f0ppS
 
         # Swap: SWAP POINTERS new distribution to "old"
         f000, f000S = f000S, f000
