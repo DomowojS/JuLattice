@@ -2,7 +2,7 @@ module Plotter
 using GLMakie
 using Colors
 export Create_Plot_XY, Create_Plot_XZ, Create_Vorticity_XY, Create_Vorticity_XZ
-
+using ColorSchemes
 ## Set up Plot 
 ######################################################
 
@@ -17,17 +17,24 @@ export Create_Plot_XY, Create_Plot_XZ, Create_Vorticity_XY, Create_Vorticity_XZ
         alpha = 0.15 .+ 0.85 .* (t .^ 0.6)
         Makie.cgrad(:turbo, n, alpha=alpha)
     end
+
+    function custom_rdbu_with_zero(n::Int=256)
+        base = get(colorschemes[:RdBu], LinRange(0, 1, n))
+
+        base[div(n,2)] = RGB(0,1,0)
+        return cgrad(base)
+    end
 ######################################################
 
     function Create_Plot_XY(nx::Int, ny::Int, field2d::Array{<:Real, 2}; title="vx slice XY")
         vx_obs = Observable(field2d)
         fig = Figure(size = (900, 400))
         ax = Axis(fig[1,1], aspect = DataAspect(), title = title)
-        colorrange =(-0.2, 0.2)
+        colorrange = (-0.1, 0.1)
         hm = heatmap!(ax, 1:nx, 1:ny, vx_obs; 
-                        colormap = transparency_map(), 
+                        colormap = custom_rdbu_with_zero(), 
                         nan_color= :black, colorrange = colorrange, 
-                        transparency=true)
+                        interpolate=false)
 
         Colorbar(fig[1, 2], hm, label = "Lattice_Velocity")
         xlims!(ax, 1, nx); ylims!(ax, 1, ny)
@@ -41,7 +48,11 @@ export Create_Plot_XY, Create_Plot_XZ, Create_Vorticity_XY, Create_Vorticity_XZ
         vx_obs = Observable(field2d)
         fig = Figure(size = (900, 400))
         ax = Axis(fig[1,1], aspect = DataAspect(), title = title)
-        hm = heatmap!(ax, 1:nx, 1:nz, vx_obs; colormap = :inferno, nan_color= :white, colorrange = (-0.2, 0.2))
+        colorrange = (-0.1, 0.1)
+        hm = heatmap!(ax, 1:nx, 1:nz, vx_obs; 
+                        colormap = custom_rdbu_with_zero(), 
+                        nan_color= :black, colorrange = colorrange,
+                        interpolate=false)
         Colorbar(fig[1, 2], hm, label = "Lattice_Velocity")
         xlims!(ax, 1, nx); ylims!(ax, 1, nz)
 
