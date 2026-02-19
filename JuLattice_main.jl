@@ -23,11 +23,14 @@ module JuLattice
         Inflow_Velocity = 0.4;      # m/s
         Kinematic_Viscosity = 0.001; # m^2/s 
 
-        # Simulation Settings
+# Simulation Settings
         Simulation_Time = 8000;     # s
-        delta_x = 0.01;             # discretisation in time and space
-        τ = 0.65;
-        Re = (Inflow_Velocity .* Radius)/Kinematic_Viscosity;
+        delta_x = 0.01;             # Grid spacing (physical units per lattice unit)
+        Mach_Number = 0.1;          # Target Mach number (Ma = U_lattice / c_s)
+                                    # Keep Ma < 0.1 for incompressible flow!
+
+        # Compute Reynolds number (for reference)
+        Re = (Inflow_Velocity .* 2 .* Radius)/Kinematic_Viscosity;
         Re_Log=floor(Int,Re)
 
         # Plot Requests
@@ -38,10 +41,26 @@ module JuLattice
 
         #### Run Simulation #####
         Log_Simulation_Header()
-        ## Compute timestep from relaxation time
-        # Time step from relaxation time
-        lattice_speedOfSound = 1 / √3;
-        delta_t = ((τ - 0.5) * lattice_speedOfSound^2 * delta_x^2) / Kinematic_Viscosity
+
+        ##-------- Compute LBM Parameters from Mach Number --------##
+        # Fixed lattice constant
+        lattice_speedOfSound = 1 / √3;  # Immutable for D2Q9
+
+        # Step 1: Lattice velocity from Mach number
+        lattice_inflow_velocity = Mach_Number * lattice_speedOfSound
+
+        # Step 2: Timestep from velocity scaling
+        # U_phys = (dx/dt) * U_lattice  =>  dt = dx * U_lattice / U_phys
+        delta_t = delta_x * lattice_inflow_velocity / Inflow_Velocity
+
+        # Step 3: Lattice viscosity from physical viscosity
+        # nu_phys = (dx²/dt) * nu_lattice  =>  nu_lattice = nu_phys * dt / dx²
+        lattice_viscosity = Kinematic_Viscosity * delta_t / (delta_x^2)
+
+        # Step 4: Relaxation time and omega from lattice viscosity
+        # nu_lattice = c_s² * (tau - 0.5)  =>  tau = nu_lattice / c_s² + 0.5
+        τ = lattice_viscosity / (lattice_speedOfSound^2) + 0.5
+        omega = 1.0 / τ
 
         ## Convert user settings to lattice units
         # Domain
@@ -54,11 +73,10 @@ module JuLattice
 
         # Fluid
         fluiddensity = 100;
-        lattice_inflow_velocity = Inflow_Velocity * (delta_t / delta_x);
-        lattice_viscosity = lattice_speedOfSound^2 * (τ -0.5);
-        #ReynoldsCheck
-        lattice_Re = (lattice_inflow_velocity .* cylinder_radius)/lattice_viscosity;
-        lattice_Re_Log=floor(Int,lattice_Re)
+
+        # Verify Reynolds number consistency (lattice vs physical)
+        lattice_Re = (lattice_inflow_velocity .* 2 .* cylinder_radius) / lattice_viscosity
+        lattice_Re_Log = floor(Int, lattice_Re)
 
         #Log 
         Log_Discretization_Settings(delta_x, delta_t, lattice_Re_Log)
