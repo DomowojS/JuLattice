@@ -20,7 +20,7 @@ module JuLattice
 
         # Fluid Properties
         reynoldsNumber          = 300
-        machNumber  = 0.025        # Ma = U / c_s  (keep < 0.1 for incompressible)
+        machNumber  = 0.005        # Ma = U / c_s  (keep < 0.1 for incompressible)
         viscosity   = 0.001       # m^2/s
 
         # Simulation Settings
@@ -86,11 +86,6 @@ module JuLattice
         f0p = zeros(Nx,Ny); f0m = zeros(Nx,Ny)
         fpp = zeros(Nx,Ny); fpm = zeros(Nx,Ny); fmp = zeros(Nx,Ny); fmm = zeros(Nx,Ny)
 
-        # Post-collision distributions (ping-pong buffer for streaming)
-        f00s = zeros(Nx,Ny); fp0s = zeros(Nx,Ny); fm0s = zeros(Nx,Ny)
-        f0ps = zeros(Nx,Ny); f0ms = zeros(Nx,Ny)
-        fpps = zeros(Nx,Ny); fpms = zeros(Nx,Ny); fmps = zeros(Nx,Ny); fmms = zeros(Nx,Ny)
-
         # Moments (overwritten each step, fluid nodes only)
         m00 = zeros(Nx,Ny); m10 = zeros(Nx,Ny); m01 = zeros(Nx,Ny)
         m11 = zeros(Nx,Ny); mP  = zeros(Nx,Ny); mxx = zeros(Nx,Ny)
@@ -115,10 +110,6 @@ module JuLattice
         fmp .= getEquilibrium(rho0, u0, 0.0, -1,  1)
         fmm .= getEquilibrium(rho0, u0, 0.0, -1, -1)
 
-        f00s .= f00; fp0s .= fp0; fm0s .= fm0
-        f0ps .= f0p; f0ms .= f0m
-        fpps .= fpp; fpms .= fpm; fmps .= fmp; fmms .= fmm
-
         densityGrid .= rho0
         velocityX   .= u0
 
@@ -139,7 +130,12 @@ module JuLattice
         fmm_eq_wall = getEquilibrium(rho0, 0.0, 0.0, -1, -1)
 
         ##-------- Plotting Setup --------##
-        fig, obs_u, obs_v, obs_vort, step_text = Create_Plot(Nx, Ny, plotU, plotV, plotVorticity)
+        uPhys  = machNumber * speedOfSound           # physical inflow velocity [m/s]
+        rangeU    = (0.0,          1.5 * uPhys)      # 0 to Poiseuille peak (~1.5x mean)
+        rangeV    = (-0.3 * uPhys, 0.3 * uPhys)     # transverse: small fraction of uPhys
+        rangeVort = (-3*uPhys/lengthY, 3*uPhys/lengthY)  # ∂u/∂y at wall for Poiseuille
+        fig, obs_u, obs_v, obs_vort, step_text = Create_Plot(Nx, Ny, plotU, plotV, plotVorticity,
+                                                              rangeU, rangeV, rangeVort)
         screen = GLMakie.Screen()
         GLMakie.display(screen, fig)
 
@@ -175,37 +171,46 @@ module JuLattice
                 m12[isFluid] .-= 1.0           .* (m12[isFluid] .- m10[isFluid] .* m01[isFluid].^2 ./ m00[isFluid].^2)
                 m22[isFluid] .-= 1.0           .* (m22[isFluid] .- m10[isFluid].^2 .* m01[isFluid].^2 ./ m00[isFluid].^3)
 
-                # m -> fs  (M_inv applied row by row)
-                f00s[isFluid] .= M_inv[1,1].*m00[isFluid] .+ M_inv[1,2].*m10[isFluid] .+ M_inv[1,3].*m01[isFluid] .+ M_inv[1,4].*m11[isFluid] .+ M_inv[1,5].*mP[isFluid] .+ M_inv[1,6].*mxx[isFluid] .+ M_inv[1,7].*m21[isFluid] .+ M_inv[1,8].*m12[isFluid] .+ M_inv[1,9].*m22[isFluid]
-                fp0s[isFluid] .= M_inv[2,1].*m00[isFluid] .+ M_inv[2,2].*m10[isFluid] .+ M_inv[2,3].*m01[isFluid] .+ M_inv[2,4].*m11[isFluid] .+ M_inv[2,5].*mP[isFluid] .+ M_inv[2,6].*mxx[isFluid] .+ M_inv[2,7].*m21[isFluid] .+ M_inv[2,8].*m12[isFluid] .+ M_inv[2,9].*m22[isFluid]
-                fm0s[isFluid] .= M_inv[3,1].*m00[isFluid] .+ M_inv[3,2].*m10[isFluid] .+ M_inv[3,3].*m01[isFluid] .+ M_inv[3,4].*m11[isFluid] .+ M_inv[3,5].*mP[isFluid] .+ M_inv[3,6].*mxx[isFluid] .+ M_inv[3,7].*m21[isFluid] .+ M_inv[3,8].*m12[isFluid] .+ M_inv[3,9].*m22[isFluid]
-                f0ps[isFluid] .= M_inv[4,1].*m00[isFluid] .+ M_inv[4,2].*m10[isFluid] .+ M_inv[4,3].*m01[isFluid] .+ M_inv[4,4].*m11[isFluid] .+ M_inv[4,5].*mP[isFluid] .+ M_inv[4,6].*mxx[isFluid] .+ M_inv[4,7].*m21[isFluid] .+ M_inv[4,8].*m12[isFluid] .+ M_inv[4,9].*m22[isFluid]
-                f0ms[isFluid] .= M_inv[5,1].*m00[isFluid] .+ M_inv[5,2].*m10[isFluid] .+ M_inv[5,3].*m01[isFluid] .+ M_inv[5,4].*m11[isFluid] .+ M_inv[5,5].*mP[isFluid] .+ M_inv[5,6].*mxx[isFluid] .+ M_inv[5,7].*m21[isFluid] .+ M_inv[5,8].*m12[isFluid] .+ M_inv[5,9].*m22[isFluid]
-                fpps[isFluid] .= M_inv[6,1].*m00[isFluid] .+ M_inv[6,2].*m10[isFluid] .+ M_inv[6,3].*m01[isFluid] .+ M_inv[6,4].*m11[isFluid] .+ M_inv[6,5].*mP[isFluid] .+ M_inv[6,6].*mxx[isFluid] .+ M_inv[6,7].*m21[isFluid] .+ M_inv[6,8].*m12[isFluid] .+ M_inv[6,9].*m22[isFluid]
-                fpms[isFluid] .= M_inv[7,1].*m00[isFluid] .+ M_inv[7,2].*m10[isFluid] .+ M_inv[7,3].*m01[isFluid] .+ M_inv[7,4].*m11[isFluid] .+ M_inv[7,5].*mP[isFluid] .+ M_inv[7,6].*mxx[isFluid] .+ M_inv[7,7].*m21[isFluid] .+ M_inv[7,8].*m12[isFluid] .+ M_inv[7,9].*m22[isFluid]
-                fmps[isFluid] .= M_inv[8,1].*m00[isFluid] .+ M_inv[8,2].*m10[isFluid] .+ M_inv[8,3].*m01[isFluid] .+ M_inv[8,4].*m11[isFluid] .+ M_inv[8,5].*mP[isFluid] .+ M_inv[8,6].*mxx[isFluid] .+ M_inv[8,7].*m21[isFluid] .+ M_inv[8,8].*m12[isFluid] .+ M_inv[8,9].*m22[isFluid]
-                fmms[isFluid] .= M_inv[9,1].*m00[isFluid] .+ M_inv[9,2].*m10[isFluid] .+ M_inv[9,3].*m01[isFluid] .+ M_inv[9,4].*m11[isFluid] .+ M_inv[9,5].*mP[isFluid] .+ M_inv[9,6].*mxx[isFluid] .+ M_inv[9,7].*m21[isFluid] .+ M_inv[9,8].*m12[isFluid] .+ M_inv[9,9].*m22[isFluid]
-            end
+                # m -> f with direct streaming: write each population to its streamed destination
+                # source moments always from fluid nodes [2:Nx-1, 2:Ny-1]
+                f00[2:Nx-1, 2:Ny-1] .= M_inv[1,1].*m00[2:Nx-1,2:Ny-1] .+ M_inv[1,2].*m10[2:Nx-1,2:Ny-1] .+ M_inv[1,3].*m01[2:Nx-1,2:Ny-1] .+ M_inv[1,4].*m11[2:Nx-1,2:Ny-1] .+ M_inv[1,5].*mP[2:Nx-1,2:Ny-1] .+ M_inv[1,6].*mxx[2:Nx-1,2:Ny-1] .+ M_inv[1,7].*m21[2:Nx-1,2:Ny-1] .+ M_inv[1,8].*m12[2:Nx-1,2:Ny-1] .+ M_inv[1,9].*m22[2:Nx-1,2:Ny-1]
+                fp0[3:Nx,   2:Ny-1] .= M_inv[2,1].*m00[2:Nx-1,2:Ny-1] .+ M_inv[2,2].*m10[2:Nx-1,2:Ny-1] .+ M_inv[2,3].*m01[2:Nx-1,2:Ny-1] .+ M_inv[2,4].*m11[2:Nx-1,2:Ny-1] .+ M_inv[2,5].*mP[2:Nx-1,2:Ny-1] .+ M_inv[2,6].*mxx[2:Nx-1,2:Ny-1] .+ M_inv[2,7].*m21[2:Nx-1,2:Ny-1] .+ M_inv[2,8].*m12[2:Nx-1,2:Ny-1] .+ M_inv[2,9].*m22[2:Nx-1,2:Ny-1]  # cx=+1
+                fm0[1:Nx-2, 2:Ny-1] .= M_inv[3,1].*m00[2:Nx-1,2:Ny-1] .+ M_inv[3,2].*m10[2:Nx-1,2:Ny-1] .+ M_inv[3,3].*m01[2:Nx-1,2:Ny-1] .+ M_inv[3,4].*m11[2:Nx-1,2:Ny-1] .+ M_inv[3,5].*mP[2:Nx-1,2:Ny-1] .+ M_inv[3,6].*mxx[2:Nx-1,2:Ny-1] .+ M_inv[3,7].*m21[2:Nx-1,2:Ny-1] .+ M_inv[3,8].*m12[2:Nx-1,2:Ny-1] .+ M_inv[3,9].*m22[2:Nx-1,2:Ny-1]  # cx=-1
+                f0p[2:Nx-1, 3:Ny  ] .= M_inv[4,1].*m00[2:Nx-1,2:Ny-1] .+ M_inv[4,2].*m10[2:Nx-1,2:Ny-1] .+ M_inv[4,3].*m01[2:Nx-1,2:Ny-1] .+ M_inv[4,4].*m11[2:Nx-1,2:Ny-1] .+ M_inv[4,5].*mP[2:Nx-1,2:Ny-1] .+ M_inv[4,6].*mxx[2:Nx-1,2:Ny-1] .+ M_inv[4,7].*m21[2:Nx-1,2:Ny-1] .+ M_inv[4,8].*m12[2:Nx-1,2:Ny-1] .+ M_inv[4,9].*m22[2:Nx-1,2:Ny-1]  # cy=+1
+                f0m[2:Nx-1, 1:Ny-2] .= M_inv[5,1].*m00[2:Nx-1,2:Ny-1] .+ M_inv[5,2].*m10[2:Nx-1,2:Ny-1] .+ M_inv[5,3].*m01[2:Nx-1,2:Ny-1] .+ M_inv[5,4].*m11[2:Nx-1,2:Ny-1] .+ M_inv[5,5].*mP[2:Nx-1,2:Ny-1] .+ M_inv[5,6].*mxx[2:Nx-1,2:Ny-1] .+ M_inv[5,7].*m21[2:Nx-1,2:Ny-1] .+ M_inv[5,8].*m12[2:Nx-1,2:Ny-1] .+ M_inv[5,9].*m22[2:Nx-1,2:Ny-1]  # cy=-1
+                fpp[3:Nx,   3:Ny  ] .= M_inv[6,1].*m00[2:Nx-1,2:Ny-1] .+ M_inv[6,2].*m10[2:Nx-1,2:Ny-1] .+ M_inv[6,3].*m01[2:Nx-1,2:Ny-1] .+ M_inv[6,4].*m11[2:Nx-1,2:Ny-1] .+ M_inv[6,5].*mP[2:Nx-1,2:Ny-1] .+ M_inv[6,6].*mxx[2:Nx-1,2:Ny-1] .+ M_inv[6,7].*m21[2:Nx-1,2:Ny-1] .+ M_inv[6,8].*m12[2:Nx-1,2:Ny-1] .+ M_inv[6,9].*m22[2:Nx-1,2:Ny-1]  # cx=+1,cy=+1
+                fpm[3:Nx,   1:Ny-2] .= M_inv[7,1].*m00[2:Nx-1,2:Ny-1] .+ M_inv[7,2].*m10[2:Nx-1,2:Ny-1] .+ M_inv[7,3].*m01[2:Nx-1,2:Ny-1] .+ M_inv[7,4].*m11[2:Nx-1,2:Ny-1] .+ M_inv[7,5].*mP[2:Nx-1,2:Ny-1] .+ M_inv[7,6].*mxx[2:Nx-1,2:Ny-1] .+ M_inv[7,7].*m21[2:Nx-1,2:Ny-1] .+ M_inv[7,8].*m12[2:Nx-1,2:Ny-1] .+ M_inv[7,9].*m22[2:Nx-1,2:Ny-1]  # cx=+1,cy=-1
+                fmp[1:Nx-2, 3:Ny  ] .= M_inv[8,1].*m00[2:Nx-1,2:Ny-1] .+ M_inv[8,2].*m10[2:Nx-1,2:Ny-1] .+ M_inv[8,3].*m01[2:Nx-1,2:Ny-1] .+ M_inv[8,4].*m11[2:Nx-1,2:Ny-1] .+ M_inv[8,5].*mP[2:Nx-1,2:Ny-1] .+ M_inv[8,6].*mxx[2:Nx-1,2:Ny-1] .+ M_inv[8,7].*m21[2:Nx-1,2:Ny-1] .+ M_inv[8,8].*m12[2:Nx-1,2:Ny-1] .+ M_inv[8,9].*m22[2:Nx-1,2:Ny-1]  # cx=-1,cy=+1
+                fmm[1:Nx-2, 1:Ny-2] .= M_inv[9,1].*m00[2:Nx-1,2:Ny-1] .+ M_inv[9,2].*m10[2:Nx-1,2:Ny-1] .+ M_inv[9,3].*m01[2:Nx-1,2:Ny-1] .+ M_inv[9,4].*m11[2:Nx-1,2:Ny-1] .+ M_inv[9,5].*mP[2:Nx-1,2:Ny-1] .+ M_inv[9,6].*mxx[2:Nx-1,2:Ny-1] .+ M_inv[9,7].*m21[2:Nx-1,2:Ny-1] .+ M_inv[9,8].*m12[2:Nx-1,2:Ny-1] .+ M_inv[9,9].*m22[2:Nx-1,2:Ny-1]  # cx=-1,cy=-1
 
-            ##-- 2. Streaming (full ranges; ghost garbage overwritten by BCs) --##
-            f00 .= f00s
-            fp0[2:Nx,    :]    .= fp0s[1:Nx-1, :]        # cx=+1
-            fm0[1:Nx-1,  :]    .= fm0s[2:Nx,   :]        # cx=-1
-            f0p[:,   2:Ny]     .= f0ps[:,   1:Ny-1]      # cy=+1
-            f0m[:,   1:Ny-1]   .= f0ms[:,   2:Ny  ]      # cy=-1
-            fpp[2:Nx,   2:Ny]  .= fpps[1:Nx-1, 1:Ny-1]  # cx=+1,cy=+1
-            fpm[2:Nx,   1:Ny-1].= fpms[1:Nx-1, 2:Ny  ]  # cx=+1,cy=-1
-            fmp[1:Nx-1, 2:Ny]  .= fmps[2:Nx,   1:Ny-1]  # cx=-1,cy=+1
-            fmm[1:Nx-1, 1:Ny-1].= fmms[2:Nx,   2:Ny  ]  # cx=-1,cy=-1
+                # Ghost streaming: shift all 4 ghost boundaries into adjacent fluid.
+                # Ghost f values here are from the previous step's BCs.
+                # Bottom wall (y=1) -> y=2, cy=+1 populations
+                f0p[2:Nx-1, 2]    .= f0p[2:Nx-1, 1]
+                fpp[2:Nx,   2]    .= fpp[1:Nx-1, 1]     # cx=+1: x shifts right
+                fmp[1:Nx-1, 2]    .= fmp[2:Nx,   1]     # cx=-1: x shifts left
+                # Top wall (y=Ny) -> y=Ny-1, cy=-1 populations
+                f0m[2:Nx-1, Ny-1] .= f0m[2:Nx-1, Ny]
+                fpm[2:Nx,   Ny-1] .= fpm[1:Nx-1, Ny]    # cx=+1: x shifts right
+                fmm[1:Nx-1, Ny-1] .= fmm[2:Nx,   Ny]    # cx=-1: x shifts left
+                # Inlet ghost (x=1) -> x=2, cx=+1 populations
+                fp0[2, 2:Ny-1]    .= fp0[1, 2:Ny-1]
+                fpp[2, 2:Ny]      .= fpp[1, 1:Ny-1]     # cy=+1: y shifts up
+                fpm[2, 1:Ny-1]    .= fpm[1, 2:Ny]       # cy=-1: y shifts down
+                # Outlet ghost (x=Nx) -> x=Nx-1, cx=-1 populations
+                fm0[Nx-1, 2:Ny-1] .= fm0[Nx, 2:Ny-1]
+                fmm[Nx-1, 1:Ny-1] .= fmm[Nx, 2:Ny]     # cy=-1: y shifts down
+                fmp[Nx-1, 2:Ny]   .= fmp[Nx, 1:Ny-1]   # cy=+1: y shifts up
+            end
 
             ##-- 3. Boundary Conditions --##
 
             # Inlet (x=1): velocity anti-bounce-back -> inject into first fluid node x=2
             # Post-streaming: fm0[1,y]=fm0s[2,y], fmm[1,y]=fmms[2,y+1], fmp[1,y]=fmps[2,y-1]
             @views begin
-                fp0[2, :]      .= .-fm0[1, :]      .+ 2*fp0_eq
-                fpp[2, 2:Ny]   .= .-fmm[1, 1:Ny-1] .+ 2*fpp_eq
-                fpm[2, 1:Ny-1] .= .-fmp[1, 2:Ny]   .+ 2*fpm_eq
+                fp0[2, :]      .= -fm0[1, :]      .+ 2/(9*latticeSpeedOfSound*latticeSpeedOfSound)  .* latticeInflowVelocity
+                fpp[2, 2:Ny]   .= -fmm[1, 1:Ny-1] .+ 2/(36*latticeSpeedOfSound*latticeSpeedOfSound) .* latticeInflowVelocity
+                fpm[2, 1:Ny-1] .= -fmp[1, 2:Ny]   .+ 2/(36*latticeSpeedOfSound*latticeSpeedOfSound) .* latticeInflowVelocity
             end
 
             # Outlet (x=Nx): zero-gradient -- copy eastward populations from last fluid node
@@ -226,6 +231,9 @@ module JuLattice
                 end
             end
 
+            # Corner Handling
+            
+
             ##-- 4. Logging & Plotting --##
             if (i % 100 == 0) || (i == nSteps)
                 Log_Simulation_Runtime(i, nSteps)
@@ -234,7 +242,7 @@ module JuLattice
             if (i % 10 == 0) || (i == nSteps)
                 Update_Plot!(obs_u, obs_v, obs_vort, step_text,
                              velocityX, velocityY,
-                             i, deltaT,
+                             i, deltaT, deltaX,
                              plotU, plotV, plotVorticity,
                              isFluid)
                 yield()
