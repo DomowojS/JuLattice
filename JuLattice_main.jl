@@ -11,117 +11,84 @@ module JuLattice
     function run()
         ## User Settings
         # Domain Settings
-        length_X = 4;              # m
-        length_Y = 1;              # m 
+        lengthX = 8;              # m
+        lengthY = 2;              # m 
 
-        # Cylinder Definition
-        Radius   = 0.1    # m
-        Position = [1, 0.5] # m
+        # Rectangle Settings (we will expand on this later -> only for Re right now)
+        d = 0.5;                   # m
 
-        # Fluid Settings 
-        Fluid_Density = 1000.0;       # kg/m^3
-        Inflow_Velocity = 0.4;      # m/s
-        Kinematic_Viscosity = 0.001; # m^2/s 
+        # Fluid Properties
+        Re = 300
+        machNumber = 0.1;          # Target Mach number (Ma = U / c_s)
+        viscosity = 0.001;          # m²/s
 
-# Simulation Settings
-        Simulation_Time = 8000;     # s
-        delta_x = 0.01;             # Grid spacing (physical units per lattice unit)
-        Mach_Number = 0.1;          # Target Mach number (Ma = U_lattice / c_s)
-                                    # Keep Ma < 0.1 for incompressible flow!
+        # Simulation Settings
+        simulationTime = 8000;     # s
+        deltaX = 0.1;              # Grid spacing (physical units per lattice unit)
 
-        # Compute Reynolds number (for reference)
-        Re = (Inflow_Velocity .* 2 .* Radius)/Kinematic_Viscosity;
-        Re_Log=floor(Int,Re)
 
         # Plot Requests
-        Plotvx = true;
-        Plotvy = true;
-        Plotvorticity = true;
-
+        plotU = true;
+        plotV = true;
+        plotVorticity = true;
 
         #### Run Simulation #####
         Log_Simulation_Header()
 
-        ##-------- Compute LBM Parameters from Mach Number --------##
-        # Fixed lattice constant
-        lattice_speedOfSound = 1 / √3;  # Immutable for D2Q9
+        ##-------- Compute LBM Parameters from Fluid Properties & Simulation Settings --------##
+        speedOfSound = viscosity * Re / (machNumber * d);
+        latticeSpeedOfSound = 1 / √3;
 
-        # Step 1: Lattice velocity from Mach number
-        lattice_inflow_velocity = Mach_Number * lattice_speedOfSound
-
-        # Step 2: Timestep from velocity scaling
-        # U_phys = (dx/dt) * U_lattice  =>  dt = dx * U_lattice / U_phys
-        delta_t = delta_x * lattice_inflow_velocity / Inflow_Velocity
-
-        # Step 3: Lattice viscosity from physical viscosity
-        # nu_phys = (dx²/dt) * nu_lattice  =>  nu_lattice = nu_phys * dt / dx²
-        lattice_viscosity = Kinematic_Viscosity * delta_t / (delta_x^2)
-
-        # Step 4: Relaxation time and omega from lattice viscosity
-        # nu_lattice = c_s² * (tau - 0.5)  =>  tau = nu_lattice / c_s² + 0.5
-        τ = lattice_viscosity / (lattice_speedOfSound^2) + 0.5
-        omega = 1.0 / τ
-
+        deltaT = deltaX * latticeSpeedOfSound / speedOfSound
+        latticeViscosity = viscosity * deltaT / (deltaX^2)
+        latticeInflowVelocity = machNumber * latticeSpeedOfSound
         ## Convert user settings to lattice units
         # Domain
-        gridlengthX  = ceil(Int, length_X / delta_x);
-        gridlengthY  = ceil(Int, length_Y / delta_x);
-
-        # Cylinder
-        cylinder_radius  = Radius/delta_x;
-        cylinder_position = Position ./ delta_x;
 
         # Fluid
-        fluiddensity = 100;
-
-        # Verify Reynolds number consistency (lattice vs physical)
-        lattice_Re = (lattice_inflow_velocity .* 2 .* cylinder_radius) / lattice_viscosity
-        lattice_Re_Log = floor(Int, lattice_Re)
+        latticeDensity = 1;
 
         #Log 
-        Log_Discretization_Settings(delta_x, delta_t, lattice_Re_Log)
+        Log_Discretization_Settings(deltaX, deltaT, latticeDensity)
 
         # Simulation Settings
-        simulationTime = ceil(Int, Simulation_Time / delta_t);
+        simulationTime = ceil(Int, simulationTime / deltaT);
         Q   = 9;
 
-        velocity_vector = [     [0, -1, 0, 1, 0, -1, -1, 1, 1],
+        velocityVector = [     [0, -1, 0, 1, 0, -1, -1, 1, 1],
                                 [0, 0, 1, 0, -1, -1, 1, 1, -1]];
 
-        velocity_vector_x = reshape(velocity_vector[1,],1,1,Q)
-        velocity_vector_y = reshape(velocity_vector[2,],1,1,Q)
-
         weights =   [4/9, 1/9, 1/9, 1/9, 1/9, 1/36, 1/36, 1/36, 1/36];
-        weights =   reshape(weights,1,1,Q);
 
-        # create grid
-        gridX, gridY = meshgrid(1:gridlengthX, 1:gridlengthY);
-        gridX, gridY = gridX', gridY';
+        omegaBGK = 1 / (3 * latticeViscosity + 0.5);
+        omegaAcoustic = 1;
+        omegaGhosts = 1;
 
-        # create object indetifier
-        cylinder = (gridX.-cylinder_position[1]).^2 + (gridY.-cylinder_position[2]).^2 .< cylinder_radius.^2;
+        relaxationVector = [omegaBGK, omegaAcoustic, omegaGhosts]; #should be 0 for conserved moments (00,01,10), omegaBGK for hydrodynamic moments (11,20-02), 
+                                                                   #omegaAcoustic for acoustic moments (20+02) and 1 for ghost moments (12,21,22)
+
+        # Now the main arrays. Initialissation should always be Nx x Ny (where Nx e.g. is LengthX/deltaX but always +2 (to create a "boundary node" around the actual domain for easier implementation of boundary conditions))
+        # 9 separate arrays for distributions following miller indices (f00, f01, f10, f11, f20, f02, f12, f21, f22)
+        # 9 + 9 + 9 separate arrays for precollision moments (m00, m01, m10, m11, m20-m02, m02+m02, m12, m21, m22), post collision (m00s, m01s, m10s, m11s, m20s-m02s, m20s+m02s, m12s, m21s, m22s) and their equilibrium values (m00_eq, m01_eq, m10_eq, m11_eq, m20_eq, m02_eq, m12_eq, m21_eq, m22_eq)
+        
+        # initialise transformation matrix (M) and its inverse (M_inv) to transform distribution to moments and back 
 
         # create boundary indetifiers
-        walls = gridY .== 1 .|| gridY .== gridlengthY;
-        inlet = gridX .== 1;
-        outlet = gridX .== gridlengthX;
+        walls = 
+        inlet = 
+        outlet = 
 
-        # Initialize distributions arrays
-        distributions = ones(gridlengthX, gridlengthY, Q) .+ 0.01*rand(gridlengthX, gridlengthY, Q);
-        distributions[:,:,4] .+= 2 .* (1 .+ 0.2 .* cos.(2 .* π .*gridX ./ gridlengthX .*4));
-        distributions_equilibrium = ones(gridlengthX, gridlengthY, Q);
+        # create fluid identifiers (only nodes which are actual fluid (not inlet, walls or solid objects))
 
         # Initialize macroscopic density and scale distribution
         densityGrid = sum(distributions, dims=3);
-        distributions .*= fluiddensity ./ densityGrid;
+        distributions .*= fluiddensity ./ densityGrid; # or something similar
 
         # Initialize macroscopic velocity arrays
-        velocityX   = zeros(gridlengthX, gridlengthY);
-        velocityY   = zeros(gridlengthX, gridlengthY);
+        velocityX   = zeros()
+        velocityY   = zeros()
 
-        # Initialise dotproduct array 
-        dotprod_velocities = zeros(gridlengthX, gridlengthY, Q);
-
+        # Plotting setup -> adjust such that it works for the new setup. All in one window (3 optional subplots)
         if any((Plotvorticity, Plotvx, Plotvy))
             if Plotvorticity==true 
                 vorticity, vorticity_obs, text_obj, step_text, fig_vorticity = Create_Plot(gridlengthX, gridlengthY)
@@ -144,42 +111,27 @@ module JuLattice
         println("Starting Simulation:")
         # Run Simulation Loop
         for i in 1:simulationTime
+            # Only for fluid nodes!!:
+                # Transform from f to m
 
-            # Get Macroscopic values
-            global densityGrid = sum(distributions, dims=3);
-            velocityX .= (1 ./ densityGrid) .* sum(distributions.*velocity_vector_x, dims=3); 
-            velocityY .= (1 ./ densityGrid) .* sum(distributions.*velocity_vector_y, dims=3); 
+                # Recover macroscopic variables (M00 density, M10 velcotityX/density, M02 velocityY/density)
 
-            ## Apply Collision
-            # Compute equilibrium state
-            dotprod_velocities .= (velocity_vector_x .* velocityX) .+ (velocity_vector_y .* velocityY);
-            distributions_equilibrium .= weights .* densityGrid .*(1 .+ 3 .*dotprod_velocities .+ 4.5 .*dotprod_velocities.^2 .- 1.5 .*(velocityX.^2 .+ velocityY.^2));
-            # Relax towards equilibrium
-            distributions .+= -(1/τ) .* (distributions .- distributions_equilibrium);
+                # Relax correctly (with M02+M20 - omegaAcoustic and M02-M20 - omegaBGK)
+                # Relaxing means: m_s = m - omega .* (m - m_eq) where m is the precollision moment, m_eq the equilibrium moment and m_s the post collision moment. Omega is the relaxation parameter which can be different for different moments.
 
-            # Stream 
-            for j in 1:Q
-                distributions[:,:,j] = circshift(distributions[:,:,j], (velocity_vector_x[j], velocity_vector_y[j]))
-            end
+                # Transform back from m to f
 
-            ## Apply Boundary conditions
-            #Inlet velocity bc (unknown: f_1, f_8, f_9)
-            densityGrid[inlet, :] .= (sum(distributions[inlet, [1,3,5]], dims=2).+ 2 .*sum(distributions[inlet, [2,6,7]], dims=2)) ./ (1-lattice_inflow_velocity)
-            distributions[inlet, 4] .= distributions[inlet, 2] .+ (2/3 .* densityGrid[inlet,:] .* lattice_inflow_velocity)
-            distributions[inlet, 8] .= distributions[inlet, 6] .+ (1/6 .* densityGrid[inlet,:] .* lattice_inflow_velocity) .- (1/2 .* (distributions[inlet, 3] .- distributions[inlet, 5]))
-            distributions[inlet, 9] .= distributions[inlet, 7] .+ (1/6 .* densityGrid[inlet,:] .* lattice_inflow_velocity) .+ (1/2 .* (distributions[inlet, 3] .- distributions[inlet, 5]))
+                # Streaming step (shift distributions according to their velocity vector)(f00 stays f0p shifts to the right f0m shifts to the left etc.)
+            
+            # Apply BC -> Inlet: Velocity BounceBack: Since we are "post streaming" we have to be mindful where our population has streamed to, when computing new fs.
+            # Velocity bounceBack means: the post streaming westwards population is now inside the inlet node. We return it to the fluid node as eastwards population (f0m becomes f0p) same for the post streaming northwest and southwest (these are in the inlet node x+1 Y-1 and x-1 Y+1 respectively). 
+            # We return them with an added Momentum according to latticeInflowVelocity with the equation: +2/(latticeSpeedOfSound*latticeSpeedOfSound) * weighti (velocityVectori * latticeInflowVelocity)
 
+            # -> Outlet: we do zero gradient (Neumann) BC -> we just copy the post streaming values from the last fluid node (x-1) to the outlet node (x). This means we copy fp0, fpp, fpm from the last fluid node to the outlet node.
+            
+            # -> Walls: equilibrium BC. So we set all wall boundary nodes to their equilibrium distribution with latticeInflowVelocity.
 
-            #Outlet zero gradient bc
-            distributions[outlet, [4, 8, 9]] .= distributions[gridlengthX-1, :, [4, 8, 9]]
-
-            #No Slip Walls
-            distributions[walls, 1:Q] .= distributions[walls, [1,4,5,2,3,8,9,6,7]];
-
-            # Apply object boundary condition
-            distributions[cylinder, 1:Q] .= distributions[cylinder, [1,4,5,2,3,8,9,6,7]];
-
-                # Plot of the field
+                # Plot of the field -> Adjust to new logic described above
                 if ((i % 10 == 0)) || (i == simulationTime)
                     # Set velocities inside the cylinder to zero
                     velocityX[cylinder] .= NaN
