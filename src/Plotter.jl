@@ -1,63 +1,73 @@
 module Plotter
 using GLMakie
-export Create_Plot
+export Create_Plot, Update_Plot!
 
-## Set up Plot 
-    function Create_Plot(gridlengthX::Int64, gridlengthY::Int64)
-        ## Set up the figure and axis
-        # Initialize Plot arrays
-        vorticity = zeros(gridlengthX, gridlengthY);
-        vorticity_obs = Observable(vorticity);       
-        # Set up the figure and axis with explicit sizing
-        fig = Figure(size = (1000, 400))
-        ax = Axis(fig[1, 1], aspect = DataAspect(), title = "Vorticity")
+function Create_Plot(Nx::Int, Ny::Int, plotU::Bool, plotV::Bool, plotVorticity::Bool)
+    nplots = Int(plotU) + Int(plotV) + Int(plotVorticity)
+    fig = Figure(size = (900 * max(nplots, 1), 420))
 
-        # Display the vorticity field using a heatmap with dynamic color range
-        hm = heatmap!(ax, 1:gridlengthX, 1:gridlengthY, vorticity_obs, 
-                    colormap = :curl, 
-                    nan_color = :black,
-                    colorrange = (-0.2, 0.2))
-        Colorbar(fig[1, 2], hm, label = "Lattice_Vorticity")
-        rowsize!(fig.layout, 1, ax.scene.viewport[].widths[2])
-        # Set axis limits explicitly
-        xlims!(ax, 1, gridlengthX)
-        ylims!(ax, 1, gridlengthY)
+    step_text = Observable("Step: 0  |  t = 0.00 s")
+    obs_u    = nothing
+    obs_v    = nothing
+    obs_vort = nothing
+    col = 1
 
-        # Create a text element for time step display
-        step_text = Observable("Time step: 0, 0s")
-        text_obj = text!(ax, ceil(Int, (gridlengthX*2/100)), ceil(Int, (gridlengthY*2/100)), text = step_text, 
-                color = :black, fontsize = 14)
-                return vorticity, vorticity_obs, text_obj, step_text, fig
-    end#Plot_Vorticity
+    if plotU
+        ax = Axis(fig[1, col], title = "U  (x-velocity)", aspect = DataAspect())
+        obs_u = Observable(zeros(Nx, Ny))
+        hm = heatmap!(ax, obs_u, colormap = :inferno, colorrange = (-0.08, 0.08), nan_color = :black)
+        Colorbar(fig[2, col], hm, vertical = false)
+        text!(ax, 2, 2, text = step_text, color = :white, fontsize = 11)
+        col += 1
+    end
 
-    function Create_Plot(gridlengthX::Int64, gridlengthY::Int64, velocityX::Array{Float64, 2}, Direction::String)
-                ## Set up the figure and axis
-        # Initialize Plot arrays
-        velocity_obs = Observable(velocityX);       
-        # Set up the figure and axis with explicit sizing
-        fig = Figure(size = (1000, 400))
-        ax = Axis(fig[1, 1], aspect = DataAspect(), title = "Velocity_$Direction")
+    if plotV
+        ax = Axis(fig[1, col], title = "V  (y-velocity)", aspect = DataAspect())
+        obs_v = Observable(zeros(Nx, Ny))
+        hm = heatmap!(ax, obs_v, colormap = :inferno, colorrange = (-0.04, 0.04), nan_color = :black)
+        Colorbar(fig[2, col], hm, vertical = false)
+        col += 1
+    end
 
-        # Display the vorticity field using a heatmap with dynamic color range
-        hm = heatmap!(ax, 1:gridlengthX, 1:gridlengthY, velocity_obs, 
-                    colormap = :inferno, 
-                    nan_color = :black,
-                    colorrange = (-0.2, 0.2))
-        Colorbar(fig[1, 2], hm, label = "Lattice_Velocity_$Direction")
-        rowsize!(fig.layout, 1, ax.scene.viewport[].widths[2])
-        # Set axis limits explicitly
-        xlims!(ax, 1, gridlengthX)
-        ylims!(ax, 1, gridlengthY)
+    if plotVorticity
+        ax = Axis(fig[1, col], title = "Vorticity", aspect = DataAspect())
+        obs_vort = Observable(zeros(Nx, Ny))
+        hm = heatmap!(ax, obs_vort, colormap = :curl, colorrange = (-0.05, 0.05), nan_color = :black)
+        Colorbar(fig[2, col], hm, vertical = false)
+        col += 1
+    end
 
-        # Create a text element for time step display
-        step_text = Observable("Time step: 0, 0s")
-        text_obj = text!(ax, ceil(Int, (gridlengthX*2/100)), ceil(Int, (gridlengthY*2/100)), text = step_text, 
-                color = :black, fontsize = 14)
+    return fig, obs_u, obs_v, obs_vort, step_text
+end
 
-                return velocity_obs, text_obj, step_text, fig
-    end#Plot_vx
+function Update_Plot!(obs_u, obs_v, obs_vort, step_text,
+                      velocityX, velocityY,
+                      i, deltaT,
+                      plotU::Bool, plotV::Bool, plotVorticity::Bool,
+                      isFluid::BitMatrix)
 
+    step_text[] = "Step: $i  |  t = $(round(i*deltaT, digits=2)) s"
 
-## Update Plot
+    if plotU && obs_u !== nothing
+        obs_u[] = copy(velocityX)
+    end
 
-end#module
+    if plotV && obs_v !== nothing
+        obs_v[] = copy(velocityY)
+    end
+
+    if plotVorticity && obs_vort !== nothing
+        vort = zeros(size(velocityX))
+        # Central difference over fluid nodes (works for arbitrary fluid masks)
+        for I in CartesianIndices(isFluid)
+            if isFluid[I]
+                ix, iy = I.I
+                vort[I] = (velocityY[ix+1, iy] - velocityY[ix-1, iy]) -
+                           (velocityX[ix, iy+1] - velocityX[ix, iy-1])
+            end
+        end
+        obs_vort[] = vort
+    end
+end
+
+end#Plotter

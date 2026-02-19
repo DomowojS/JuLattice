@@ -1,25 +1,33 @@
 module Logger
-export Log_Simulation_Runtime, Log_Discretization_Settings, Log_Simulation_Header, Log_Simulation_Tail
-
-function Log_Simulation_Runtime(i::Int64, simulationTime::Int64)
-    println("Time Step: $i / $simulationTime")
-end#Log_Simulation_Runtime
-
-function Log_Discretization_Settings(delta_x::Float64, delta_t::Float64, lattice_Re_Log::Int64)
-    println("Δx: $delta_x m")
-    println("Δt: $delta_t s")
-    println("The Reynoldsnumber is $lattice_Re_Log")
-end#Log_Discretization_Settings
+export Log_Simulation_Runtime, Log_Discretization_Settings,
+       Log_Simulation_Header, Log_Simulation_Start, Log_Simulation_Tail
 
 function Log_Simulation_Header()
     println("#############################")
     println("      Running JuLattice      ")
     println("#############################")
-end#Log_Simulation_Header
+end
+
+function Log_Discretization_Settings(deltaX::Float64, deltaT::Float64, omegaBGK::Float64, Re::Int64)
+    println("dx: $deltaX m")
+    println("dt: $deltaT s")
+    println("omegaBGK: $omegaBGK")
+    println("Re: $Re")
+end
+
+function Log_Simulation_Start()
+    println("#############################")
+    println("      Starting Simulation    ")
+    println("#############################")
+end
+
+function Log_Simulation_Runtime(i::Int64, nSteps::Int64)
+    println("Step: $i / $nSteps")
+end
 
 function Log_Simulation_Tail()
     println("Simulation finished.")
     println("#############################")
-end#Log_Simulation_Tail
+end
 
 end#Logger
