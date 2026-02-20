@@ -21,8 +21,9 @@ function Log_Simulation_Start()
     println("#############################")
 end
 
-function Log_Simulation_Runtime(i::Int64, nSteps::Int64)
-    println("Step: $i / $nSteps")
+function Log_Simulation_Runtime(i::Int64, nSteps::Int64, nups::Float64)
+    mnups = nups / 1e6
+    println("Step: $i / $nSteps  |  MNUPS: $(round(mnups, digits=2))")
 end
 
 function Log_Simulation_Tail()
