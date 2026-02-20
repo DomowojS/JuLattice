@@ -1,13 +1,20 @@
 module Plotter
 using GLMakie
-export Create_Plot, Update_Plot!
+export Create_Plot, Update_Plot!, Create_Force_Plot, Update_Force_Plot!
 
 function Create_Plot(Nx::Int, Ny::Int, plotU::Bool, plotV::Bool, plotVorticity::Bool,
                      rangeU::Tuple{Float64,Float64},
                      rangeV::Tuple{Float64,Float64},
-                     rangeVort::Tuple{Float64,Float64})
+                     rangeVort::Tuple{Float64,Float64},
+                     deltaX::Float64)
     nplots = Int(plotU) + Int(plotV) + Int(plotVorticity)
     fig = Figure(size = (900, 280 * max(nplots, 1)))
+
+    # Physical coordinates: ghost nodes at index 1 sit at -deltaX, fluid domain starts at 0
+    xs = range(-deltaX, step = deltaX, length = Nx)
+    ys = range(-deltaX, step = deltaX, length = Ny)
+    text_x = 0.02 * (Nx - 2) * deltaX
+    text_y = 0.93 * (Ny - 2) * deltaX
 
     step_text = Observable("Step: 0  |  t = 0.00 s")
     obs_u    = nothing
@@ -16,26 +23,29 @@ function Create_Plot(Nx::Int, Ny::Int, plotU::Bool, plotV::Bool, plotVorticity::
     row = 1
 
     if plotU
-        ax = Axis(fig[row, 1], title = "U  [m/s]", aspect = DataAspect())
+        ax = Axis(fig[row, 1], title = "U  [m/s]", aspect = DataAspect(),
+                  xlabel = "x [m]", ylabel = "y [m]")
         obs_u = Observable(zeros(Nx, Ny))
-        hm = heatmap!(ax, obs_u, colormap = :inferno, colorrange = rangeU, nan_color = :dimgray)
+        hm = heatmap!(ax, xs, ys, obs_u, colormap = :inferno, colorrange = rangeU, nan_color = :dimgray)
         Colorbar(fig[row+1, 1], hm, vertical = false)
-        text!(ax, 2, 2, text = step_text, color = :dimgray, fontsize = 11)
+        text!(ax, text_x, text_y, text = step_text, color = :dimgray, fontsize = 11)
         row += 2
     end
 
     if plotV
-        ax = Axis(fig[row, 1], title = "V  [m/s]", aspect = DataAspect())
+        ax = Axis(fig[row, 1], title = "V  [m/s]", aspect = DataAspect(),
+                  xlabel = "x [m]", ylabel = "y [m]")
         obs_v = Observable(zeros(Nx, Ny))
-        hm = heatmap!(ax, obs_v, colormap = :inferno, colorrange = rangeV, nan_color = :dimgray)
+        hm = heatmap!(ax, xs, ys, obs_v, colormap = :inferno, colorrange = rangeV, nan_color = :dimgray)
         Colorbar(fig[row+1, 1], hm, vertical = false)
         row += 2
     end
 
     if plotVorticity
-        ax = Axis(fig[row, 1], title = "Vorticity  [1/s]", aspect = DataAspect())
+        ax = Axis(fig[row, 1], title = "Vorticity  [1/s]", aspect = DataAspect(),
+                  xlabel = "x [m]", ylabel = "y [m]")
         obs_vort = Observable(zeros(Nx, Ny))
-        hm = heatmap!(ax, obs_vort, colormap = :curl, colorrange = rangeVort, nan_color = :dimgray)
+        hm = heatmap!(ax, xs, ys, obs_vort, colormap = :curl, colorrange = rangeVort, nan_color = :dimgray)
         Colorbar(fig[row+1, 1], hm, vertical = false)
         row += 2
     end
@@ -77,6 +87,34 @@ function Update_Plot!(obs_u, obs_v, obs_vort, step_text,
         end
         obs_vort[] = vort
     end
+end
+
+function Create_Force_Plot()
+    fig = Figure(size = (700, 350))
+    ax  = Axis(fig[1, 1],
+               title  = "Aerodynamic Forces",
+               xlabel = "Time [s]",
+               ylabel = "Force / ρ  [m²/s²]")
+
+    obs_time = Observable(Float64[])
+    obs_fx   = Observable(Float64[])
+    obs_fy   = Observable(Float64[])
+
+    lines!(ax, obs_time, obs_fx, color = :steelblue,  label = "Fx")
+    lines!(ax, obs_time, obs_fy, color = :orangered,  label = "Fy")
+    axislegend(ax, position = :rt)
+
+    return fig, ax, obs_time, obs_fx, obs_fy
+end
+
+function Update_Force_Plot!(ax, obs_time, obs_fx, obs_fy, t, fx, fy)
+    push!(obs_time[], t)
+    push!(obs_fx[],   fx)
+    push!(obs_fy[],   fy)
+    notify(obs_time)
+    notify(obs_fx)
+    notify(obs_fy)
+    autolimits!(ax)
 end
 
 end#Plotter

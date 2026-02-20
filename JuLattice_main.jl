@@ -287,9 +287,14 @@ module JuLattice
         rangeV    = (plotVMin,    plotVMax)
         rangeVort = (plotVortMin, plotVortMax)
         fig, obs_u, obs_v, obs_vort, step_text = Create_Plot(Nx, Ny, plotU, plotV, plotVorticity,
-                                                              rangeU, rangeV, rangeVort)
+                                                              rangeU, rangeV, rangeVort, deltaX)
         screen = GLMakie.Screen()
         GLMakie.display(screen, fig)
+
+        force_fig, force_ax, obs_time, obs_fx, obs_fy = Create_Force_Plot()
+        force_screen = GLMakie.Screen()
+        GLMakie.display(force_screen, force_fig)
+        forceScale = deltaX^2 / deltaT^2
 
         ##-------- Main Loop --------##
         Log_Simulation_Start()
@@ -399,6 +404,10 @@ module JuLattice
                              i, deltaT, deltaX,
                              plotU, plotV, plotVorticity,
                              isFluid, isObject)
+                Update_Force_Plot!(force_ax, obs_time, obs_fx, obs_fy,
+                                   i * deltaT,
+                                   forceX * forceScale,
+                                   forceY * forceScale)
                 yield()
             end
 
