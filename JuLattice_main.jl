@@ -90,11 +90,11 @@ module JuLattice
     end
 
     function add_rectangle!(isObject, Nx, Ny, deltaX;
-                            center_x, center_y, d, angle_deg)
+                            centerX, centerY, d, angleDeg)
         half_len = 1.5 * d   # half of 3d  (long axis)
         half_hgt = 0.5 * d   # half of d   (short axis)
 
-        alpha = deg2rad(angle_deg)
+        alpha = deg2rad(angleDeg)
         c = cos(alpha)
         s = sin(alpha)
 
@@ -104,8 +104,8 @@ module JuLattice
             y = (iy - 2) * deltaX
 
             # Translate to rectangle-local origin
-            dx = x - center_x
-            dy = y - center_y
+            dx = x - centerX
+            dy = y - centerY
 
             # Transform point into rectangle's local frame (inverse of clockwise rotation)
             lx = c * dx - s * dy
@@ -117,6 +117,68 @@ module JuLattice
         end
     end
 
+    function _ray_rect_q(lx0, ly0, dlx, dly, half_len, half_hgt)
+        q = Inf
+        # Check lx = ±half_len sides
+        if abs(dlx) > 1e-14
+            for wall in (-half_len, half_len)
+                t = (wall - lx0) / dlx
+                if 0.0 < t <= 1.0 + 1e-10
+                    ly_t = ly0 + t * dly
+                    if abs(ly_t) <= half_hgt + 1e-10
+                        q = min(q, t)
+                    end
+                end
+            end
+        end
+        # Check ly = ±half_hgt sides
+        if abs(dly) > 1e-14
+            for wall in (-half_hgt, half_hgt)
+                t = (wall - ly0) / dly
+                if 0.0 < t <= 1.0 + 1e-10
+                    lx_t = lx0 + t * dlx
+                    if abs(lx_t) <= half_len + 1e-10
+                        q = min(q, t)
+                    end
+                end
+            end
+        end
+        return q
+    end
+
+    function find_object_boundary_nodes(isObject, fluidNodes,
+                                        deltaX, center_x, center_y,
+                                        half_len, half_hgt, cos_a, sin_a)
+        dirs = ((1,0), (-1,0), (0,1), (0,-1), (1,1), (1,-1), (-1,1), (-1,-1))
+
+        boundaryNodesAndDistances = Tuple{Int,Int,Int,Int,Float64}[]
+
+        @inbounds for idx in fluidNodes
+            ix, iy = Tuple(idx)
+            # Fluid node in local frame
+            dx0 = (ix - 2) * deltaX - center_x
+            dy0 = (iy - 2) * deltaX - center_y
+            lx0 =  cos_a * dx0 - sin_a * dy0
+            ly0 =  sin_a * dx0 + cos_a * dy0
+
+            for (cx, cy) in dirs
+                if isObject[ix + cx, iy + cy]
+                    # Object node in local frame
+                    dx1 = (ix + cx - 2) * deltaX - center_x
+                    dy1 = (iy + cy - 2) * deltaX - center_y
+                    lx1 =  cos_a * dx1 - sin_a * dy1
+                    ly1 =  sin_a * dx1 + cos_a * dy1
+                    
+                    # Find exact distance q to rectangle edge along ray from (lx0,ly0) to (lx1,ly1)
+                    q = _ray_rect_q(lx0, ly0, lx1 - lx0, ly1 - ly0, half_len, half_hgt)
+                    push!(boundaryNodesAndDistances, (ix, iy, cx, cy, q))
+                end
+            end
+        end
+
+        return boundaryNodesAndDistances
+    end
+
     function run()
         ## User Settings
         # Domain Settings
@@ -125,7 +187,8 @@ module JuLattice
 
         # Object reference length (for reynoldsNumber; object itself added later)
         d = 0.5                   # m
-
+        positionX = 3.0
+        positionY = lengthY/2
         # Fluid Properties
         reynoldsNumber  = 300
         machNumber      = 0.1        # Ma = U / c_s  (keep < 0.1 for incompressible)
@@ -163,7 +226,7 @@ module JuLattice
         isWall   = falses(Nx, Ny);  isWall[2:Nx-1, [1, Ny]]  .= true
         isFluid  = falses(Nx, Ny);  isFluid[2:Nx-1, 2:Ny-1]  .= true
         isObject = falses(Nx, Ny);  add_rectangle!(isObject, Nx, Ny, deltaX;
-                                                   center_x=2.0, center_y=lengthY/2, d=d, angle_deg=30.0)
+                                                   centerX=positionX, centerY=positionY, d=d, angleDeg=30.0)
         isFluid .&= .!isObject  # cut object nodes out of fluid
         isSolid  = isInlet .| isOutlet .| isWall .| isObject
 
@@ -172,6 +235,10 @@ module JuLattice
         solidNodes = findall(.!isFluid .& .!isInlet .& .!isOutlet .& .!isWall)
         objectNodes = findall(isObject)
         
+        boundaryNodesAndDistances = find_object_boundary_nodes(isObject, fluidNodes,
+                                                        deltaX, positionX, positionY,
+                                                        1.5*d, 0.5*d, cosd(30), sind(30))
+
         ##-------- MRT Setup --------##
         omegaBGK      = 1.0 / (3.0 * latticeViscosity + 0.5)
         omegaAcoustic = 1.0
@@ -252,10 +319,10 @@ module JuLattice
                 densityGrid, velocityX, velocityY,
                 omegaBGK, omegaAcoustic)
 
-            _stream_solid!(
-                solidNodes,
-                f00, fp0, fm0, f0p, f0m, fpp, fpm, fmp, fmm,
-                f00S, fp0S, fm0S, f0pS, f0mS, fppS, fpmS, fmpS, fmmS)
+            # _stream_solid!(
+            #     solidNodes,
+            #     f00, fp0, fm0, f0p, f0m, fpp, fpm, fmp, fmm,
+            #     f00S, fp0S, fm0S, f0pS, f0mS, fppS, fpmS, fmpS, fmmS)
 
             # Swap f <-> fS
             f00, f00S = f00S, f00
@@ -294,8 +361,21 @@ module JuLattice
                 f0m[2:Nx-1, Ny-1] .= f0m_eq_wall
                 fpm[2:Nx-1, Ny-1] .= fpm_eq_wall
                 fmm[2:Nx-1, Ny-1] .= fmm_eq_wall
-            end        
-            
+            end
+
+            # Object bounce-back
+            @inbounds for (ix, iy, cx, cy, q) in boundaryNodesAndDistances
+                if     cx ==  1 && cy ==  0;  # fp0
+                elseif cx == -1 && cy ==  0;  # fm0
+                elseif cx ==  0 && cy ==  1;  # f0p
+                elseif cx ==  0 && cy == -1;  # f0m
+                elseif cx ==  1 && cy ==  1;  # fpp
+                elseif cx ==  1 && cy == -1;  # fpm
+                elseif cx == -1 && cy ==  1;  # fmp
+                elseif cx == -1 && cy == -1;  # fmm
+                end
+            end
+
             ##-- 4. Logging & Plotting --##
             if (i % 100 == 0) || (i == nSteps)
                 nups = length(fluidNodes) * i / (time() - t_start)
