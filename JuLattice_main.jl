@@ -203,6 +203,13 @@ module JuLattice
         plotV         = false
         plotVorticity = true
 
+        plotUMin    =  0.0      # m/s
+        plotUMax    =  0.05     # m/s
+        plotVMin    = -0.01     # m/s
+        plotVMax    =  0.01     # m/s
+        plotVortMin = -1.0      # 1/s
+        plotVortMax =  1.0      # 1/s
+
         #### Run Simulation #####
         Log_Simulation_Header()
 
@@ -238,6 +245,8 @@ module JuLattice
         boundaryNodesAndDistances = find_object_boundary_nodes(isObject, fluidNodes,
                                                         deltaX, positionX, positionY,
                                                         1.5*d, 0.5*d, cosd(30), sind(30))
+        qs = [q for (_, _, _, _, q) in boundaryNodesAndDistances]
+        println("Bouzidi q  — min: $(round(minimum(qs), digits=4))  max: $(round(maximum(qs), digits=4))")
 
         ##-------- MRT Setup --------##
         omegaBGK      = 1.0 / (3.0 * latticeViscosity + 0.5)
@@ -291,10 +300,9 @@ module JuLattice
         inlet_add_fdiagonal = (2.0 / (36.0 * latticeSpeedOfSound^2)) * latticeInflowVelocity
 
         ##-------- Plotting Setup --------##
-        uPhys  = machNumber * speedOfSound           # physical inflow velocity [m/s]
-        rangeU    = (0.0,          1.5 * uPhys)      # 0 to Poiseuille peak (~1.5x mean)
-        rangeV    = (-0.3 * uPhys, 0.3 * uPhys)     # transverse: small fraction of uPhys
-        rangeVort = (-3*uPhys/lengthY, 3*uPhys/lengthY)  # ∂u/∂y at wall for Poiseuille
+        rangeU    = (plotUMin,    plotUMax)
+        rangeV    = (plotVMin,    plotVMax)
+        rangeVort = (plotVortMin, plotVortMax)
         fig, obs_u, obs_v, obs_vort, step_text = Create_Plot(Nx, Ny, plotU, plotV, plotVorticity,
                                                               rangeU, rangeV, rangeVort)
         screen = GLMakie.Screen()
@@ -363,16 +371,33 @@ module JuLattice
                 fmm[2:Nx-1, Ny-1] .= fmm_eq_wall
             end
 
-            # Object bounce-back
+            # Object bounce-back (Bouzidi)
             @inbounds for (ix, iy, cx, cy, q) in boundaryNodesAndDistances
-                if     cx ==  1 && cy ==  0;  # fp0
-                elseif cx == -1 && cy ==  0;  # fm0
-                elseif cx ==  0 && cy ==  1;  # f0p
-                elseif cx ==  0 && cy == -1;  # f0m
-                elseif cx ==  1 && cy ==  1;  # fpp
-                elseif cx ==  1 && cy == -1;  # fpm
-                elseif cx == -1 && cy ==  1;  # fmp
-                elseif cx == -1 && cy == -1;  # fmm
+                q2 = 2.0 * q
+                if q < 0.5
+                    # f_ᾱ[ix,iy] = 2q*f_α[ix+cx,iy+cy] + (1-2q)*f_α[ix,iy]
+                    if     cx ==  1 && cy ==  0;  fm0[ix,iy] = q2*fp0[ix+1,iy  ] + (1.0-q2)*fp0[ix,  iy  ]
+                    elseif cx == -1 && cy ==  0;  fp0[ix,iy] = q2*fm0[ix-1,iy  ] + (1.0-q2)*fm0[ix,  iy  ]
+                    elseif cx ==  0 && cy ==  1;  f0m[ix,iy] = q2*f0p[ix,  iy+1] + (1.0-q2)*f0p[ix,  iy  ]
+                    elseif cx ==  0 && cy == -1;  f0p[ix,iy] = q2*f0m[ix,  iy-1] + (1.0-q2)*f0m[ix,  iy  ]
+                    elseif cx ==  1 && cy ==  1;  fmm[ix,iy] = q2*fpp[ix+1,iy+1] + (1.0-q2)*fpp[ix,  iy  ]
+                    elseif cx ==  1 && cy == -1;  fmp[ix,iy] = q2*fpm[ix+1,iy-1] + (1.0-q2)*fpm[ix,  iy  ]
+                    elseif cx == -1 && cy ==  1;  fpm[ix,iy] = q2*fmp[ix-1,iy+1] + (1.0-q2)*fmp[ix,  iy  ]
+                    elseif cx == -1 && cy == -1;  fpp[ix,iy] = q2*fmm[ix-1,iy-1] + (1.0-q2)*fmm[ix,  iy  ]
+                    end
+                else
+                    iq2 = 1.0 / q2
+                    r   = (q2 - 1.0) * iq2   # (2q-1)/(2q)
+                    # f_ᾱ[ix,iy] = (1/2q)*f_α[ix+cx,iy+cy] + ((2q-1)/2q)*f_ᾱ[ix-cx,iy-cy]
+                    if     cx ==  1 && cy ==  0;  fm0[ix,iy] = iq2*fp0[ix+1,iy  ] + r*fm0[ix-1,iy  ]
+                    elseif cx == -1 && cy ==  0;  fp0[ix,iy] = iq2*fm0[ix-1,iy  ] + r*fp0[ix+1,iy  ]
+                    elseif cx ==  0 && cy ==  1;  f0m[ix,iy] = iq2*f0p[ix,  iy+1] + r*f0m[ix,  iy-1]
+                    elseif cx ==  0 && cy == -1;  f0p[ix,iy] = iq2*f0m[ix,  iy-1] + r*f0p[ix,  iy+1]
+                    elseif cx ==  1 && cy ==  1;  fmm[ix,iy] = iq2*fpp[ix+1,iy+1] + r*fmm[ix-1,iy-1]
+                    elseif cx ==  1 && cy == -1;  fmp[ix,iy] = iq2*fpm[ix+1,iy-1] + r*fmp[ix-1,iy+1]
+                    elseif cx == -1 && cy ==  1;  fpm[ix,iy] = iq2*fmp[ix-1,iy+1] + r*fpm[ix+1,iy-1]
+                    elseif cx == -1 && cy == -1;  fpp[ix,iy] = iq2*fmm[ix-1,iy-1] + r*fpp[ix+1,iy+1]
+                    end
                 end
             end
 
