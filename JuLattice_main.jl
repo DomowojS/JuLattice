@@ -9,6 +9,11 @@ module JuLattice
     using GLMakie
     using .Plotter, .Logger, .Equilibrium
 
+    @inline function _momentum_exchange(cx, cy, f_in, f_out)
+        s = f_in + f_out
+        return cx * s, cy * s
+    end
+
     function _collide_and_stream!(
             fluidNodes,
             f00, fp0, fm0, f0p, f0m, fpp, fpm, fmp, fmm,
@@ -163,7 +168,7 @@ module JuLattice
         ## User Settings
         # Domain Settings
         lengthX = 8.0             # m
-        lengthY = 2.0             # m
+        lengthY = 3.0             # m
 
         # Object reference length (for reynoldsNumber; object itself added later)
         d = 0.5                   # m
@@ -344,40 +349,48 @@ module JuLattice
                 fmm[2:Nx-1, Ny-1] .= fmm_eq_wall
             end
 
-            # Object bounce-back (Bouzidi)
+            # Object bounce-back (Bouzidi) + momentum exchange
+            forceX = 0.0
+            forceY = 0.0
             @inbounds for (ix, iy, cx, cy, q) in boundaryNodesAndDistances
-                q2 = 2.0 * q
+                q2   = 2.0 * q
+                f_in = 0.0
+                f_out = 0.0
                 if q < 0.5
                     # f_ᾱ[ix,iy] = 2q*f_α[ix+cx,iy+cy] + (1-2q)*f_α[ix,iy]
-                    if     cx ==  1 && cy ==  0;  fm0[ix,iy] = q2*fp0[ix+1,iy  ] + (1.0-q2)*fp0[ix,  iy  ]
-                    elseif cx == -1 && cy ==  0;  fp0[ix,iy] = q2*fm0[ix-1,iy  ] + (1.0-q2)*fm0[ix,  iy  ]
-                    elseif cx ==  0 && cy ==  1;  f0m[ix,iy] = q2*f0p[ix,  iy+1] + (1.0-q2)*f0p[ix,  iy  ]
-                    elseif cx ==  0 && cy == -1;  f0p[ix,iy] = q2*f0m[ix,  iy-1] + (1.0-q2)*f0m[ix,  iy  ]
-                    elseif cx ==  1 && cy ==  1;  fmm[ix,iy] = q2*fpp[ix+1,iy+1] + (1.0-q2)*fpp[ix,  iy  ]
-                    elseif cx ==  1 && cy == -1;  fmp[ix,iy] = q2*fpm[ix+1,iy-1] + (1.0-q2)*fpm[ix,  iy  ]
-                    elseif cx == -1 && cy ==  1;  fpm[ix,iy] = q2*fmp[ix-1,iy+1] + (1.0-q2)*fmp[ix,  iy  ]
-                    elseif cx == -1 && cy == -1;  fpp[ix,iy] = q2*fmm[ix-1,iy-1] + (1.0-q2)*fmm[ix,  iy  ]
+                    if     cx ==  1 && cy ==  0;  f_in = fp0[ix+1,iy  ]; f_out = q2*f_in + (1.0-q2)*fp0[ix,  iy  ]; fm0[ix,iy] = f_out
+                    elseif cx == -1 && cy ==  0;  f_in = fm0[ix-1,iy  ]; f_out = q2*f_in + (1.0-q2)*fm0[ix,  iy  ]; fp0[ix,iy] = f_out
+                    elseif cx ==  0 && cy ==  1;  f_in = f0p[ix,  iy+1]; f_out = q2*f_in + (1.0-q2)*f0p[ix,  iy  ]; f0m[ix,iy] = f_out
+                    elseif cx ==  0 && cy == -1;  f_in = f0m[ix,  iy-1]; f_out = q2*f_in + (1.0-q2)*f0m[ix,  iy  ]; f0p[ix,iy] = f_out
+                    elseif cx ==  1 && cy ==  1;  f_in = fpp[ix+1,iy+1]; f_out = q2*f_in + (1.0-q2)*fpp[ix,  iy  ]; fmm[ix,iy] = f_out
+                    elseif cx ==  1 && cy == -1;  f_in = fpm[ix+1,iy-1]; f_out = q2*f_in + (1.0-q2)*fpm[ix,  iy  ]; fmp[ix,iy] = f_out
+                    elseif cx == -1 && cy ==  1;  f_in = fmp[ix-1,iy+1]; f_out = q2*f_in + (1.0-q2)*fmp[ix,  iy  ]; fpm[ix,iy] = f_out
+                    elseif cx == -1 && cy == -1;  f_in = fmm[ix-1,iy-1]; f_out = q2*f_in + (1.0-q2)*fmm[ix,  iy  ]; fpp[ix,iy] = f_out
                     end
                 else
                     iq2 = 1.0 / q2
                     r   = (q2 - 1.0) * iq2   # (2q-1)/(2q)
                     # f_ᾱ[ix,iy] = (1/2q)*f_α[ix+cx,iy+cy] + ((2q-1)/2q)*f_ᾱ[ix-cx,iy-cy]
-                    if     cx ==  1 && cy ==  0;  fm0[ix,iy] = iq2*fp0[ix+1,iy  ] + r*fm0[ix-1,iy  ]
-                    elseif cx == -1 && cy ==  0;  fp0[ix,iy] = iq2*fm0[ix-1,iy  ] + r*fp0[ix+1,iy  ]
-                    elseif cx ==  0 && cy ==  1;  f0m[ix,iy] = iq2*f0p[ix,  iy+1] + r*f0m[ix,  iy-1]
-                    elseif cx ==  0 && cy == -1;  f0p[ix,iy] = iq2*f0m[ix,  iy-1] + r*f0p[ix,  iy+1]
-                    elseif cx ==  1 && cy ==  1;  fmm[ix,iy] = iq2*fpp[ix+1,iy+1] + r*fmm[ix-1,iy-1]
-                    elseif cx ==  1 && cy == -1;  fmp[ix,iy] = iq2*fpm[ix+1,iy-1] + r*fmp[ix-1,iy+1]
-                    elseif cx == -1 && cy ==  1;  fpm[ix,iy] = iq2*fmp[ix-1,iy+1] + r*fpm[ix+1,iy-1]
-                    elseif cx == -1 && cy == -1;  fpp[ix,iy] = iq2*fmm[ix-1,iy-1] + r*fpp[ix+1,iy+1]
+                    if     cx ==  1 && cy ==  0;  f_in = fp0[ix+1,iy  ]; f_out = iq2*f_in + r*fm0[ix-1,iy  ]; fm0[ix,iy] = f_out
+                    elseif cx == -1 && cy ==  0;  f_in = fm0[ix-1,iy  ]; f_out = iq2*f_in + r*fp0[ix+1,iy  ]; fp0[ix,iy] = f_out
+                    elseif cx ==  0 && cy ==  1;  f_in = f0p[ix,  iy+1]; f_out = iq2*f_in + r*f0m[ix,  iy-1]; f0m[ix,iy] = f_out
+                    elseif cx ==  0 && cy == -1;  f_in = f0m[ix,  iy-1]; f_out = iq2*f_in + r*f0p[ix,  iy+1]; f0p[ix,iy] = f_out
+                    elseif cx ==  1 && cy ==  1;  f_in = fpp[ix+1,iy+1]; f_out = iq2*f_in + r*fmm[ix-1,iy-1]; fmm[ix,iy] = f_out
+                    elseif cx ==  1 && cy == -1;  f_in = fpm[ix+1,iy-1]; f_out = iq2*f_in + r*fmp[ix-1,iy+1]; fmp[ix,iy] = f_out
+                    elseif cx == -1 && cy ==  1;  f_in = fmp[ix-1,iy+1]; f_out = iq2*f_in + r*fpm[ix+1,iy-1]; fpm[ix,iy] = f_out
+                    elseif cx == -1 && cy == -1;  f_in = fmm[ix-1,iy-1]; f_out = iq2*f_in + r*fpp[ix+1,iy+1]; fpp[ix,iy] = f_out
                     end
                 end
+                dfx, dfy = _momentum_exchange(cx, cy, f_in, f_out)
+                forceX += dfx
+                forceY += dfy
             end
 
             ##-- 4. Logging & Plotting --##
             if (i % 100 == 0) || (i == nSteps)
                 nups = length(fluidNodes) * i / (time() - t_start)
                 Log_Simulation_Runtime(i, nSteps, nups)
+                println("  Force (lattice):  Fx = $(round(forceX, digits=6))  Fy = $(round(forceY, digits=6))")
             end
 
             if (i % 10 == 0) || (i == nSteps)
