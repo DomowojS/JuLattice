@@ -69,26 +69,6 @@ module JuLattice
         end
     end
 
-    function _stream_solid!(
-            solidNodes,
-            f00, fp0, fm0, f0p, f0m, fpp, fpm, fmp, fmm,
-            f00S, fp0S, fm0S, f0pS, f0mS, fppS, fpmS, fmpS, fmmS)
-        @inbounds Threads.@threads for k in eachindex(solidNodes)
-            idx = solidNodes[k]
-            ix, iy = Tuple(idx)
-            # Just stream (no collision)
-            f00S[ix,   iy  ] = f00[ix,iy]
-            fp0S[ix+1, iy  ] = fp0[ix,iy]
-            fm0S[ix-1, iy  ] = fm0[ix,iy]
-            f0pS[ix,   iy+1] = f0p[ix,iy]
-            f0mS[ix,   iy-1] = f0m[ix,iy]
-            fppS[ix+1, iy+1] = fpp[ix,iy]
-            fpmS[ix+1, iy-1] = fpm[ix,iy]
-            fmpS[ix-1, iy+1] = fmp[ix,iy]
-            fmmS[ix-1, iy-1] = fmm[ix,iy]
-        end
-    end
-
     function add_rectangle!(isObject, Nx, Ny, deltaX;
                             centerX, centerY, d, angleDeg)
         half_len = 1.5 * d   # half of 3d  (long axis)
@@ -192,7 +172,7 @@ module JuLattice
         # Fluid Properties
         reynoldsNumber  = 300
         machNumber      = 0.1        # Ma = U / c_s  (keep < 0.1 for incompressible)
-        viscosity       = 0.0001       # m^2/s
+        viscosity       = 0.0001      # m^2/s
 
         # Simulation Settings
         simulationTime = 3600.0   # s
@@ -200,15 +180,15 @@ module JuLattice
 
         # Plot Requests
         plotU         = true
-        plotV         = false
+        plotV         = true
         plotVorticity = true
 
-        plotUMin    =  0.0      # m/s
-        plotUMax    =  0.05     # m/s
-        plotVMin    = -0.01     # m/s
-        plotVMax    =  0.01     # m/s
-        plotVortMin = -1.0      # 1/s
-        plotVortMax =  1.0      # 1/s
+        plotUMin    =  -0.04      # m/s
+        plotUMax    =  0.1     # m/s
+        plotVMin    = -0.05     # m/s
+        plotVMax    =  0.03    # m/s
+        plotVortMin = -1.1      # 1/s
+        plotVortMax =  1.1      # 1/s
 
         #### Run Simulation #####
         Log_Simulation_Header()
@@ -245,8 +225,6 @@ module JuLattice
         boundaryNodesAndDistances = find_object_boundary_nodes(isObject, fluidNodes,
                                                         deltaX, positionX, positionY,
                                                         1.5*d, 0.5*d, cosd(30), sind(30))
-        qs = [q for (_, _, _, _, q) in boundaryNodesAndDistances]
-        println("Bouzidi q  — min: $(round(minimum(qs), digits=4))  max: $(round(maximum(qs), digits=4))")
 
         ##-------- MRT Setup --------##
         omegaBGK      = 1.0 / (3.0 * latticeViscosity + 0.5)
@@ -326,11 +304,6 @@ module JuLattice
                 f00S, fp0S, fm0S, f0pS, f0mS, fppS, fpmS, fmpS, fmmS,
                 densityGrid, velocityX, velocityY,
                 omegaBGK, omegaAcoustic)
-
-            # _stream_solid!(
-            #     solidNodes,
-            #     f00, fp0, fm0, f0p, f0m, fpp, fpm, fmp, fmm,
-            #     f00S, fp0S, fm0S, f0pS, f0mS, fppS, fpmS, fmpS, fmmS)
 
             # Swap f <-> fS
             f00, f00S = f00S, f00
@@ -412,7 +385,7 @@ module JuLattice
                              velocityX, velocityY,
                              i, deltaT, deltaX,
                              plotU, plotV, plotVorticity,
-                             isFluid)
+                             isFluid, isObject)
                 yield()
             end
 
