@@ -261,10 +261,6 @@ module JuLattice
                 else
                     isFineInterior[ix, iy] = true
                 end
-            else
-                if (ix_left-1) <= ix <= (ix_right+1) && (iy_bottom-1) <= iy <= (iy_top+1)
-                    isOuterInterfaceNode[ix, iy] = true
-                end
             end
         end
 
@@ -297,11 +293,10 @@ module JuLattice
         isOuterInterfaceNodeFine .&= isFluidFine
 
         # 4th and 5th rows/cols of fine interior → F→C source (isInnerInterfaceNodeFine)
+        # Fill from 4th row/col inward, then clear from 6th row/col inward → ring at rows/cols 4–5
         isInnerInterfaceNodeFine = falses(NxFine, NyFine)
-        isInnerInterfaceNodeFine[2:NxFine-1, 5:6]               .= true   # bottom band
-        isInnerInterfaceNodeFine[2:NxFine-1, NyFine-6:NyFine-5] .= true   # top band
-        isInnerInterfaceNodeFine[5:6,               2:NyFine-1] .= true   # left band
-        isInnerInterfaceNodeFine[NxFine-6:NxFine-5, 2:NyFine-1] .= true   # right band
+        isInnerInterfaceNodeFine[5:NxFine-4, 5:NyFine-4] .= true
+        isInnerInterfaceNodeFine[7:NxFine-6, 7:NyFine-6] .= false
         isInnerInterfaceNodeFine .&= isFluidFine
 
         return (; isFluidFine, isObjectFine,
@@ -415,7 +410,42 @@ module JuLattice
                                  c0, c_x, c_y, c_xy)
     end
 
-    function _synchronize!()
+    function _synchronize!(
+            innerInterfaceNodes, outerInterfaceNodes,
+            innerInterfaceNodesFine, outerInterfaceNodesFine,
+            ix_left, iy_bottom,
+            omegaBGK, omegaBGKFine,
+            f00, fp0, fm0, f0p, f0m, fpp, fpm, fmp, fmm,
+            f00Fine, fp0Fine, fm0Fine, f0pFine, f0mFine, fppFine, fpmFine, fmpFine, fmmFine)
+
+        # ── F → C: fine inner interface → coarse inner interface ────────────────
+        # For each coarse inner interface node (ix,iy), the 4 surrounding fine nodes
+        # form a 2×2 cell with bottom-left at ixF = 2*(ix-ix_left)+1, iyF = 2*(iy-iy_bottom)+1.
+        # We call _get_interpolation_coef at that fine cell, evaluate at center (a0,b0,c0),
+        # apply CE stress inversion with scaleUP=2, and reconstruct coarse distributions.
+        for idx in innerInterfaceNodes
+            ix, iy = Tuple(idx)
+            ixF = 2*(ix - ix_left) + 1
+            iyF = 2*(iy - iy_bottom) + 1
+
+            coef = _get_interpolation_coef(ixF, iyF, omegaBGKFine,
+                                           f00Fine, fp0Fine, fm0Fine, f0pFine, f0mFine,
+                                           fppFine, fpmFine, fmpFine, fmmFine)
+
+            ux   = coef.a0
+            uy   = coef.b0
+            rho0 = coef.c0
+            cxy  = -1.0/(3.0*omegaBGKFine) * (coef.ay + coef.bx) * 2.0
+            cxx  = -2.0/(3.0*omegaBGKFine) * coef.ax * 2.0
+            cyy  = -2.0/(3.0*omegaBGKFine) * coef.by * 2.0
+
+            neq = getNonEquilibrium(rho0, ux, uy, cxx, cyy, cxy)
+            f00[ix,iy] = neq.f00; fp0[ix,iy] = neq.fp0; fm0[ix,iy] = neq.fm0
+            f0p[ix,iy] = neq.f0p; f0m[ix,iy] = neq.f0m
+            fpp[ix,iy] = neq.fpp; fpm[ix,iy] = neq.fpm; fmp[ix,iy] = neq.fmp; fmm[ix,iy] = neq.fmm
+        end
+
+        # ── C → F: coarse outer interface → fine outer interface (stub) ─────────
     end
 
     function run()
@@ -477,15 +507,16 @@ module JuLattice
         Nx = ceil(Int, lengthX / deltaX) + 2   # +2 for ghost ring
         Ny = ceil(Int, lengthY / deltaX) + 2
 
-        # Fine grid dimensions
-        # Fine node (ixF, iyF) sits at physical coordinates:
-        #   x = positionFineGridX + (ixF - 1.5) * deltaXFine
-        #   y = positionFineGridY + (iyF - 1.5) * deltaXFine
-        # The offset of deltaXFine/2 = deltaX/4 from the anchor means fine nodes
-        # are staggered: between coarse nodes at 0 and deltaX, fine nodes sit at
-        # deltaX/4 and 3*deltaX/4 — never coinciding, symmetrically embedded.
-        NxFine = ceil(Int, lengthXFine / deltaXFine) + 2
-        NyFine = ceil(Int, lengthYFine / deltaXFine) + 2
+        # Fine grid dimensions.
+        # Snap fine box to the nearest integer number of coarse cells so that
+        # ghost nodes land exactly at xi ± deltaX/4 (required for C↔F coupling).
+        nCoarseX    = round(Int, lengthXFine / deltaX)
+        nCoarseY    = round(Int, lengthYFine / deltaX)
+        lengthXFine = nCoarseX * deltaX
+        lengthYFine = nCoarseY * deltaX
+        # 2 fine interior nodes per coarse cell + 2 ghost nodes
+        NxFine = 2 * nCoarseX + 2
+        NyFine = 2 * nCoarseY + 2
 
         ##-------- Node Classification --------##
         (; isInlet, isOutlet, isWall, isFluid, isObject, isSolid,
@@ -700,7 +731,13 @@ module JuLattice
             end
 
             ##-- Synchronization --##
-            _synchronize!()
+            _synchronize!(
+                innerInterfaceNodes, outerInterfaceNodes,
+                innerInterfaceNodesFine, outerInterfaceNodesFine,
+                ix_left, iy_bottom,
+                omegaBGK, omegaBGKFine,
+                f00, fp0, fm0, f0p, f0m, fpp, fpm, fmp, fmm,
+                f00Fine, fp0Fine, fm0Fine, f0pFine, f0mFine, fppFine, fpmFine, fmpFine, fmmFine)
 
             ##-- Logging & Plotting --##
             if (i % 100 == 0) || (i == nSteps)
