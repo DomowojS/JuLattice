@@ -75,7 +75,8 @@ module JuLattice
     end
 
     function add_rectangle!(isObject, Nx, Ny, deltaX;
-                            centerX, centerY, d, angleDeg)
+                            centerX, centerY, d, angleDeg,
+                            originX=0.0, originY=0.0)
         half_len = 1.5 * d   # half of 3d  (long axis)
         half_hgt = 0.5 * d   # half of d   (short axis)
 
@@ -84,9 +85,9 @@ module JuLattice
         s = sin(alpha)
 
         for ix in 1:Nx, iy in 1:Ny
-            # Physical coordinates: ix=2,iy=2 → x=0,y=0
-            x = (ix - 2) * deltaX
-            y = (iy - 2) * deltaX
+            # Physical coordinates: ix=2,iy=2 → x=originX, y=originY
+            x = originX + (ix - 2) * deltaX
+            y = originY + (iy - 2) * deltaX
 
             # Translate to rectangle-local origin
             dx = x - centerX
@@ -133,7 +134,8 @@ module JuLattice
 
     function find_object_boundary_nodes(isObject, fluidNodes,
                                         deltaX, center_x, center_y,
-                                        half_len, half_hgt, cos_a, sin_a)
+                                        half_len, half_hgt, cos_a, sin_a;
+                                        originX=0.0, originY=0.0)
         dirs = ((1,0), (-1,0), (0,1), (0,-1), (1,1), (1,-1), (-1,1), (-1,-1))
 
         boundaryNodesAndDistances = Tuple{Int,Int,Int,Int,Float64}[]
@@ -141,19 +143,19 @@ module JuLattice
         @inbounds for idx in fluidNodes
             ix, iy = Tuple(idx)
             # Fluid node in local frame
-            dx0 = (ix - 2) * deltaX - center_x
-            dy0 = (iy - 2) * deltaX - center_y
+            dx0 = originX + (ix - 2) * deltaX - center_x
+            dy0 = originY + (iy - 2) * deltaX - center_y
             lx0 =  cos_a * dx0 - sin_a * dy0
             ly0 =  sin_a * dx0 + cos_a * dy0
 
             for (cx, cy) in dirs
                 if isObject[ix + cx, iy + cy]
                     # Object node in local frame
-                    dx1 = (ix + cx - 2) * deltaX - center_x
-                    dy1 = (iy + cy - 2) * deltaX - center_y
+                    dx1 = originX + (ix + cx - 2) * deltaX - center_x
+                    dy1 = originY + (iy + cy - 2) * deltaX - center_y
                     lx1 =  cos_a * dx1 - sin_a * dy1
                     ly1 =  sin_a * dx1 + cos_a * dy1
-                    
+
                     # Find exact distance q to rectangle edge along ray from (lx0,ly0) to (lx1,ly1)
                     q = _ray_rect_q(lx0, ly0, lx1 - lx0, ly1 - ly0, half_len, half_hgt)
                     push!(boundaryNodesAndDistances, (ix, iy, cx, cy, q))
@@ -162,6 +164,160 @@ module JuLattice
         end
 
         return boundaryNodesAndDistances
+    end
+
+    function _apply_bouzidi_bc!(boundaryNodesAndDistances,
+                                f00, fp0, fm0, f0p, f0m, fpp, fpm, fmp, fmm)
+        forceX = 0.0
+        forceY = 0.0
+        @inbounds for (ix, iy, cx, cy, q) in boundaryNodesAndDistances
+            q2   = 2.0 * q
+            f_in = 0.0
+            f_out = 0.0
+            if q < 0.5
+                if     cx ==  1 && cy ==  0;  f_in = fp0[ix+1,iy  ]; f_out = q2*f_in + (1.0-q2)*fp0[ix,  iy  ]; fm0[ix,iy] = f_out
+                elseif cx == -1 && cy ==  0;  f_in = fm0[ix-1,iy  ]; f_out = q2*f_in + (1.0-q2)*fm0[ix,  iy  ]; fp0[ix,iy] = f_out
+                elseif cx ==  0 && cy ==  1;  f_in = f0p[ix,  iy+1]; f_out = q2*f_in + (1.0-q2)*f0p[ix,  iy  ]; f0m[ix,iy] = f_out
+                elseif cx ==  0 && cy == -1;  f_in = f0m[ix,  iy-1]; f_out = q2*f_in + (1.0-q2)*f0m[ix,  iy  ]; f0p[ix,iy] = f_out
+                elseif cx ==  1 && cy ==  1;  f_in = fpp[ix+1,iy+1]; f_out = q2*f_in + (1.0-q2)*fpp[ix,  iy  ]; fmm[ix,iy] = f_out
+                elseif cx ==  1 && cy == -1;  f_in = fpm[ix+1,iy-1]; f_out = q2*f_in + (1.0-q2)*fpm[ix,  iy  ]; fmp[ix,iy] = f_out
+                elseif cx == -1 && cy ==  1;  f_in = fmp[ix-1,iy+1]; f_out = q2*f_in + (1.0-q2)*fmp[ix,  iy  ]; fpm[ix,iy] = f_out
+                elseif cx == -1 && cy == -1;  f_in = fmm[ix-1,iy-1]; f_out = q2*f_in + (1.0-q2)*fmm[ix,  iy  ]; fpp[ix,iy] = f_out
+                end
+            else
+                iq2 = 1.0 / q2
+                r   = (q2 - 1.0) * iq2
+                if     cx ==  1 && cy ==  0;  f_in = fp0[ix+1,iy  ]; f_out = iq2*f_in + r*fm0[ix-1,iy  ]; fm0[ix,iy] = f_out
+                elseif cx == -1 && cy ==  0;  f_in = fm0[ix-1,iy  ]; f_out = iq2*f_in + r*fp0[ix+1,iy  ]; fp0[ix,iy] = f_out
+                elseif cx ==  0 && cy ==  1;  f_in = f0p[ix,  iy+1]; f_out = iq2*f_in + r*f0m[ix,  iy-1]; f0m[ix,iy] = f_out
+                elseif cx ==  0 && cy == -1;  f_in = f0m[ix,  iy-1]; f_out = iq2*f_in + r*f0p[ix,  iy+1]; f0p[ix,iy] = f_out
+                elseif cx ==  1 && cy ==  1;  f_in = fpp[ix+1,iy+1]; f_out = iq2*f_in + r*fmm[ix-1,iy-1]; fmm[ix,iy] = f_out
+                elseif cx ==  1 && cy == -1;  f_in = fpm[ix+1,iy-1]; f_out = iq2*f_in + r*fmp[ix-1,iy+1]; fmp[ix,iy] = f_out
+                elseif cx == -1 && cy ==  1;  f_in = fmp[ix-1,iy+1]; f_out = iq2*f_in + r*fpm[ix+1,iy-1]; fpm[ix,iy] = f_out
+                elseif cx == -1 && cy == -1;  f_in = fmm[ix-1,iy-1]; f_out = iq2*f_in + r*fpp[ix+1,iy+1]; fpp[ix,iy] = f_out
+                end
+            end
+            dfx, dfy = _momentum_exchange(cx, cy, f_in, f_out)
+            forceX += dfx
+            forceY += dfy
+        end
+        return forceX, forceY
+    end
+
+    function _classify_coarse_nodes(Nx, Ny, deltaX,
+                                    positionFineGridX, positionFineGridY,
+                                    lengthXFine, lengthYFine)
+        isInlet  = falses(Nx, Ny);  isInlet[1,      :]         .= true
+        isOutlet = falses(Nx, Ny);  isOutlet[Nx,    :]         .= true
+        isWall   = falses(Nx, Ny);  isWall[2:Nx-1, [1, Ny]]    .= true
+        isFluid  = falses(Nx, Ny);  isFluid[2:Nx-1,  2:Ny-1]   .= true
+        isObject = falses(Nx, Ny)   # object lives on fine grid; coarse has none
+        isFluid .&= .!isObject
+        isSolid  = isInlet .| isOutlet .| isWall .| isObject
+
+        # Map fine grid physical bounds onto coarse indices
+        # (requires positionFineGridX/deltaX to be an integer)
+        ix_left   = 2 + round(Int, positionFineGridX / deltaX)
+        ix_right  = 2 + round(Int, (positionFineGridX + lengthXFine) / deltaX)
+        iy_bottom = 2 + round(Int, positionFineGridY / deltaX)
+        iy_top    = 2 + round(Int, (positionFineGridY + lengthYFine) / deltaX)
+
+        isOuterInterfaceNode = falses(Nx, Ny)
+        isInnerInterfaceNode = falses(Nx, Ny)
+        isFineInterior       = falses(Nx, Ny)
+
+        @inbounds for ix in 1:Nx, iy in 1:Ny
+            !isFluid[ix, iy] && continue
+
+            in_x   = ix_left <= ix <= ix_right
+            in_y   = iy_bottom <= iy <= iy_top
+            inside = in_x && in_y
+
+            if inside
+                minDist = min(ix - ix_left, ix_right - ix, iy - iy_bottom, iy_top - iy)
+                if minDist == 0
+                    isOuterInterfaceNode[ix, iy] = true
+                elseif minDist == 1
+                    isInnerInterfaceNode[ix, iy] = true
+                else
+                    isFineInterior[ix, iy] = true
+                end
+            else
+                if (ix_left-1) <= ix <= (ix_right+1) && (iy_bottom-1) <= iy <= (iy_top+1)
+                    isOuterInterfaceNode[ix, iy] = true
+                end
+            end
+        end
+
+        isFluid .&= .!isFineInterior   # coarse nodes inside fine region are no longer fluid
+
+        return (; isInlet, isOutlet, isWall, isFluid, isObject, isSolid,
+                  isOuterInterfaceNode, isInnerInterfaceNode, isFineInterior)
+    end
+
+    function _classify_fine_nodes(NxFine, NyFine, deltaXFine,
+                                   positionFineGridX, positionFineGridY,
+                                   positionX, positionY, d, angleDeg)
+        # Fine node (ixF,iyF) physical position: x = originX + (ixF-2)*deltaXFine
+        # Offset by deltaXFine/2 from anchor → staggered w.r.t. coarse nodes
+        originXFine = positionFineGridX + 0.5 * deltaXFine
+        originYFine = positionFineGridY + 0.5 * deltaXFine
+
+        isFluidFine  = falses(NxFine, NyFine);  isFluidFine[2:NxFine-1, 2:NyFine-1] .= true
+        isObjectFine = falses(NxFine, NyFine)
+        add_rectangle!(isObjectFine, NxFine, NyFine, deltaXFine;
+                       centerX=positionX, centerY=positionY, d=d, angleDeg=angleDeg,
+                       originX=originXFine, originY=originYFine)
+        isFluidFine .&= .!isObjectFine
+
+        # Outer 2 rows/columns of fine grid interior = interface with coarse grid
+        isInterfaceNodeFine = falses(NxFine, NyFine)
+        isInterfaceNodeFine[2:NxFine-1, 2:NyFine-1] .= true   # all interior
+        isInterfaceNodeFine[4:NxFine-3, 4:NyFine-3] .= false  # clear deep interior
+        isInterfaceNodeFine .&= isFluidFine
+
+        return (; isFluidFine, isObjectFine, isInterfaceNodeFine, originXFine, originYFine)
+    end
+
+    function _compute_node_lists(
+            isFluid, isObject, isInlet, isOutlet, isWall,
+            isOuterInterfaceNode, isInnerInterfaceNode,
+            isFluidFine, isObjectFine, isInterfaceNodeFine,
+            deltaX, deltaXFine, positionX, positionY, d, angleDeg,
+            originXFine, originYFine)
+
+        # Coarse grid
+        fluidNodes          = findall(isFluid)
+        solidNodes          = findall(.!isFluid .& .!isInlet .& .!isOutlet .& .!isWall)
+        objectNodes         = findall(isObject)
+        outerInterfaceNodes = findall(isOuterInterfaceNode)
+        innerInterfaceNodes = findall(isInnerInterfaceNode)
+
+        # Fine grid
+        fluidNodesFine     = findall(isFluidFine)
+        objectNodesFine    = findall(isObjectFine)
+        interfaceNodesFine = findall(isInterfaceNodeFine)
+
+        # Bouzidi boundary — coarse (empty; object on fine grid)
+        boundaryNodesAndDistances = find_object_boundary_nodes(
+            isObject, fluidNodes,
+            deltaX, positionX, positionY,
+            1.5*d, 0.5*d, cosd(angleDeg), sind(angleDeg))
+
+        # Bouzidi boundary — fine grid
+        boundaryNodesAndDistancesFine = find_object_boundary_nodes(
+            isObjectFine, fluidNodesFine,
+            deltaXFine, positionX, positionY,
+            1.5*d, 0.5*d, cosd(angleDeg), sind(angleDeg),
+            originX=originXFine, originY=originYFine)
+
+        return (; fluidNodes, solidNodes, objectNodes,
+                  outerInterfaceNodes, innerInterfaceNodes,
+                  fluidNodesFine, objectNodesFine, interfaceNodesFine,
+                  boundaryNodesAndDistances, boundaryNodesAndDistancesFine)
+    end
+
+    function _synchronize!()
     end
 
     function run()
@@ -233,66 +389,29 @@ module JuLattice
         NxFine = ceil(Int, lengthXFine / deltaXFine) + 2
         NyFine = ceil(Int, lengthYFine / deltaXFine) + 2
 
-        # Node identifiers (Boolean masks, Nx x Ny)
-        isInlet  = falses(Nx, Ny);  isInlet[1,    :]         .= true
-        isOutlet = falses(Nx, Ny);  isOutlet[Nx,  :]         .= true
-        isWall   = falses(Nx, Ny);  isWall[2:Nx-1, [1, Ny]]  .= true
-        isFluid  = falses(Nx, Ny);  isFluid[2:Nx-1, 2:Ny-1]  .= true
-        isObject = falses(Nx, Ny);  add_rectangle!(isObject, Nx, Ny, deltaX;
-                                                   centerX=positionX, centerY=positionY, d=d, angleDeg=angleDeg)
-        isFluid .&= .!isObject  # cut object nodes out of fluid
-        isSolid  = isInlet .| isOutlet .| isWall .| isObject
+        ##-------- Node Classification --------##
+        (; isInlet, isOutlet, isWall, isFluid, isObject, isSolid,
+           isOuterInterfaceNode, isInnerInterfaceNode, isFineInterior) =
+            _classify_coarse_nodes(Nx, Ny, deltaX,
+                                   positionFineGridX, positionFineGridY,
+                                   lengthXFine, lengthYFine)
 
-        ##-------- Fine Grid Interface Node Classification (Coarse Grid) --------##
-        # Map fine grid physical boundaries onto coarse grid indices
-        # (valid only when anchor lies on a coarse node, i.e. positionFineGridX/deltaX is integer)
-        ix_fine_left   = 2 + round(Int, positionFineGridX / deltaX)
-        ix_fine_right  = 2 + round(Int, (positionFineGridX + lengthXFine) / deltaX)
-        iy_fine_bottom = 2 + round(Int, positionFineGridY / deltaX)
-        iy_fine_top    = 2 + round(Int, (positionFineGridY + lengthYFine) / deltaX)
+        (; isFluidFine, isObjectFine, isInterfaceNodeFine, originXFine, originYFine) =
+            _classify_fine_nodes(NxFine, NyFine, deltaXFine,
+                                 positionFineGridX, positionFineGridY,
+                                 positionX, positionY, d, angleDeg)
 
-        isOuterInterfaceNode = falses(Nx, Ny)   # row just outside + row on fine grid boundary
-        isInnerInterfaceNode = falses(Nx, Ny)   # second row inside fine grid
-        isFineInterior       = falses(Nx, Ny)   # coarse nodes covered by fine grid → solid
-
-        @inbounds for ix in 1:Nx, iy in 1:Ny
-            !isFluid[ix, iy] && continue
-
-            in_x   = ix_fine_left <= ix <= ix_fine_right
-            in_y   = iy_fine_bottom <= iy <= iy_fine_top
-            inside = in_x && in_y
-
-            if inside
-                minDist = min(ix - ix_fine_left, ix_fine_right - ix,
-                              iy - iy_fine_bottom, iy_fine_top - iy)
-                if minDist == 0
-                    isOuterInterfaceNode[ix, iy] = true   # ON boundary = first embedded row
-                elseif minDist == 1
-                    isInnerInterfaceNode[ix, iy] = true   # second embedded row
-                else
-                    isFineInterior[ix, iy] = true          # deep inside → replaced by fine grid
-                end
-            else
-                # Just outside: within Chebyshev distance 1 of the fine grid rectangle
-                near_x = (ix_fine_left - 1) <= ix <= (ix_fine_right + 1)
-                near_y = (iy_fine_bottom - 1) <= iy <= (iy_fine_top + 1)
-                if near_x && near_y
-                    isOuterInterfaceNode[ix, iy] = true   # just-outside row
-                end
-            end
-        end
-
-        # Remove fine-interior coarse nodes from fluid (replaced by fine grid)
-        isFluid .&= .!isFineInterior
-
-        # Precomputed node index lists — rebuild after any mask change (e.g. adding a solid object)
-        fluidNodes = findall(isFluid)
-        solidNodes = findall(.!isFluid .& .!isInlet .& .!isOutlet .& .!isWall)
-        objectNodes = findall(isObject)
-        
-        boundaryNodesAndDistances = find_object_boundary_nodes(isObject, fluidNodes,
-                                                        deltaX, positionX, positionY,
-                                                        1.5*d, 0.5*d, cosd(angleDeg), sind(angleDeg))
+        ##-------- Precomputed Node Index Lists --------##
+        (; fluidNodes, solidNodes, objectNodes,
+           outerInterfaceNodes, innerInterfaceNodes,
+           fluidNodesFine, objectNodesFine, interfaceNodesFine,
+           boundaryNodesAndDistances, boundaryNodesAndDistancesFine) =
+            _compute_node_lists(
+                isFluid, isObject, isInlet, isOutlet, isWall,
+                isOuterInterfaceNode, isInnerInterfaceNode,
+                isFluidFine, isObjectFine, isInterfaceNodeFine,
+                deltaX, deltaXFine, positionX, positionY, d, angleDeg,
+                originXFine, originYFine)
 
         ##-------- MRT Setup --------##
         omegaBGK      = 1.0 / (3.0 * latticeViscosity + 0.5)
@@ -398,8 +517,40 @@ module JuLattice
 
         for i in 1:nSteps
 
-            ##-- 1. Collision + Streaming --##
-            # Clear post-collision buffers
+            ##-- Fine Sub-steps (2 per coarse step) --##
+            forceX = 0.0
+            forceY = 0.0
+            for _ in 1:2
+                f00SFine .= 0.0; fp0SFine .= 0.0; fm0SFine .= 0.0
+                f0pSFine .= 0.0; f0mSFine .= 0.0
+                fppSFine .= 0.0; fpmSFine .= 0.0; fmpSFine .= 0.0; fmmSFine .= 0.0
+
+                _collide_and_stream!(
+                    fluidNodesFine,
+                    f00Fine, fp0Fine, fm0Fine, f0pFine, f0mFine, fppFine, fpmFine, fmpFine, fmmFine,
+                    f00SFine, fp0SFine, fm0SFine, f0pSFine, f0mSFine, fppSFine, fpmSFine, fmpSFine, fmmSFine,
+                    densityGridFine, velocityXFine, velocityYFine,
+                    omegaBGKFine, omegaAcoustic)
+
+                f00Fine, f00SFine = f00SFine, f00Fine
+                fp0Fine, fp0SFine = fp0SFine, fp0Fine
+                fm0Fine, fm0SFine = fm0SFine, fm0Fine
+                f0pFine, f0pSFine = f0pSFine, f0pFine
+                f0mFine, f0mSFine = f0mSFine, f0mFine
+                fppFine, fppSFine = fppSFine, fppFine
+                fpmFine, fpmSFine = fpmSFine, fpmFine
+                fmpFine, fmpSFine = fmpSFine, fmpFine
+                fmmFine, fmmSFine = fmmSFine, fmmFine
+
+                dfx, dfy = _apply_bouzidi_bc!(boundaryNodesAndDistancesFine,
+                    f00Fine, fp0Fine, fm0Fine, f0pFine, f0mFine, fppFine, fpmFine, fmpFine, fmmFine)
+                forceX += dfx
+                forceY += dfy
+            end
+            forceX *= 0.5
+            forceY *= 0.5
+
+            ##-- Coarse Step --##
             f00S .= 0.0; fp0S .= 0.0; fm0S .= 0.0
             f0pS .= 0.0; f0mS .= 0.0
             fppS .= 0.0; fpmS .= 0.0; fmpS .= 0.0; fmmS .= 0.0
@@ -411,7 +562,6 @@ module JuLattice
                 densityGrid, velocityX, velocityY,
                 omegaBGK, omegaAcoustic)
 
-            # Swap f <-> fS
             f00, f00S = f00S, f00
             fp0, fp0S = fp0S, fp0
             fm0, fm0S = fm0S, fm0
@@ -422,8 +572,7 @@ module JuLattice
             fmp, fmpS = fmpS, fmp
             fmm, fmmS = fmmS, fmm
 
-            ##-- 3. Boundary Conditions --##
-            # Inlet:bounce-back at first fluid column (ix=2), reading from inlet ghost (ix=1)
+            # Inlet: bounce-back at first fluid column (ix=2), reading from inlet ghost (ix=1)
             for iy in 2:Ny-1
                 ix = 2
                 fp0[ix, iy] = fm0[ix-1, iy]   + inlet_add_fp0
@@ -439,57 +588,21 @@ module JuLattice
             end
 
             # Walls: equilibrium at (latticeDensity, 0, 0) injected into first fluid row
-            # Bottom wall (ghost at iy=1): set cy=+1 populations at first fluid row iy=2
             @inbounds @views begin
                 f0p[2:Nx-1, 2] .= f0p_eq_wall
                 fpp[2:Nx-1, 2] .= fpp_eq_wall
                 fmp[2:Nx-1, 2] .= fmp_eq_wall
-                # Top wall (ghost at iy=Ny): set cy=-1 populations at last fluid row iy=Ny-1
                 f0m[2:Nx-1, Ny-1] .= f0m_eq_wall
                 fpm[2:Nx-1, Ny-1] .= fpm_eq_wall
                 fmm[2:Nx-1, Ny-1] .= fmm_eq_wall
             end
 
-            # Object bounce-back (Bouzidi) + momentum exchange
-            forceX = 0.0
-            forceY = 0.0
-            @inbounds for (ix, iy, cx, cy, q) in boundaryNodesAndDistances
-                q2   = 2.0 * q
-                f_in = 0.0
-                f_out = 0.0
-                if q < 0.5
-                    # f_ᾱ[ix,iy] = 2q*f_α[ix+cx,iy+cy] + (1-2q)*f_α[ix,iy]
-                    if     cx ==  1 && cy ==  0;  f_in = fp0[ix+1,iy  ]; f_out = q2*f_in + (1.0-q2)*fp0[ix,  iy  ]; fm0[ix,iy] = f_out
-                    elseif cx == -1 && cy ==  0;  f_in = fm0[ix-1,iy  ]; f_out = q2*f_in + (1.0-q2)*fm0[ix,  iy  ]; fp0[ix,iy] = f_out
-                    elseif cx ==  0 && cy ==  1;  f_in = f0p[ix,  iy+1]; f_out = q2*f_in + (1.0-q2)*f0p[ix,  iy  ]; f0m[ix,iy] = f_out
-                    elseif cx ==  0 && cy == -1;  f_in = f0m[ix,  iy-1]; f_out = q2*f_in + (1.0-q2)*f0m[ix,  iy  ]; f0p[ix,iy] = f_out
-                    elseif cx ==  1 && cy ==  1;  f_in = fpp[ix+1,iy+1]; f_out = q2*f_in + (1.0-q2)*fpp[ix,  iy  ]; fmm[ix,iy] = f_out
-                    elseif cx ==  1 && cy == -1;  f_in = fpm[ix+1,iy-1]; f_out = q2*f_in + (1.0-q2)*fpm[ix,  iy  ]; fmp[ix,iy] = f_out
-                    elseif cx == -1 && cy ==  1;  f_in = fmp[ix-1,iy+1]; f_out = q2*f_in + (1.0-q2)*fmp[ix,  iy  ]; fpm[ix,iy] = f_out
-                    elseif cx == -1 && cy == -1;  f_in = fmm[ix-1,iy-1]; f_out = q2*f_in + (1.0-q2)*fmm[ix,  iy  ]; fpp[ix,iy] = f_out
-                    end
-                else
-                    iq2 = 1.0 / q2
-                    r   = (q2 - 1.0) * iq2   # (2q-1)/(2q)
-                    # f_ᾱ[ix,iy] = (1/2q)*f_α[ix+cx,iy+cy] + ((2q-1)/2q)*f_ᾱ[ix-cx,iy-cy]
-                    if     cx ==  1 && cy ==  0;  f_in = fp0[ix+1,iy  ]; f_out = iq2*f_in + r*fm0[ix-1,iy  ]; fm0[ix,iy] = f_out
-                    elseif cx == -1 && cy ==  0;  f_in = fm0[ix-1,iy  ]; f_out = iq2*f_in + r*fp0[ix+1,iy  ]; fp0[ix,iy] = f_out
-                    elseif cx ==  0 && cy ==  1;  f_in = f0p[ix,  iy+1]; f_out = iq2*f_in + r*f0m[ix,  iy-1]; f0m[ix,iy] = f_out
-                    elseif cx ==  0 && cy == -1;  f_in = f0m[ix,  iy-1]; f_out = iq2*f_in + r*f0p[ix,  iy+1]; f0p[ix,iy] = f_out
-                    elseif cx ==  1 && cy ==  1;  f_in = fpp[ix+1,iy+1]; f_out = iq2*f_in + r*fmm[ix-1,iy-1]; fmm[ix,iy] = f_out
-                    elseif cx ==  1 && cy == -1;  f_in = fpm[ix+1,iy-1]; f_out = iq2*f_in + r*fmp[ix-1,iy+1]; fmp[ix,iy] = f_out
-                    elseif cx == -1 && cy ==  1;  f_in = fmp[ix-1,iy+1]; f_out = iq2*f_in + r*fpm[ix+1,iy-1]; fpm[ix,iy] = f_out
-                    elseif cx == -1 && cy == -1;  f_in = fmm[ix-1,iy-1]; f_out = iq2*f_in + r*fpp[ix+1,iy+1]; fpp[ix,iy] = f_out
-                    end
-                end
-                dfx, dfy = _momentum_exchange(cx, cy, f_in, f_out)
-                forceX += dfx
-                forceY += dfy
-            end
+            ##-- Synchronization --##
+            _synchronize!()
 
-            ##-- 4. Logging & Plotting --##
+            ##-- Logging & Plotting --##
             if (i % 100 == 0) || (i == nSteps)
-                nups = length(fluidNodes) * i / (time() - t_start)
+                nups = (length(fluidNodes) + 2 * length(fluidNodesFine)) * i / (time() - t_start)
                 Log_Simulation_Runtime(i, nSteps, nups)
                 println("  CD = $(round(forceX*coeff_denom, digits=4))  CL = $(round(forceY*coeff_denom, digits=4))")
             end
