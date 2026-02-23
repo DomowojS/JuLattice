@@ -223,6 +223,16 @@ module JuLattice
         return forceX, forceY
     end
 
+    function _snap_fine_grid_position(positionFineGridX, positionFineGridY, deltaX)
+        snappedX = round(positionFineGridX / deltaX) * deltaX
+        snappedY = round(positionFineGridY / deltaX) * deltaX
+        if snappedX != positionFineGridX || snappedY != positionFineGridY
+            @info "Fine grid anchor snapped to nearest coarse node: " *
+                  "($(positionFineGridX), $(positionFineGridY)) → ($(snappedX), $(snappedY))"
+        end
+        return snappedX, snappedY
+    end
+
     function _classify_coarse_nodes(Nx, Ny, deltaX,
                                     positionFineGridX, positionFineGridY,
                                     lengthXFine, lengthYFine)
@@ -521,13 +531,13 @@ module JuLattice
         ## User Settings
         # Domain Settings
         lengthX = 8.0             # m
-        lengthY = 6.0             # m
+        lengthY = 3.0             # m
 
         # Fine Grid Settings
         lengthXFine       = 4.0     # m  (width of fine region)
-        lengthYFine       = 3.0     # m  (height of fine region)
-        positionFineGridX = 1.5     # m  (lower-left anchor; should lie on a coarse node)
-        positionFineGridY = 1.5     # m
+        lengthYFine       = 2.4     # m  (height of fine region)
+        positionFineGridX = 1.5     # m  (lower-left anchor; snapped to nearest coarse node below)
+        positionFineGridY = 0.3     # m
 
         # Object reference length (for reynoldsNumber; object itself added later)
         d = 0.5                   # m
@@ -541,7 +551,9 @@ module JuLattice
 
         # Simulation Settings
         simulationTime = 3600.0   # s
-        deltaX = 0.1             # m per lattice unit
+        deltaX = 0.05             # m per lattice unit
+        positionFineGridX, positionFineGridY =
+            _snap_fine_grid_position(positionFineGridX, positionFineGridY, deltaX)
 
         # Plot Requests
         plotU             = false
@@ -833,6 +845,7 @@ module JuLattice
 
         end#loop
 
+        Save_Forces!(obs_time[], obs_cd[], obs_cl[])
         Log_Simulation_Tail()
     end#run
 
