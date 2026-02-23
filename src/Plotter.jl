@@ -92,28 +92,28 @@ end
 function Create_Force_Plot()
     fig = Figure(size = (700, 350))
     ax  = Axis(fig[1, 1],
-               title  = "Aerodynamic Forces",
+               title  = "Aerodynamic Coefficients",
                xlabel = "Time [s]",
-               ylabel = "Force / ρ  [m²/s²]")
+               ylabel = "Coefficient [-]")
 
     obs_time = Observable(Float64[])
-    obs_fx   = Observable(Float64[])
-    obs_fy   = Observable(Float64[])
+    obs_cd   = Observable(Float64[])
+    obs_cl   = Observable(Float64[])
 
-    lines!(ax, obs_time, obs_fx, color = :steelblue,  label = "Fx")
-    lines!(ax, obs_time, obs_fy, color = :orangered,  label = "Fy")
+    lines!(ax, obs_time, obs_cd, color = :steelblue,  label = "CD")
+    lines!(ax, obs_time, obs_cl, color = :orangered,  label = "CL")
     axislegend(ax, position = :rt)
 
-    return fig, ax, obs_time, obs_fx, obs_fy
+    return fig, ax, obs_time, obs_cd, obs_cl
 end
 
-function Update_Force_Plot!(ax, obs_time, obs_fx, obs_fy, t, fx, fy)
+function Update_Force_Plot!(ax, obs_time, obs_cd, obs_cl, t, cd, cl)
     push!(obs_time[], t)
-    push!(obs_fx[],   fx)
-    push!(obs_fy[],   fy)
+    push!(obs_cd[],   cd)
+    push!(obs_cl[],   cl)
     notify(obs_time)
-    notify(obs_fx)
-    notify(obs_fy)
+    notify(obs_cd)
+    notify(obs_cl)
     autolimits!(ax)
 end
 

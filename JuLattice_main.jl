@@ -168,10 +168,11 @@ module JuLattice
         ## User Settings
         # Domain Settings
         lengthX = 8.0             # m
-        lengthY = 3.0             # m
+        lengthY = 6.0             # m
 
         # Object reference length (for reynoldsNumber; object itself added later)
         d = 0.5                   # m
+        angleDeg = 30.0           # degrees
         positionX = 3.0
         positionY = lengthY/2
         # Fluid Properties
@@ -190,8 +191,8 @@ module JuLattice
 
         plotUMin    =  -0.04      # m/s
         plotUMax    =  0.1     # m/s
-        plotVMin    = -0.05     # m/s
-        plotVMax    =  0.03    # m/s
+        plotVMin    = -0.1     # m/s
+        plotVMax    =  0.08    # m/s
         plotVortMin = -1.1      # 1/s
         plotVortMax =  1.1      # 1/s
 
@@ -218,7 +219,7 @@ module JuLattice
         isWall   = falses(Nx, Ny);  isWall[2:Nx-1, [1, Ny]]  .= true
         isFluid  = falses(Nx, Ny);  isFluid[2:Nx-1, 2:Ny-1]  .= true
         isObject = falses(Nx, Ny);  add_rectangle!(isObject, Nx, Ny, deltaX;
-                                                   centerX=positionX, centerY=positionY, d=d, angleDeg=30.0)
+                                                   centerX=positionX, centerY=positionY, d=d, angleDeg=angleDeg)
         isFluid .&= .!isObject  # cut object nodes out of fluid
         isSolid  = isInlet .| isOutlet .| isWall .| isObject
 
@@ -229,7 +230,7 @@ module JuLattice
         
         boundaryNodesAndDistances = find_object_boundary_nodes(isObject, fluidNodes,
                                                         deltaX, positionX, positionY,
-                                                        1.5*d, 0.5*d, cosd(30), sind(30))
+                                                        1.5*d, 0.5*d, cosd(angleDeg), sind(angleDeg))
 
         ##-------- MRT Setup --------##
         omegaBGK      = 1.0 / (3.0 * latticeViscosity + 0.5)
@@ -291,10 +292,12 @@ module JuLattice
         screen = GLMakie.Screen()
         GLMakie.display(screen, fig)
 
-        force_fig, force_ax, obs_time, obs_fx, obs_fy = Create_Force_Plot()
+        force_fig, force_ax, obs_time, obs_cd, obs_cl = Create_Force_Plot()
         force_screen = GLMakie.Screen()
         GLMakie.display(force_screen, force_fig)
-        forceScale = deltaX^2 / deltaT^2
+        # Projected frontal length: shadow cast by the object onto the y-axis (⊥ to flow)
+        proj_frontal = 2.0 * (1.5*d * sind(angleDeg) + 0.5*d * cosd(angleDeg)) / deltaX
+        coeff_denom  = 1.0 / (0.5 * latticeDensity * latticeInflowVelocity^2 * proj_frontal)
 
         ##-------- Main Loop --------##
         Log_Simulation_Start()
@@ -395,7 +398,7 @@ module JuLattice
             if (i % 100 == 0) || (i == nSteps)
                 nups = length(fluidNodes) * i / (time() - t_start)
                 Log_Simulation_Runtime(i, nSteps, nups)
-                println("  Force (lattice):  Fx = $(round(forceX, digits=6))  Fy = $(round(forceY, digits=6))")
+                println("  CD = $(round(forceX*coeff_denom, digits=4))  CL = $(round(forceY*coeff_denom, digits=4))")
             end
 
             if (i % 10 == 0) || (i == nSteps)
@@ -404,10 +407,10 @@ module JuLattice
                              i, deltaT, deltaX,
                              plotU, plotV, plotVorticity,
                              isFluid, isObject)
-                Update_Force_Plot!(force_ax, obs_time, obs_fx, obs_fy,
+                Update_Force_Plot!(force_ax, obs_time, obs_cd, obs_cl,
                                    i * deltaT,
-                                   forceX * forceScale,
-                                   forceY * forceScale)
+                                   forceX * coeff_denom,
+                                   forceY * coeff_denom)
                 yield()
             end
 
