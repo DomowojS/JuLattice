@@ -74,6 +74,25 @@ module JuLattice
         end
     end
 
+    @inline function getNonEquilibrium(rho0, ux, uy, cxx, cyy, cxy)
+        m11 = (cxy + ux*uy) * rho0
+        m20 = (cxx + 1.0/3.0 + ux*ux) * rho0
+        m02 = (cyy + 1.0/3.0 + uy*uy) * rho0
+        m12 = ux * m02
+        m21 = uy * m20
+        m22 = m20 * m02 / rho0
+        f00 =        rho0 - m02 - m20 + m22
+        fp0 = 0.5  * ( ux*rho0 + m20 - m12 - m22)
+        fm0 = 0.5  * (-ux*rho0 + m20 + m12 - m22)
+        f0p = 0.5  * ( uy*rho0 + m02 - m21 - m22)
+        f0m = 0.5  * (-uy*rho0 + m02 + m21 - m22)
+        fpp = 0.25 * ( m11 + m12 + m21 + m22)
+        fpm = 0.25 * (-m11 + m12 - m21 + m22)
+        fmp = 0.25 * (-m11 - m12 + m21 + m22)
+        fmm = 0.25 * ( m11 - m12 - m21 + m22)
+        return (; f00, fp0, fm0, f0p, f0m, fpp, fpm, fmp, fmm)
+    end
+
     function add_rectangle!(isObject, Nx, Ny, deltaX;
                             centerX, centerY, d, angleDeg,
                             originX=0.0, originY=0.0)
@@ -235,9 +254,9 @@ module JuLattice
 
             if inside
                 minDist = min(ix - ix_left, ix_right - ix, iy - iy_bottom, iy_top - iy)
-                if minDist == 0
+                if minDist <= 1
                     isOuterInterfaceNode[ix, iy] = true
-                elseif minDist == 1
+                elseif minDist == 2
                     isInnerInterfaceNode[ix, iy] = true
                 else
                     isFineInterior[ix, iy] = true
@@ -252,7 +271,8 @@ module JuLattice
         isFluid .&= .!isFineInterior   # coarse nodes inside fine region are no longer fluid
 
         return (; isInlet, isOutlet, isWall, isFluid, isObject, isSolid,
-                  isOuterInterfaceNode, isInnerInterfaceNode, isFineInterior)
+                  isOuterInterfaceNode, isInnerInterfaceNode, isFineInterior,
+                  ix_left, ix_right, iy_bottom, iy_top)
     end
 
     function _classify_fine_nodes(NxFine, NyFine, deltaXFine,
@@ -270,19 +290,29 @@ module JuLattice
                        originX=originXFine, originY=originYFine)
         isFluidFine .&= .!isObjectFine
 
-        # Outer 2 rows/columns of fine grid interior = interface with coarse grid
-        isInterfaceNodeFine = falses(NxFine, NyFine)
-        isInterfaceNodeFine[2:NxFine-1, 2:NyFine-1] .= true   # all interior
-        isInterfaceNodeFine[4:NxFine-3, 4:NyFine-3] .= false  # clear deep interior
-        isInterfaceNodeFine .&= isFluidFine
+        # Outer 2 rows/cols of fine interior → C→F target (isOuterInterfaceNodeFine)
+        isOuterInterfaceNodeFine = falses(NxFine, NyFine)
+        isOuterInterfaceNodeFine[2:NxFine-1, 2:NyFine-1] .= true   # all interior
+        isOuterInterfaceNodeFine[4:NxFine-3, 4:NyFine-3] .= false  # clear from 3rd row inward
+        isOuterInterfaceNodeFine .&= isFluidFine
 
-        return (; isFluidFine, isObjectFine, isInterfaceNodeFine, originXFine, originYFine)
+        # 4th and 5th rows/cols of fine interior → F→C source (isInnerInterfaceNodeFine)
+        isInnerInterfaceNodeFine = falses(NxFine, NyFine)
+        isInnerInterfaceNodeFine[2:NxFine-1, 5:6]               .= true   # bottom band
+        isInnerInterfaceNodeFine[2:NxFine-1, NyFine-6:NyFine-5] .= true   # top band
+        isInnerInterfaceNodeFine[5:6,               2:NyFine-1] .= true   # left band
+        isInnerInterfaceNodeFine[NxFine-6:NxFine-5, 2:NyFine-1] .= true   # right band
+        isInnerInterfaceNodeFine .&= isFluidFine
+
+        return (; isFluidFine, isObjectFine,
+                  isOuterInterfaceNodeFine, isInnerInterfaceNodeFine,
+                  originXFine, originYFine)
     end
 
     function _compute_node_lists(
             isFluid, isObject, isInlet, isOutlet, isWall,
             isOuterInterfaceNode, isInnerInterfaceNode,
-            isFluidFine, isObjectFine, isInterfaceNodeFine,
+            isFluidFine, isObjectFine, isOuterInterfaceNodeFine, isInnerInterfaceNodeFine,
             deltaX, deltaXFine, positionX, positionY, d, angleDeg,
             originXFine, originYFine)
 
@@ -294,9 +324,10 @@ module JuLattice
         innerInterfaceNodes = findall(isInnerInterfaceNode)
 
         # Fine grid
-        fluidNodesFine     = findall(isFluidFine)
-        objectNodesFine    = findall(isObjectFine)
-        interfaceNodesFine = findall(isInterfaceNodeFine)
+        fluidNodesFine          = findall(isFluidFine)
+        objectNodesFine         = findall(isObjectFine)
+        outerInterfaceNodesFine = findall(isOuterInterfaceNodeFine)
+        innerInterfaceNodesFine = findall(isInnerInterfaceNodeFine)
 
         # Bouzidi boundary — coarse (empty; object on fine grid)
         boundaryNodesAndDistances = find_object_boundary_nodes(
@@ -313,8 +344,75 @@ module JuLattice
 
         return (; fluidNodes, solidNodes, objectNodes,
                   outerInterfaceNodes, innerInterfaceNodes,
-                  fluidNodesFine, objectNodesFine, interfaceNodesFine,
+                  fluidNodesFine, objectNodesFine,
+                  outerInterfaceNodesFine, innerInterfaceNodesFine,
                   boundaryNodesAndDistances, boundaryNodesAndDistancesFine)
+    end
+
+    struct InterpolationCoef
+        # u(x,y) = a0 + ax*x + ay*y + axy*x*y + axx*x^2 + ayy*y^2
+        a0::Float64;  ax::Float64;  ay::Float64;  axy::Float64;  axx::Float64;  ayy::Float64
+        # v(x,y) = b0 + bx*x + by*y + bxy*x*y + bxx*x^2 + byy*y^2
+        b0::Float64;  bx::Float64;  by::Float64;  bxy::Float64;  bxx::Float64;  byy::Float64
+        # rho(x,y) = c0 + cx*x + cy*y + cxy*x*y
+        c0::Float64;  cx::Float64;  cy::Float64;  cxy::Float64
+    end
+
+    @inline function _node_macros_and_stress(ix, iy,
+                                              f00, fp0, fm0, f0p, f0m,
+                                              fpp, fpm, fmp, fmm)
+        rho  = f00[ix,iy] + fp0[ix,iy] + fm0[ix,iy] + f0p[ix,iy] + f0m[ix,iy] +
+               fpp[ix,iy] + fpm[ix,iy] + fmp[ix,iy] + fmm[ix,iy]
+        irho = 1.0 / rho
+        u    = (fp0[ix,iy] - fm0[ix,iy] + fpp[ix,iy] + fpm[ix,iy] - fmp[ix,iy] - fmm[ix,iy]) * irho
+        v    = (f0p[ix,iy] - f0m[ix,iy] + fpp[ix,iy] - fpm[ix,iy] + fmp[ix,iy] - fmm[ix,iy]) * irho
+        m20  = fm0[ix,iy] + fp0[ix,iy] + fmm[ix,iy] + fpp[ix,iy] + fmp[ix,iy] + fpm[ix,iy]
+        m02  = f0m[ix,iy] + f0p[ix,iy] + fmm[ix,iy] + fpp[ix,iy] + fmp[ix,iy] + fpm[ix,iy]
+        m11  = fmm[ix,iy] + fpp[ix,iy] - fmp[ix,iy] - fpm[ix,iy]
+        c20  = m20 * irho - u*u   # cxx + 1/3
+        c02  = m02 * irho - v*v   # cyy + 1/3
+        c11  = m11 * irho - u*v   # cxy
+        return rho, u, v, c20, c02, c11
+    end
+
+    function _get_interpolation_coef(ix, iy, omegaBGK,
+                                     f00, fp0, fm0, f0p, f0m,
+                                     fpp, fpm, fmp, fmm)
+        rho00, u00, v00, c20_00, c02_00, c11_00 = _node_macros_and_stress(ix,   iy,   f00, fp0, fm0, f0p, f0m, fpp, fpm, fmp, fmm)
+        rho10, u10, v10, c20_10, c02_10, c11_10 = _node_macros_and_stress(ix+1, iy,   f00, fp0, fm0, f0p, f0m, fpp, fpm, fmp, fmm)
+        rho11, u11, v11, c20_11, c02_11, c11_11 = _node_macros_and_stress(ix+1, iy+1, f00, fp0, fm0, f0p, f0m, fpp, fpm, fmp, fmm)
+        rho01, u01, v01, c20_01, c02_01, c11_01 = _node_macros_and_stress(ix,   iy+1, f00, fp0, fm0, f0p, f0m, fpp, fpm, fmp, fmm)
+
+        # Row-averaged finite differences of stress (shear modes only; 1/3 terms cancel in c20-c02)
+        DxC11 = -3.0*omegaBGK * (c11_10 + c11_11 - c11_00 - c11_01) * 0.5
+        DyC11 = -3.0*omegaBGK * (c11_01 + c11_11 - c11_00 - c11_10) * 0.5
+        DxC2  = -3.0*omegaBGK * 0.5 * ((c20_10 - c02_10 + c20_11 - c02_11) -
+                                         (c20_00 - c02_00 + c20_01 - c02_01)) * 0.5
+        DyC2  = -3.0*omegaBGK * 0.5 * ((c20_01 - c02_01 + c20_11 - c02_11) -
+                                         (c20_00 - c02_00 + c20_10 - c02_10)) * 0.5
+
+        a0  = (-DxC2  - DyC11 + 2.0*(u00 + u01 + u10 + u11)) / 8.0
+        ax  = (-u00 - u01 + u10 + u11) / 2.0
+        ay  = (-u00 + u01 - u10 + u11) / 2.0
+        axy = u00 - u01 - u10 + u11
+        axx = ( DxC2  + v00 - v01 - v10 + v11) / 2.0
+        ayy = ( DyC11 - v00 + v01 + v10 - v11) / 2.0
+
+        b0  = (-DxC11 + DyC2  + 2.0*(v00 + v01 + v10 + v11)) / 8.0
+        bx  = (-v00 - v01 + v10 + v11) / 2.0
+        by  = (-v00 + v01 - v10 + v11) / 2.0
+        bxy = v00 - v01 - v10 + v11
+        bxx = ( DxC11 - u00 + u01 + u10 - u11) / 2.0
+        byy = (-DyC2  + u00 - u01 - u10 + u11) / 2.0
+
+        c0  = (rho00 + rho01 + rho10 + rho11) / 4.0
+        c_x = (-rho00 - rho01 + rho10 + rho11) / 2.0
+        c_y = (-rho00 + rho01 - rho10 + rho11) / 2.0
+        c_xy = rho00 - rho01 - rho10 + rho11
+
+        return InterpolationCoef(a0, ax, ay, axy, axx, ayy,
+                                 b0, bx, by, bxy, bxx, byy,
+                                 c0, c_x, c_y, c_xy)
     end
 
     function _synchronize!()
@@ -391,12 +489,15 @@ module JuLattice
 
         ##-------- Node Classification --------##
         (; isInlet, isOutlet, isWall, isFluid, isObject, isSolid,
-           isOuterInterfaceNode, isInnerInterfaceNode, isFineInterior) =
+           isOuterInterfaceNode, isInnerInterfaceNode, isFineInterior,
+           ix_left, ix_right, iy_bottom, iy_top) =
             _classify_coarse_nodes(Nx, Ny, deltaX,
                                    positionFineGridX, positionFineGridY,
                                    lengthXFine, lengthYFine)
 
-        (; isFluidFine, isObjectFine, isInterfaceNodeFine, originXFine, originYFine) =
+        (; isFluidFine, isObjectFine,
+           isOuterInterfaceNodeFine, isInnerInterfaceNodeFine,
+           originXFine, originYFine) =
             _classify_fine_nodes(NxFine, NyFine, deltaXFine,
                                  positionFineGridX, positionFineGridY,
                                  positionX, positionY, d, angleDeg)
@@ -404,12 +505,13 @@ module JuLattice
         ##-------- Precomputed Node Index Lists --------##
         (; fluidNodes, solidNodes, objectNodes,
            outerInterfaceNodes, innerInterfaceNodes,
-           fluidNodesFine, objectNodesFine, interfaceNodesFine,
+           fluidNodesFine, objectNodesFine,
+           outerInterfaceNodesFine, innerInterfaceNodesFine,
            boundaryNodesAndDistances, boundaryNodesAndDistancesFine) =
             _compute_node_lists(
                 isFluid, isObject, isInlet, isOutlet, isWall,
                 isOuterInterfaceNode, isInnerInterfaceNode,
-                isFluidFine, isObjectFine, isInterfaceNodeFine,
+                isFluidFine, isObjectFine, isOuterInterfaceNodeFine, isInnerInterfaceNodeFine,
                 deltaX, deltaXFine, positionX, positionY, d, angleDeg,
                 originXFine, originYFine)
 
