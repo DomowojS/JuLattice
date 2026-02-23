@@ -701,8 +701,9 @@ module JuLattice
         rangeU    = (plotUMin,    plotUMax)
         rangeV    = (plotVMin,    plotVMax)
         rangeVort = (plotVortMin, plotVortMax)
-        fig, obs_u, obs_v, obs_vort, step_text = Create_Plot(Nx, Ny, plotU, plotV, plotVorticity,
-                                                              rangeU, rangeV, rangeVort, deltaX)
+        fig, obs_u, obs_v, obs_vort, obs_u_fine, obs_v_fine, obs_vort_fine, step_text =
+            Create_Plot(Nx, Ny, NxFine, NyFine, deltaX, deltaXFine, originXFine, originYFine,
+                        plotU, plotV, plotVorticity, rangeU, rangeV, rangeVort)
         screen = GLMakie.Screen()
         GLMakie.display(screen, fig)
 
@@ -816,11 +817,12 @@ module JuLattice
             end
 
             if (i % 10 == 0) || (i == nSteps)
-                Update_Plot!(obs_u, obs_v, obs_vort, step_text,
-                             velocityX, velocityY,
+                Update_Plot!(obs_u, obs_v, obs_vort, obs_u_fine, obs_v_fine, obs_vort_fine,
+                             step_text,
+                             velocityX, velocityY, velocityXFine, velocityYFine,
                              i, deltaT, deltaX,
                              plotU, plotV, plotVorticity,
-                             isFluid, isObject)
+                             isFluid, isFluidFine, isObjectFine)
                 Update_Force_Plot!(force_ax, obs_time, obs_cd, obs_cl,
                                    i * deltaT,
                                    forceX * coeff_denom,
