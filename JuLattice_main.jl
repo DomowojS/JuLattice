@@ -541,12 +541,13 @@ module JuLattice
 
         # Simulation Settings
         simulationTime = 3600.0   # s
-        deltaX = 0.01             # m per lattice unit
+        deltaX = 0.1             # m per lattice unit
 
         # Plot Requests
-        plotU         = true
-        plotV         = true
-        plotVorticity = true
+        plotU             = false
+        plotV             = false
+        plotVorticity     = true
+        plotGridBoundary  = true
 
         plotUMin    =  -0.04      # m/s
         plotUMax    =  0.1     # m/s
@@ -703,7 +704,7 @@ module JuLattice
         rangeVort = (plotVortMin, plotVortMax)
         fig, obs_u, obs_v, obs_vort, obs_u_fine, obs_v_fine, obs_vort_fine, step_text =
             Create_Plot(Nx, Ny, NxFine, NyFine, deltaX, deltaXFine, originXFine, originYFine,
-                        plotU, plotV, plotVorticity, rangeU, rangeV, rangeVort)
+                        plotU, plotV, plotVorticity, plotGridBoundary, rangeU, rangeV, rangeVort)
         screen = GLMakie.Screen()
         GLMakie.display(screen, fig)
 

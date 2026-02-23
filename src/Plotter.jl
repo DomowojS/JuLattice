@@ -6,7 +6,7 @@ function Create_Plot(Nx::Int, Ny::Int,
                      NxFine::Int, NyFine::Int,
                      deltaX::Float64, deltaXFine::Float64,
                      originXFine::Float64, originYFine::Float64,
-                     plotU::Bool, plotV::Bool, plotVorticity::Bool,
+                     plotU::Bool, plotV::Bool, plotVorticity::Bool, plotGridBoundary::Bool,
                      rangeU::Tuple{Float64,Float64},
                      rangeV::Tuple{Float64,Float64},
                      rangeVort::Tuple{Float64,Float64})
@@ -26,6 +26,14 @@ function Create_Plot(Nx::Int, Ny::Int,
     text_x = 0.02 * (Nx - 2) * deltaX
     text_y = 0.93 * (Ny - 2) * deltaX
 
+    # Fine box boundary in physical coords (coarse nodes at box edge)
+    x_box_left   = originXFine - 0.5 * deltaXFine
+    x_box_right  = x_box_left + (NxFine - 2) * deltaXFine
+    y_box_bottom = originYFine - 0.5 * deltaXFine
+    y_box_top    = y_box_bottom + (NyFine - 2) * deltaXFine
+    box_xs = [x_box_left, x_box_right, x_box_right, x_box_left, x_box_left]
+    box_ys = [y_box_bottom, y_box_bottom, y_box_top, y_box_top, y_box_bottom]
+
     step_text     = Observable("Step: 0  |  t = 0.00 s")
     obs_u         = nothing
     obs_v         = nothing
@@ -42,6 +50,7 @@ function Create_Plot(Nx::Int, Ny::Int,
         heatmap!(ax, xs, ys, obs_u, colormap = :inferno, colorrange = rangeU, nan_color = :dimgray)
         obs_u_fine = Observable(fill(NaN, nxF, nyF))
         hm = heatmap!(ax, xs_fine, ys_fine, obs_u_fine, colormap = :inferno, colorrange = rangeU, nan_color = :dimgray)
+        plotGridBoundary && lines!(ax, box_xs, box_ys, color = :black, linestyle = :dot, linewidth = 1.5)
         Colorbar(fig[row+1, 1], hm, vertical = false)
         text!(ax, text_x, text_y, text = step_text, color = :dimgray, fontsize = 11)
         row += 2
@@ -54,6 +63,7 @@ function Create_Plot(Nx::Int, Ny::Int,
         heatmap!(ax, xs, ys, obs_v, colormap = :inferno, colorrange = rangeV, nan_color = :dimgray)
         obs_v_fine = Observable(fill(NaN, nxF, nyF))
         hm = heatmap!(ax, xs_fine, ys_fine, obs_v_fine, colormap = :inferno, colorrange = rangeV, nan_color = :dimgray)
+        plotGridBoundary && lines!(ax, box_xs, box_ys, color = :black, linestyle = :dot, linewidth = 1.5)
         Colorbar(fig[row+1, 1], hm, vertical = false)
         row += 2
     end
@@ -65,6 +75,7 @@ function Create_Plot(Nx::Int, Ny::Int,
         heatmap!(ax, xs, ys, obs_vort, colormap = :curl, colorrange = rangeVort, nan_color = :dimgray)
         obs_vort_fine = Observable(fill(NaN, nxF, nyF))
         hm = heatmap!(ax, xs_fine, ys_fine, obs_vort_fine, colormap = :curl, colorrange = rangeVort, nan_color = :dimgray)
+        plotGridBoundary && lines!(ax, box_xs, box_ys, color = :black, linestyle = :dot, linewidth = 1.5)
         Colorbar(fig[row+1, 1], hm, vertical = false)
         row += 2
     end
