@@ -170,6 +170,12 @@ module JuLattice
         lengthX = 8.0             # m
         lengthY = 6.0             # m
 
+        # Fine Grid Settings
+        lengthXFine       = 4.0     # m  (width of fine region)
+        lengthYFine       = 3.0     # m  (height of fine region)
+        positionFineGridX = 1.5     # m  (lower-left anchor; should lie on a coarse node)
+        positionFineGridY = 1.5     # m
+
         # Object reference length (for reynoldsNumber; object itself added later)
         d = 0.5                   # m
         angleDeg = 30.0           # degrees
@@ -182,7 +188,7 @@ module JuLattice
 
         # Simulation Settings
         simulationTime = 3600.0   # s
-        deltaX = 0.01              # m per lattice unit
+        deltaX = 0.01             # m per lattice unit
 
         # Plot Requests
         plotU         = true
@@ -209,9 +215,23 @@ module JuLattice
 
         nSteps = ceil(Int, simulationTime / deltaT)
 
+        # Fine grid spacing (acoustic scaling: same sound speed)
+        deltaXFine = deltaX / 2
+        deltaTFine = deltaT / 2
+
         ##-------- Grid Setup --------##
         Nx = ceil(Int, lengthX / deltaX) + 2   # +2 for ghost ring
         Ny = ceil(Int, lengthY / deltaX) + 2
+
+        # Fine grid dimensions
+        # Fine node (ixF, iyF) sits at physical coordinates:
+        #   x = positionFineGridX + (ixF - 1.5) * deltaXFine
+        #   y = positionFineGridY + (iyF - 1.5) * deltaXFine
+        # The offset of deltaXFine/2 = deltaX/4 from the anchor means fine nodes
+        # are staggered: between coarse nodes at 0 and deltaX, fine nodes sit at
+        # deltaX/4 and 3*deltaX/4 — never coinciding, symmetrically embedded.
+        NxFine = ceil(Int, lengthXFine / deltaXFine) + 2
+        NyFine = ceil(Int, lengthYFine / deltaXFine) + 2
 
         # Node identifiers (Boolean masks, Nx x Ny)
         isInlet  = falses(Nx, Ny);  isInlet[1,    :]         .= true
@@ -222,6 +242,48 @@ module JuLattice
                                                    centerX=positionX, centerY=positionY, d=d, angleDeg=angleDeg)
         isFluid .&= .!isObject  # cut object nodes out of fluid
         isSolid  = isInlet .| isOutlet .| isWall .| isObject
+
+        ##-------- Fine Grid Interface Node Classification (Coarse Grid) --------##
+        # Map fine grid physical boundaries onto coarse grid indices
+        # (valid only when anchor lies on a coarse node, i.e. positionFineGridX/deltaX is integer)
+        ix_fine_left   = 2 + round(Int, positionFineGridX / deltaX)
+        ix_fine_right  = 2 + round(Int, (positionFineGridX + lengthXFine) / deltaX)
+        iy_fine_bottom = 2 + round(Int, positionFineGridY / deltaX)
+        iy_fine_top    = 2 + round(Int, (positionFineGridY + lengthYFine) / deltaX)
+
+        isOuterInterfaceNode = falses(Nx, Ny)   # row just outside + row on fine grid boundary
+        isInnerInterfaceNode = falses(Nx, Ny)   # second row inside fine grid
+        isFineInterior       = falses(Nx, Ny)   # coarse nodes covered by fine grid → solid
+
+        @inbounds for ix in 1:Nx, iy in 1:Ny
+            !isFluid[ix, iy] && continue
+
+            in_x   = ix_fine_left <= ix <= ix_fine_right
+            in_y   = iy_fine_bottom <= iy <= iy_fine_top
+            inside = in_x && in_y
+
+            if inside
+                minDist = min(ix - ix_fine_left, ix_fine_right - ix,
+                              iy - iy_fine_bottom, iy_fine_top - iy)
+                if minDist == 0
+                    isOuterInterfaceNode[ix, iy] = true   # ON boundary = first embedded row
+                elseif minDist == 1
+                    isInnerInterfaceNode[ix, iy] = true   # second embedded row
+                else
+                    isFineInterior[ix, iy] = true          # deep inside → replaced by fine grid
+                end
+            else
+                # Just outside: within Chebyshev distance 1 of the fine grid rectangle
+                near_x = (ix_fine_left - 1) <= ix <= (ix_fine_right + 1)
+                near_y = (iy_fine_bottom - 1) <= iy <= (iy_fine_top + 1)
+                if near_x && near_y
+                    isOuterInterfaceNode[ix, iy] = true   # just-outside row
+                end
+            end
+        end
+
+        # Remove fine-interior coarse nodes from fluid (replaced by fine grid)
+        isFluid .&= .!isFineInterior
 
         # Precomputed node index lists — rebuild after any mask change (e.g. adding a solid object)
         fluidNodes = findall(isFluid)
@@ -235,6 +297,8 @@ module JuLattice
         ##-------- MRT Setup --------##
         omegaBGK      = 1.0 / (3.0 * latticeViscosity + 0.5)
         omegaAcoustic = 1.0
+        ##-------- Fine Grid MRT Setup --------##
+        omegaBGKFine = 1.0 / (2.0 / omegaBGK - 0.5)   # acoustic scaling: (τF-0.5)=2(τC-0.5)
 
         Log_Discretization_Settings(deltaX, deltaT, omegaBGK, reynoldsNumber)
 
@@ -254,6 +318,24 @@ module JuLattice
         velocityX   = zeros(Nx,Ny)
         velocityY   = zeros(Nx,Ny)
 
+        ##-------- Fine Grid Array Allocation --------##
+        # Current distributions (Fine)
+        f00Fine = zeros(NxFine,NyFine); fp0Fine = zeros(NxFine,NyFine); fm0Fine = zeros(NxFine,NyFine)
+        f0pFine = zeros(NxFine,NyFine); f0mFine = zeros(NxFine,NyFine)
+        fppFine = zeros(NxFine,NyFine); fpmFine = zeros(NxFine,NyFine)
+        fmpFine = zeros(NxFine,NyFine); fmmFine = zeros(NxFine,NyFine)
+
+        # Post-collision distributions (Fine)
+        f00SFine = zeros(NxFine,NyFine); fp0SFine = zeros(NxFine,NyFine); fm0SFine = zeros(NxFine,NyFine)
+        f0pSFine = zeros(NxFine,NyFine); f0mSFine = zeros(NxFine,NyFine)
+        fppSFine = zeros(NxFine,NyFine); fpmSFine = zeros(NxFine,NyFine)
+        fmpSFine = zeros(NxFine,NyFine); fmmSFine = zeros(NxFine,NyFine)
+
+        # Macroscopic fields (Fine)
+        densityGridFine = zeros(NxFine,NyFine)
+        velocityXFine   = zeros(NxFine,NyFine)
+        velocityYFine   = zeros(NxFine,NyFine)
+
         ##-------- Initialise via Equilibrium --------##
         u0   = latticeInflowVelocity
         rho0 = latticeDensity
@@ -267,6 +349,17 @@ module JuLattice
         fpm .= getEquilibrium(rho0, u0, 0.0,  1, -1)
         fmp .= getEquilibrium(rho0, u0, 0.0, -1,  1)
         fmm .= getEquilibrium(rho0, u0, 0.0, -1, -1)
+
+        ##-------- Initialise Fine Grid via Equilibrium --------##
+        f00Fine .= getEquilibrium(rho0, u0, 0.0,  0,  0)
+        fp0Fine .= getEquilibrium(rho0, u0, 0.0,  1,  0)
+        fm0Fine .= getEquilibrium(rho0, u0, 0.0, -1,  0)
+        f0pFine .= getEquilibrium(rho0, u0, 0.0,  0,  1)
+        f0mFine .= getEquilibrium(rho0, u0, 0.0,  0, -1)
+        fppFine .= getEquilibrium(rho0, u0, 0.0,  1,  1)
+        fpmFine .= getEquilibrium(rho0, u0, 0.0,  1, -1)
+        fmpFine .= getEquilibrium(rho0, u0, 0.0, -1,  1)
+        fmmFine .= getEquilibrium(rho0, u0, 0.0, -1, -1)
 
         # Wall equilibrium: at (latticeDensity, 0, 0) — no-slip
         f00_eq_wall = getEquilibrium(rho0, 0.0, 0.0,  0,  0)
