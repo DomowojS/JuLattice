@@ -410,6 +410,24 @@ module JuLattice
                                  c0, c_x, c_y, c_xy)
     end
 
+    @inline function _eval_and_write_fine!(ixF, iyF, coef::InterpolationCoef,
+                                            xx::Float64, yy::Float64, omegaBGK::Float64,
+                                            f00Fine, fp0Fine, fm0Fine, f0pFine, f0mFine,
+                                            fppFine, fpmFine, fmpFine, fmmFine)
+        ux   = coef.a0 + coef.ax*xx + coef.ay*yy + coef.axx*xx*xx + coef.ayy*yy*yy + coef.axy*xx*yy
+        uy   = coef.b0 + coef.bx*xx + coef.by*yy + coef.bxx*xx*xx + coef.byy*yy*yy + coef.bxy*xx*yy
+        rho0 = coef.c0 + coef.cx*xx + coef.cy*yy + coef.cxy*xx*yy
+        cxy  = -1.0/(3.0*omegaBGK) * ((coef.ay + 2.0*coef.ayy*yy + coef.axy*xx) +
+                                        (coef.bx + 2.0*coef.bxx*xx + coef.bxy*yy)) * 0.5
+        cxx  = -2.0/(3.0*omegaBGK) *   (coef.ax + 2.0*coef.axx*xx + coef.axy*yy) * 0.5
+        cyy  = -2.0/(3.0*omegaBGK) *   (coef.by + 2.0*coef.byy*yy + coef.bxy*xx) * 0.5
+        neq  = getNonEquilibrium(rho0, ux, uy, cxx, cyy, cxy)
+        f00Fine[ixF,iyF] = neq.f00; fp0Fine[ixF,iyF] = neq.fp0; fm0Fine[ixF,iyF] = neq.fm0
+        f0pFine[ixF,iyF] = neq.f0p; f0mFine[ixF,iyF] = neq.f0m
+        fppFine[ixF,iyF] = neq.fpp; fpmFine[ixF,iyF] = neq.fpm
+        fmpFine[ixF,iyF] = neq.fmp; fmmFine[ixF,iyF] = neq.fmm
+    end
+
     function _synchronize!(
             innerInterfaceNodes, outerInterfaceNodes,
             innerInterfaceNodesFine, outerInterfaceNodesFine,
@@ -445,7 +463,58 @@ module JuLattice
             fpp[ix,iy] = neq.fpp; fpm[ix,iy] = neq.fpm; fmp[ix,iy] = neq.fmp; fmm[ix,iy] = neq.fmm
         end
 
-        # ── C → F: coarse outer interface → fine outer interface (stub) ─────────
+        # ── C → F: coarse outer interface → fine outer interface ────────────────
+        # Each coarse boundary cell (ix,ix+1)×(iy,iy+1) maps to 4 fine outer interface nodes.
+        # Fine node (2*(ix-ix_left)+2, ...) has xx=-0.25; (+3, ...) has xx=+0.25. Same for y.
+        NxFine, NyFine = size(f00Fine)
+        nCoarseX = (NxFine - 2) ÷ 2
+        nCoarseY = (NyFine - 2) ÷ 2
+        ix_right = ix_left + nCoarseX
+        iy_top   = iy_bottom + nCoarseY
+
+        # Bottom edge: coarse iy=iy_bottom → fine iyF=2,3
+        for ix in ix_left:ix_right-1
+            coef  = _get_interpolation_coef(ix, iy_bottom, omegaBGK,
+                                            f00, fp0, fm0, f0p, f0m, fpp, fpm, fmp, fmm)
+            ixF_L = 2*(ix - ix_left) + 2
+            _eval_and_write_fine!(ixF_L,   2, coef, -0.25, -0.25, omegaBGK, f00Fine, fp0Fine, fm0Fine, f0pFine, f0mFine, fppFine, fpmFine, fmpFine, fmmFine)
+            _eval_and_write_fine!(ixF_L+1, 2, coef,  0.25, -0.25, omegaBGK, f00Fine, fp0Fine, fm0Fine, f0pFine, f0mFine, fppFine, fpmFine, fmpFine, fmmFine)
+            _eval_and_write_fine!(ixF_L+1, 3, coef,  0.25,  0.25, omegaBGK, f00Fine, fp0Fine, fm0Fine, f0pFine, f0mFine, fppFine, fpmFine, fmpFine, fmmFine)
+            _eval_and_write_fine!(ixF_L,   3, coef, -0.25,  0.25, omegaBGK, f00Fine, fp0Fine, fm0Fine, f0pFine, f0mFine, fppFine, fpmFine, fmpFine, fmmFine)
+        end
+
+        # Top edge: coarse iy=iy_top-1 → fine iyF=NyFine-2,NyFine-1
+        for ix in ix_left:ix_right-1
+            coef  = _get_interpolation_coef(ix, iy_top-1, omegaBGK,
+                                            f00, fp0, fm0, f0p, f0m, fpp, fpm, fmp, fmm)
+            ixF_L = 2*(ix - ix_left) + 2
+            _eval_and_write_fine!(ixF_L,   NyFine-2, coef, -0.25, -0.25, omegaBGK, f00Fine, fp0Fine, fm0Fine, f0pFine, f0mFine, fppFine, fpmFine, fmpFine, fmmFine)
+            _eval_and_write_fine!(ixF_L+1, NyFine-2, coef,  0.25, -0.25, omegaBGK, f00Fine, fp0Fine, fm0Fine, f0pFine, f0mFine, fppFine, fpmFine, fmpFine, fmmFine)
+            _eval_and_write_fine!(ixF_L+1, NyFine-1, coef,  0.25,  0.25, omegaBGK, f00Fine, fp0Fine, fm0Fine, f0pFine, f0mFine, fppFine, fpmFine, fmpFine, fmmFine)
+            _eval_and_write_fine!(ixF_L,   NyFine-1, coef, -0.25,  0.25, omegaBGK, f00Fine, fp0Fine, fm0Fine, f0pFine, f0mFine, fppFine, fpmFine, fmpFine, fmmFine)
+        end
+
+        # Left edge: coarse ix=ix_left → fine ixF=2,3
+        for iy in iy_bottom:iy_top-1
+            coef  = _get_interpolation_coef(ix_left, iy, omegaBGK,
+                                            f00, fp0, fm0, f0p, f0m, fpp, fpm, fmp, fmm)
+            iyF_B = 2*(iy - iy_bottom) + 2
+            _eval_and_write_fine!(2, iyF_B,   coef, -0.25, -0.25, omegaBGK, f00Fine, fp0Fine, fm0Fine, f0pFine, f0mFine, fppFine, fpmFine, fmpFine, fmmFine)
+            _eval_and_write_fine!(3, iyF_B,   coef,  0.25, -0.25, omegaBGK, f00Fine, fp0Fine, fm0Fine, f0pFine, f0mFine, fppFine, fpmFine, fmpFine, fmmFine)
+            _eval_and_write_fine!(3, iyF_B+1, coef,  0.25,  0.25, omegaBGK, f00Fine, fp0Fine, fm0Fine, f0pFine, f0mFine, fppFine, fpmFine, fmpFine, fmmFine)
+            _eval_and_write_fine!(2, iyF_B+1, coef, -0.25,  0.25, omegaBGK, f00Fine, fp0Fine, fm0Fine, f0pFine, f0mFine, fppFine, fpmFine, fmpFine, fmmFine)
+        end
+
+        # Right edge: coarse ix=ix_right-1 → fine ixF=NxFine-2,NxFine-1
+        for iy in iy_bottom:iy_top-1
+            coef  = _get_interpolation_coef(ix_right-1, iy, omegaBGK,
+                                            f00, fp0, fm0, f0p, f0m, fpp, fpm, fmp, fmm)
+            iyF_B = 2*(iy - iy_bottom) + 2
+            _eval_and_write_fine!(NxFine-2, iyF_B,   coef, -0.25, -0.25, omegaBGK, f00Fine, fp0Fine, fm0Fine, f0pFine, f0mFine, fppFine, fpmFine, fmpFine, fmmFine)
+            _eval_and_write_fine!(NxFine-1, iyF_B,   coef,  0.25, -0.25, omegaBGK, f00Fine, fp0Fine, fm0Fine, f0pFine, f0mFine, fppFine, fpmFine, fmpFine, fmmFine)
+            _eval_and_write_fine!(NxFine-1, iyF_B+1, coef,  0.25,  0.25, omegaBGK, f00Fine, fp0Fine, fm0Fine, f0pFine, f0mFine, fppFine, fpmFine, fmpFine, fmmFine)
+            _eval_and_write_fine!(NxFine-2, iyF_B+1, coef, -0.25,  0.25, omegaBGK, f00Fine, fp0Fine, fm0Fine, f0pFine, f0mFine, fppFine, fpmFine, fmpFine, fmmFine)
+        end
     end
 
     function run()
