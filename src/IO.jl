@@ -10,11 +10,12 @@ function Log_Simulation_Header()
     println("#############################")
 end
 
-function Log_Discretization_Settings(deltaX::Float64, deltaT::Float64, omegaBGK::Float64, Re::Int64)
+function Log_Discretization_Settings(deltaX::Float64, deltaT::Float64, omegaBGK::Float64, Re::Int64, u::Float64)
     println("dx: $deltaX m")
     println("dt: $deltaT s")
     println("omegaBGK: $omegaBGK")
     println("Re: $Re")
+    println("Inflow velocity: $u m/s")
 end
 
 function Log_Simulation_Start()

@@ -30,7 +30,7 @@ module JuLattice
         positionY = lengthY/2
         # Fluid Properties
         reynoldsNumber  = 300
-        machNumber      = 0.1        # Ma = U / c_s  (keep < 0.1 for incompressible)
+        machNumber      = 0.1        # Ma = U / c_s
         viscosity       = 0.0001      # m^2/s
 
         # Simulation Settings
@@ -45,8 +45,8 @@ module JuLattice
         plotVorticity     = true
         plotGridBoundary  = true
 
-        plotUMin    =  -0.04      # m/s
-        plotUMax    =  0.1     # m/s
+        plotUMin    =  -0.1      # m/s
+        plotUMax    =  0.16    # m/s
         plotVMin    = -0.1     # m/s
         plotVMax    =  0.08    # m/s
         plotVortMin = -1.1      # 1/s
@@ -118,7 +118,7 @@ module JuLattice
         ##-------- Fine Grid MRT Setup --------##
         omegaBGKFine = 1.0 / (2.0 / omegaBGK - 0.5)   # acoustic scaling: (τF-0.5)=2(τC-0.5)
 
-        Log_Discretization_Settings(deltaX, deltaT, omegaBGK, reynoldsNumber)
+        Log_Discretization_Settings(deltaX, deltaT, omegaBGK, reynoldsNumber, latticeInflowVelocity*deltaX/deltaT)
 
         ##-------- Array Allocation --------##
         # Current distributions
