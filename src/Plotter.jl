@@ -1,7 +1,6 @@
 module Plotter
 using GLMakie
-using Printf
-export Create_Plot, Update_Plot!, Create_Force_Plot, Update_Force_Plot!, Save_Forces!
+export Create_Plot, Update_Plot!, Create_Force_Plot, Update_Force_Plot!
 
 function Create_Plot(Nx::Int, Ny::Int,
                      NxFine::Int, NyFine::Int,
@@ -179,16 +178,4 @@ function Update_Force_Plot!(ax, obs_time, obs_cd, obs_cl, t, cd, cl)
     autolimits!(ax)
 end
 
-function Save_Forces!(times::Vector{Float64}, cds::Vector{Float64}, cls::Vector{Float64};
-                      dir::String = "./output")
-    isdir(dir) || mkpath(dir)
-    path = joinpath(dir, "forces.txt")
-    open(path, "w") do io
-        println(io, "# time[s]    cL    cD")
-        for k in eachindex(times)
-            @printf(io, "%.6e  %.6e  %.6e\n", times[k], cls[k], cds[k])
-        end
-    end
-end
-
-end#Plotter
+end # module Plotter
