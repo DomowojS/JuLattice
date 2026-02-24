@@ -14,7 +14,7 @@ module JuLattice
         ## User Settings
         # Domain Settings
         lengthX = 8.0             # m
-        lengthY = 6.0             # m
+        lengthY = 3.0             # m
 
         # Object reference length (for reynoldsNumber; object itself added later)
         d = 0.5                   # m
@@ -28,11 +28,11 @@ module JuLattice
 
         # Simulation Settings
         simulationTime = 3600.0   # s
-        deltaX = 0.01              # m per lattice unit
+        deltaX = 0.05              # m per lattice unit
 
         # Plot Requests
         plotU         = true
-        plotV         = true
+        plotV         = false
         plotVorticity = true
 
         plotUMin    =  -0.04      # m/s
