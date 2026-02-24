@@ -1,6 +1,8 @@
-module Logger
-export Log_Simulation_Runtime, Log_Discretization_Settings,
-       Log_Simulation_Header, Log_Simulation_Start, Log_Simulation_Tail
+module IO
+using Printf
+export Log_Simulation_Header, Log_Discretization_Settings,
+       Log_Simulation_Start, Log_Simulation_Runtime, Log_Simulation_Tail,
+       Save_Forces!
 
 function Log_Simulation_Header()
     println("#############################")
@@ -31,4 +33,16 @@ function Log_Simulation_Tail()
     println("#############################")
 end
 
-end#Logger
+function Save_Forces!(times::Vector{Float64}, cds::Vector{Float64}, cls::Vector{Float64};
+                      dir::String = "./output")
+    isdir(dir) || mkpath(dir)
+    path = joinpath(dir, "forces.txt")
+    open(path, "w") do io
+        println(io, "# time[s]    cL    cD")
+        for k in eachindex(times)
+            @printf(io, "%.6e  %.6e  %.6e\n", times[k], cls[k], cds[k])
+        end
+    end
+end
+
+end # module IO
