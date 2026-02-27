@@ -1,66 +1,102 @@
 # JuLattice
+
 ![Demo](media/Vorticity_Cylinder.gif)
-**JuLattice** is a 2D Lattice Boltzmann Method (LBM) solver written in Julia. It implements the D2Q9 lattice scheme and uses the Bhatnagar-Gross-Krook (BGK) approximation for collision, where a single relaxation time (defined by the user) governs the simulation dynamics.
+
+**JuLattice** is a 2D Lattice Boltzmann Method (LBM) solver written in Julia. It implements the D2Q9 lattice scheme with the BGK collision operator (single relaxation rate).
 
 ## Features
 
-- D2Q9 LBM implementation
-- BGK collision model with user-defined relaxation time
-- Configurable simulation parameters via JSON configuration files
-- Real-time plotting of simulation results
-- Written in pure Julia
+- D2Q9 BGK collision with user-defined relaxation rate
+- Rectangular obstacle with arbitrary angle, Bouzidi curved boundary conditions
+- Lift and drag force output (cL, cD) at every time step
+- Real-time contour plots of vorticity and velocity via GLMakie
 
 ## Requirements
+
 ![Julia version](https://img.shields.io/badge/julia-1.9%2B-blue)
+
+**Dependencies** (defined in `Project.toml`):
+- `GLMakie`
+- `MeshGrid`
+- `Revise`
 
 ## Getting Started
 
 ### 1. Clone the repository
 
-Open a terminal and run:
-
 ```bash
 git clone https://github.com/DomowojS/JuLattice.git
 cd JuLattice
 ```
-## 2. Activate the project environment
-Start Julia inside the project directory and activate the environment using the Julia package manager:
+
+### 2. Activate the project environment
+
 ```julia
 using Pkg
 Pkg.activate(".")
+Pkg.instantiate()
 ```
-This will activate the local environment and make all required packages available.
 
-## 3. Run a simulation
-To run JuLattice, first include the main script:
+### 3. Configure the simulation
+
+All parameters are set at the top of `JuLattice_main.jl` inside the `run()` function:
+
+```julia
+# Domain
+lengthX = 8.0          # m
+lengthY = 3.0          # m
+
+# Obstacle (rectangle)
+d        = 0.5         # m  (characteristic length, used for Re)
+angleDeg = 30.0        # degrees
+positionX = 3.0        # m
+positionY = lengthY/2  # m
+
+# Fluid properties
+reynoldsNumber = 300
+machNumber     = 0.1   # Ma = U / c_s  (keep < 0.1 for incompressible)
+viscosity      = 1e-4  # m²/s
+
+# Discretisation
+deltaX         = 0.05  # m per lattice unit
+simulationTime = 3600.0  # s
+```
+
+### 4. Run the simulation
+
 ```julia
 include("JuLattice_main.jl")
+JuLattice.run()
 ```
-Then call the run function with the path to a configuration file, e.g.:
-```julia
-JuLattice.run("config/cylinder.json")
+
+This will:
+1. Print a log header with discretisation settings
+2. Initialise the grid to equilibrium at the inflow velocity
+3. Advance the simulation, updating the real-time GLMakie plots
+4. Write force data to `output/forces.txt` (columns: `t  cL  cD`)
+
+## Project Structure
+
 ```
-This will execute the simulation defined in the config file and start real-time plotting.
-You can replace "config/cylinder.json" with any other configuration file in the /config directory.
-
-## Configuration
-All simulation settings are defined in JSON files located in the config/ directory. Each configuration file allows you to specify:
-
-- Domain size and resolution
-- Boundary conditions
-- Fluid properties (e.g., relaxation time)
-- Obstacle geometry (if any)
-- Simulation duration and output preferences
-
-The user only needs to modify these configuration files to define new simulation setups—no code modification is required.
+JuLattice/
+├── JuLattice_main.jl   # Entry point — user settings and main loop
+├── src/
+│   ├── Kernel.jl       # BGK collision + streaming
+│   ├── GridSetup.jl    # Domain and node classification
+│   ├── Plotter.jl      # GLMakie real-time plots
+│   └── IO.jl           # Force output and logging
+├── Project.toml
+└── README.md
+```
 
 ## License
+
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
 ## Other Branches
+
+### [`MRT_D2Q9_gridRefinement`](https://github.com/DomowojS/JuLattice/tree/MRT_D2Q9_gridRefinement)
+Two-level grid refinement with MRT collision. Use this for higher-resolution studies.
+
 ### [`JuLattice_for_teaching`](https://github.com/DomowojS/JuLattice/tree/JuLattice_for_teaching)
-
-This branch contains a simplified, hard-coded version of JuLattice used for educational purposes.  
-It is less modular but more straightforward, intended to demonstrate the core Lattice Boltzmann logic without configuration overhead.
-
-> **Note**: For a full-featured version with configuration files and plotting, use the [`main`](https://github.com/DomowojS/JuLattice/tree/main) branch.
+Hard-coded, minimal version intended for educational use.
