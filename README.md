@@ -1,6 +1,6 @@
 # JuLattice — MRT D2Q9 with Grid Refinement
 
-![Demo](media/Vorticity_Rectangle.gif)
+![Demo](media/VelMag_Rectangle.gif)
 
 **JuLattice** is a 2D Lattice Boltzmann Method (LBM) solver written in Julia. This branch implements a **two-level grid refinement** scheme on top of the D2Q9 MRT collision operator, enabling higher spatial resolution in a sub-domain of interest without refining the entire mesh.
 
