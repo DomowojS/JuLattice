@@ -1,35 +1,39 @@
-# JuLattice
+# JuLattice — MRT D2Q9 with Grid Refinement
 
 ![Demo](media/VelMag_Rectangle.gif)
 
-**JuLattice** is a 2D Lattice Boltzmann Method (LBM) solver written in Julia. It implements the D2Q9 lattice scheme with the BGK collision operator (single relaxation rate).
+**JuLattice** is a 2D Lattice Boltzmann Method (LBM) solver written in Julia. This branch implements a single D2Q9 grid with MRT collision operator.
 
 ## Features
 
-- D2Q9 BGK collision with user-defined relaxation rate
-- Rectangular obstacle with arbitrary angle, Bouzidi curved boundary conditions
+- D2Q9 MRT collision with configurable BGK and acoustic relaxation rates
+- Bouzidi curved boundary conditions for immersed objects
+- Rectangular obstacle with arbitrary angle
 - Lift and drag force output (cL, cD) at every time step
-- Real-time contour plots of vorticity and velocity via GLMakie
+- Contour plots of vorticity, u-velocity, v-velocity via GLMakie
 
 ## Requirements
 
 ![Julia version](https://img.shields.io/badge/julia-1.9%2B-blue)
 
-**Dependencies** (defined in `Project.toml`):
+**Dependencies** (all defined in `Project.toml`):
 - `GLMakie`
 - `MeshGrid`
 - `Revise`
 
 ## Getting Started
 
-### 1. Clone the repository
+### 1. Clone the repository and check out this branch
 
 ```bash
 git clone https://github.com/DomowojS/JuLattice.git
 cd JuLattice
+git checkout MRT_D2Q9_gridRefinement
 ```
 
 ### 2. Activate the project environment
+
+Start Julia in the project directory and activate the environment:
 
 ```julia
 using Pkg
@@ -39,7 +43,7 @@ Pkg.instantiate()
 
 ### 3. Configure the simulation
 
-All parameters are set at the top of `JuLattice_main.jl` inside the `run()` function:
+All simulation parameters are set directly at the top of `JuLattice_main.jl` inside the `run()` function. Open the file and edit the **User Settings** block:
 
 ```julia
 # Domain
@@ -61,6 +65,8 @@ viscosity      = 1e-4  # m²/s
 deltaX         = 0.05  # m per lattice unit
 simulationTime = 3600.0  # s
 ```
+
+The fine box is snapped to the nearest integer number of coarse cells so that the coarse-fine coupling nodes align correctly.
 
 ### 4. Run the simulation
 
@@ -98,8 +104,8 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 ### [`main`](https://github.com/DomowojS/JuLattice/tree/main)
 Single-grid D2Q9 BGK solver with JSON configuration files. Use this for simpler setups.
 
-### [`MRT_D2Q9_gridRefinement`](https://github.com/DomowojS/JuLattice/tree/MRT_D2Q9_gridRefinement)
-Two-level grid refinement with MRT collision. Use this for higher-resolution studies.
+### [`MRT_D2Q9`](https://github.com/DomowojS/JuLattice/tree/MRT_D2Q9_gridRefinement)
+Single- grid D2Q9 solver with MRT collision.
 
 ### [`JuLattice_for_teaching`](https://github.com/DomowojS/JuLattice/tree/JuLattice_for_teaching)
 Hard-coded, minimal version intended for educational use.
