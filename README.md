@@ -95,6 +95,9 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 
 ## Other Branches
 
+### [`main`](https://github.com/DomowojS/JuLattice/tree/main)
+Single-grid D2Q9 BGK solver with JSON configuration files. Use this for simpler setups.
+
 ### [`MRT_D2Q9_gridRefinement`](https://github.com/DomowojS/JuLattice/tree/MRT_D2Q9_gridRefinement)
 Two-level grid refinement with MRT collision. Use this for higher-resolution studies.
 
