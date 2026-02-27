@@ -95,21 +95,6 @@ This will:
 4. Write force data to `output/forces.txt` (columns: `t  cL  cD`)
 5. Save contour snapshots to `output/` at regular intervals
 
-### 5. Blockage ratio study
-
-Each case changes `lengthY` (and `positionFineGridY`) to vary the blockage ratio while keeping everything else fixed:
-
-| Case | B (%) | lengthY | positionFineGridY |
-|------|--------|---------|-------------------|
-| 1    | 4.9    | 24.0    | 10.8              |
-| 2    | 9.9    | 12.0    | 4.8               |
-| 3    | 14.8   | 8.0     | 2.8               |
-| 4    | 19.7   | 6.0     | 1.8               |
-| 5    | 29.6   | 4.0     | 0.8               |
-| 6    | 45.6   | 2.6     | 0.1               |
-
-Fixed parameters across all cases: `Re = 300`, `Ma = 0.1`, `ν = 1e-4 m²/s`, `d = 0.5 m`, `angleDeg = 30°`, `deltaX = 0.02 m`.
-
 ## Project Structure
 
 ```
