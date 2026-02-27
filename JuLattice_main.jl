@@ -40,8 +40,8 @@ module JuLattice
             _snap_fine_grid_position(positionFineGridX, positionFineGridY, deltaX)
 
         # Plot Requests
-        plotU             = true
-        plotV             = true
+        plotU             = false
+        plotV             = false
         plotVorticity     = true
         plotVmag          = true
         plotGridBoundary  = true
