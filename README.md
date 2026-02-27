@@ -6,26 +6,21 @@
 
 ## Features
 
-- D2Q9 MRT collision with configurable BGK and acoustic relaxation frequencies
+- D2Q9 MRT collision with configurable BGK and acoustic relaxation rates
 - Two-level grid refinement (coarse + fine) with acoustic scaling (Δx/2, Δt/2)
 - Bouzidi curved boundary conditions for immersed objects
 - Rectangular obstacle with arbitrary angle
 - Lift and drag force output (cL, cD) at every time step
 - Contour plots of vorticity, u-velocity, v-velocity, and velocity magnitude via GLMakie
-- Post-processing script (`output/Analysis.jl`) with Welch FFT, Strouhal number, convergence diagnostics, and TikZ data export
 
 ## Requirements
 
 ![Julia version](https://img.shields.io/badge/julia-1.9%2B-blue)
 
-**Simulation dependencies** (defined in `Project.toml`):
+**Dependencies** (all defined in `Project.toml`):
 - `GLMakie`
 - `MeshGrid`
 - `Revise`
-
-**Analysis script dependencies** (not in `Project.toml` — install separately if needed):
-- `FFTW`
-- `Plots`
 
 ## Getting Started
 
@@ -102,7 +97,7 @@ This will:
 
 ### 5. Blockage ratio study
 
-The cases studied in this branch are defined in `output/CaseTable.txt`. Each case changes `lengthY` (and `positionFineGridY`) to vary the blockage ratio while keeping everything else fixed:
+Each case changes `lengthY` (and `positionFineGridY`) to vary the blockage ratio while keeping everything else fixed:
 
 | Case | B (%) | lengthY | positionFineGridY |
 |------|--------|---------|-------------------|
@@ -115,45 +110,6 @@ The cases studied in this branch are defined in `output/CaseTable.txt`. Each cas
 
 Fixed parameters across all cases: `Re = 300`, `Ma = 0.1`, `ν = 1e-4 m²/s`, `d = 0.5 m`, `angleDeg = 30°`, `deltaX = 0.02 m`.
 
-Run each case by adjusting `lengthY` and `positionFineGridY` in `run()` and saving the output force file as `output/B_XX_X_forces.txt` (e.g. `B_19_7_forces.txt`).
-
-### 6. Post-process results
-
-With one or more `B_*_forces.txt` files in `output/`, run the analysis script from the Julia REPL:
-
-```julia
-include("output/Analysis.jl")
-```
-
-This produces:
-
-| Output directory | Contents |
-|---|---|
-| `output/cL/` | Raw cL time-series plots per case |
-| `output/cD/` | Raw cD time-series plots per case |
-| `output/mean/` | Cumulative mean (from t = 0) per case |
-| `output/std/` | Cumulative std (from t = 0) per case |
-| `output/FFT/` | Welch amplitude spectrum per case |
-| `output/Blockage/` | Mean, std, frequency, Strouhal vs. blockage ratio |
-| `output/tikz/` | Two-column `.txt` files for `\addplot table` in pgfplots |
-
-The analysis constants at the top of `Analysis.jl` can be adjusted:
-
-```julia
-const T_START     = 4000.0   # discard transient before this time [s]
-const T_WINDOW    = 4000.0   # window for mean/std blockage plots [s]
-const CHAR_LENGTH = 0.5      # d [m]  — for Strouhal St = f·d/U
-const INFLOW_VEL  = 0.06     # U [m/s]
-```
-
-The Strouhal number is computed as:
-
-```
-St = f_dominant × d / U
-```
-
-where `f_dominant` is the peak frequency from the Welch spectrum over the full `[T_START, end]` window.
-
 ## Project Structure
 
 ```
@@ -165,10 +121,6 @@ JuLattice/
 │   ├── GridRefinement.jl # Fine grid classification and C↔F synchronisation
 │   ├── Plotter.jl        # GLMakie live/snapshot plots
 │   └── IO.jl             # Force output and logging
-├── output/
-│   ├── Analysis.jl       # Post-processing: Welch FFT, Strouhal, TikZ export
-│   ├── CaseTable.txt     # Blockage ratio case definitions
-│   └── B_*_forces.txt    # Force output files (one per case)
 ├── Project.toml
 └── README.md
 ```
