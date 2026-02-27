@@ -219,7 +219,7 @@ module JuLattice
         ##-------- Main Loop --------##
         Log_Simulation_Start()
         t_start = time()
-        next_plot_save_time = 1000.0   # physical seconds
+        next_plot_save_time = 200.0   # physical seconds
 
         for i in 1:nSteps
 
@@ -338,7 +338,7 @@ module JuLattice
                     Save_Contour_Images!(obs_u, obs_vmag, obs_vort, obs_u_fine, obs_vmag_fine, obs_vort_fine,
                                         xs_plot, ys_plot, xs_fine_plot, ys_fine_plot,
                                         rangeU, rangeVmag, rangeVort, t_now)
-                    next_plot_save_time = floor(t_now / 1000.0) * 1000.0 + 1000.0
+                    next_plot_save_time = floor(t_now / 200.0) * 200.0 + 200.0
                 end
             end
 
