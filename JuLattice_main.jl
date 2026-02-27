@@ -15,13 +15,13 @@ module JuLattice
         ## User Settings
         # Domain Settings
         lengthX = 8.0             # m
-        lengthY = 3.0             # m
+        lengthY = 4.0             # m
 
         # Fine Grid Settings
         lengthXFine       = 4.0     # m  (width of fine region)
         lengthYFine       = 2.4     # m  (height of fine region)
         positionFineGridX = 1.5     # m  (lower-left anchor; snapped to nearest coarse node below)
-        positionFineGridY = 0.3     # m
+        positionFineGridY = 0.8    # m
 
         # Object reference length (for reynoldsNumber; object itself added later)
         d = 0.5                   # m
@@ -34,23 +34,26 @@ module JuLattice
         viscosity       = 0.0001      # m^2/s
 
         # Simulation Settings
-        simulationTime = 3600.0   # s
-        deltaX = 0.05             # m per lattice unit
+        simulationTime = 10000   # s
+        deltaX = 0.02             # m per lattice unit
         positionFineGridX, positionFineGridY =
             _snap_fine_grid_position(positionFineGridX, positionFineGridY, deltaX)
 
         # Plot Requests
         plotU             = true
-        plotV             = false
+        plotV             = true
         plotVorticity     = true
+        plotVmag          = true
         plotGridBoundary  = true
 
-        plotUMin    =  -0.1      # m/s
-        plotUMax    =  0.16    # m/s
-        plotVMin    = -0.1     # m/s
-        plotVMax    =  0.08    # m/s
-        plotVortMin = -1.1      # 1/s
-        plotVortMax =  1.1      # 1/s
+        plotUMin     =  -0.1      # m/s
+        plotUMax     =  0.16      # m/s
+        plotVMin     = -0.1       # m/s
+        plotVMax     =  0.08      # m/s
+        plotVortMin  = -1.1       # 1/s
+        plotVortMax  =  1.1       # 1/s
+        plotVmagMin  =  0.0       # m/s
+        plotVmagMax  =  0.16      # m/s
 
         #### Run Simulation #####
         Log_Simulation_Header()
@@ -198,9 +201,11 @@ module JuLattice
         rangeU    = (plotUMin,    plotUMax)
         rangeV    = (plotVMin,    plotVMax)
         rangeVort = (plotVortMin, plotVortMax)
-        fig, obs_u, obs_v, obs_vort, obs_u_fine, obs_v_fine, obs_vort_fine, step_text =
+        rangeVmag = (plotVmagMin, plotVmagMax)
+        fig, obs_u, obs_v, obs_vort, obs_vmag, obs_u_fine, obs_v_fine, obs_vort_fine, obs_vmag_fine, step_text,
+            xs_plot, ys_plot, xs_fine_plot, ys_fine_plot =
             Create_Plot(Nx, Ny, NxFine, NyFine, deltaX, deltaXFine, originXFine, originYFine,
-                        plotU, plotV, plotVorticity, plotGridBoundary, rangeU, rangeV, rangeVort)
+                        plotU, plotV, plotVorticity, plotVmag, plotGridBoundary, rangeU, rangeV, rangeVort, rangeVmag)
         screen = GLMakie.Screen()
         GLMakie.display(screen, fig)
 
@@ -214,6 +219,7 @@ module JuLattice
         ##-------- Main Loop --------##
         Log_Simulation_Start()
         t_start = time()
+        next_plot_save_time = 1000.0   # physical seconds
 
         for i in 1:nSteps
 
@@ -314,17 +320,26 @@ module JuLattice
             end
 
             if (i % 10 == 0) || (i == nSteps)
-                Update_Plot!(obs_u, obs_v, obs_vort, obs_u_fine, obs_v_fine, obs_vort_fine,
+                Update_Plot!(obs_u, obs_v, obs_vort, obs_vmag,
+                             obs_u_fine, obs_v_fine, obs_vort_fine, obs_vmag_fine,
                              step_text,
                              velocityX, velocityY, velocityXFine, velocityYFine,
                              i, deltaT, deltaX,
-                             plotU, plotV, plotVorticity,
+                             plotU, plotV, plotVorticity, plotVmag,
                              isFluid, isFluidFine, isObjectFine)
                 Update_Force_Plot!(force_ax, obs_time, obs_cd, obs_cl,
                                    i * deltaT,
                                    forceX * coeff_denom,
                                    forceY * coeff_denom)
                 yield()
+                t_now = i * deltaT
+                if t_now >= next_plot_save_time || i == nSteps
+                    Save_Contour_Plot!(fig, t_now)
+                    Save_Contour_Images!(obs_u, obs_vmag, obs_vort, obs_u_fine, obs_vmag_fine, obs_vort_fine,
+                                        xs_plot, ys_plot, xs_fine_plot, ys_fine_plot,
+                                        rangeU, rangeVmag, rangeVort, t_now)
+                    next_plot_save_time = floor(t_now / 1000.0) * 1000.0 + 1000.0
+                end
             end
 
         end#loop

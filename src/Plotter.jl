@@ -1,16 +1,18 @@
 module Plotter
 using GLMakie
-export Create_Plot, Update_Plot!, Create_Force_Plot, Update_Force_Plot!
+using Printf
+export Create_Plot, Update_Plot!, Create_Force_Plot, Update_Force_Plot!, Save_Contour_Plot!, Save_Contour_Images!
 
 function Create_Plot(Nx::Int, Ny::Int,
                      NxFine::Int, NyFine::Int,
                      deltaX::Float64, deltaXFine::Float64,
                      originXFine::Float64, originYFine::Float64,
-                     plotU::Bool, plotV::Bool, plotVorticity::Bool, plotGridBoundary::Bool,
+                     plotU::Bool, plotV::Bool, plotVorticity::Bool, plotVmag::Bool, plotGridBoundary::Bool,
                      rangeU::Tuple{Float64,Float64},
                      rangeV::Tuple{Float64,Float64},
-                     rangeVort::Tuple{Float64,Float64})
-    nplots = Int(plotU) + Int(plotV) + Int(plotVorticity)
+                     rangeVort::Tuple{Float64,Float64},
+                     rangeVmag::Tuple{Float64,Float64})
+    nplots = Int(plotU) + Int(plotV) + Int(plotVorticity) + Int(plotVmag)
     fig = Figure(size = (900, 280 * max(nplots, 1)))
 
     # Coarse grid coordinates (ghost nodes at index 1 sit at -deltaX)
@@ -34,13 +36,15 @@ function Create_Plot(Nx::Int, Ny::Int,
     box_xs = [x_box_left, x_box_right, x_box_right, x_box_left, x_box_left]
     box_ys = [y_box_bottom, y_box_bottom, y_box_top, y_box_top, y_box_bottom]
 
-    step_text     = Observable("Step: 0  |  t = 0.00 s")
-    obs_u         = nothing
-    obs_v         = nothing
-    obs_vort      = nothing
-    obs_u_fine    = nothing
-    obs_v_fine    = nothing
-    obs_vort_fine = nothing
+    step_text      = Observable("Step: 0  |  t = 0.00 s")
+    obs_u          = nothing
+    obs_v          = nothing
+    obs_vort       = nothing
+    obs_vmag       = nothing
+    obs_u_fine     = nothing
+    obs_v_fine     = nothing
+    obs_vort_fine  = nothing
+    obs_vmag_fine  = nothing
     row = 1
 
     if plotU
@@ -80,16 +84,29 @@ function Create_Plot(Nx::Int, Ny::Int,
         row += 2
     end
 
-    return fig, obs_u, obs_v, obs_vort, obs_u_fine, obs_v_fine, obs_vort_fine, step_text
+    if plotVmag
+        ax = Axis(fig[row, 1], title = "|V|  [m/s]", aspect = DataAspect(),
+                  xlabel = "x [m]", ylabel = "y [m]")
+        obs_vmag = Observable(zeros(Nx, Ny))
+        heatmap!(ax, xs, ys, obs_vmag, colormap = :viridis, colorrange = rangeVmag, nan_color = :dimgray)
+        obs_vmag_fine = Observable(fill(NaN, nxF, nyF))
+        hm = heatmap!(ax, xs_fine, ys_fine, obs_vmag_fine, colormap = :viridis, colorrange = rangeVmag, nan_color = :dimgray)
+        plotGridBoundary && lines!(ax, box_xs, box_ys, color = :black, linestyle = :dot, linewidth = 1.5)
+        Colorbar(fig[row+1, 1], hm, vertical = false)
+        row += 2
+    end
+
+    return fig, obs_u, obs_v, obs_vort, obs_vmag, obs_u_fine, obs_v_fine, obs_vort_fine, obs_vmag_fine, step_text,
+           xs, ys, xs_fine, ys_fine
 end
 
-function Update_Plot!(obs_u, obs_v, obs_vort,
-                      obs_u_fine, obs_v_fine, obs_vort_fine,
+function Update_Plot!(obs_u, obs_v, obs_vort, obs_vmag,
+                      obs_u_fine, obs_v_fine, obs_vort_fine, obs_vmag_fine,
                       step_text,
                       velocityX, velocityY,
                       velocityXFine, velocityYFine,
                       i, deltaT, deltaX,
-                      plotU::Bool, plotV::Bool, plotVorticity::Bool,
+                      plotU::Bool, plotV::Bool, plotVorticity::Bool, plotVmag::Bool,
                       isFluid::BitMatrix,
                       isFluidFine::BitMatrix, isObjectFine::BitMatrix)
 
@@ -148,6 +165,19 @@ function Update_Plot!(obs_u, obs_v, obs_vort,
             obs_vort_fine[] = vort_fine
         end
     end
+
+    if plotVmag
+        if obs_vmag !== nothing
+            obs_vmag[] = @. sqrt((velocityX * velScale)^2 + (velocityY * velScale)^2)
+        end
+        if obs_vmag_fine !== nothing
+            ux = velocityXFine[2:NxFine-1, 2:NyFine-1] .* velScale
+            uy = velocityYFine[2:NxFine-1, 2:NyFine-1] .* velScale
+            data = @. sqrt(ux^2 + uy^2)
+            data[obj_mask_fine] .= NaN
+            obs_vmag_fine[] = data
+        end
+    end
 end
 
 function Create_Force_Plot()
@@ -176,6 +206,58 @@ function Update_Force_Plot!(ax, obs_time, obs_cd, obs_cl, t, cd, cl)
     notify(obs_cd)
     notify(obs_cl)
     autolimits!(ax)
+    ylims!(ax, -5.0, 10.0)
+end
+
+function Save_Contour_Images!(obs_u, obs_vmag, obs_vort, obs_u_fine, obs_vmag_fine, obs_vort_fine,
+                               xs, ys, xs_fine, ys_fine,
+                               rangeU::Tuple{Float64,Float64},
+                               rangeVmag::Tuple{Float64,Float64},
+                               rangeVort::Tuple{Float64,Float64},
+                               t::Float64; dir::String = "./output")
+    isdir(dir) || mkpath(dir)
+
+    function _bare_heatmap(xs_, ys_, data_, cmap, crange)
+        px_h = 600
+        phys_w = Float64(xs_[end] - xs_[1])
+        phys_h = Float64(ys_[end] - ys_[1])
+        px_w = round(Int, px_h * phys_w / phys_h)
+        fig_ = Figure(size = (px_w, px_h), figure_padding = 0)
+        ax_  = Axis(fig_[1,1];
+                    xautolimitmargin = (0f0, 0f0),
+                    yautolimitmargin = (0f0, 0f0))
+        hidedecorations!(ax_)
+        hidespines!(ax_)
+        heatmap!(ax_, xs_, ys_, data_; colormap = cmap, colorrange = crange, nan_color = :dimgray)
+        return fig_
+    end
+
+    if obs_u !== nothing && obs_u_fine !== nothing
+        fig_u = _bare_heatmap(xs, ys, obs_u[], :inferno, rangeU)
+        heatmap!(fig_u.content[1], xs_fine, ys_fine, obs_u_fine[];
+                 colormap = :inferno, colorrange = rangeU, nan_color = :dimgray)
+        save(joinpath(dir, @sprintf("contour_u_t%07.1f.png", t)), fig_u; px_per_unit = 4)
+    end
+
+    if obs_vmag !== nothing && obs_vmag_fine !== nothing
+        fig_m = _bare_heatmap(xs, ys, obs_vmag[], :viridis, rangeVmag)
+        heatmap!(fig_m.content[1], xs_fine, ys_fine, obs_vmag_fine[];
+                 colormap = :viridis, colorrange = rangeVmag, nan_color = :dimgray)
+        save(joinpath(dir, @sprintf("contour_vmag_t%07.1f.png", t)), fig_m; px_per_unit = 4)
+    end
+
+    if obs_vort !== nothing && obs_vort_fine !== nothing
+        fig_v = _bare_heatmap(xs, ys, obs_vort[], :curl, rangeVort)
+        heatmap!(fig_v.content[1], xs_fine, ys_fine, obs_vort_fine[];
+                 colormap = :curl, colorrange = rangeVort, nan_color = :dimgray)
+        save(joinpath(dir, @sprintf("contour_vort_t%07.1f.png", t)), fig_v; px_per_unit = 4)
+    end
+end
+
+function Save_Contour_Plot!(fig, t::Float64; dir::String = "./output")
+    isdir(dir) || mkpath(dir)
+    fname = @sprintf("contour_t%07.1f.png", t)
+    save(joinpath(dir, fname), fig; px_per_unit = 4)
 end
 
 end # module Plotter
