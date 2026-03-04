@@ -30,9 +30,9 @@ using ColorSchemes
         vx_obs = Observable(field2d)
         fig = Figure(size = (900, 400))
         ax = Axis(fig[1,1], aspect = DataAspect(), title = title)
-        colorrange = (-0.1, 0.1)
+        colorrange = (-0.02, 0.02)
         hm = heatmap!(ax, 1:nx, 1:ny, vx_obs; 
-                        colormap = custom_rdbu_with_zero(), 
+                        colormap = :RdBu, 
                         nan_color= :black, colorrange = colorrange, 
                         interpolate=false)
 
@@ -48,9 +48,9 @@ using ColorSchemes
         vx_obs = Observable(field2d)
         fig = Figure(size = (900, 400))
         ax = Axis(fig[1,1], aspect = DataAspect(), title = title)
-        colorrange = (-0.1, 0.1)
+        colorrange = (-0.02, 0.02)
         hm = heatmap!(ax, 1:nx, 1:nz, vx_obs; 
-                        colormap = custom_rdbu_with_zero(), 
+                        colormap = :RdBu, 
                         nan_color= :black, colorrange = colorrange,
                         interpolate=false)
         Colorbar(fig[1, 2], hm, label = "Lattice_Velocity")

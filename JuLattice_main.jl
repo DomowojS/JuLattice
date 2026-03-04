@@ -15,25 +15,28 @@ function run_JuLattice()
     length_Y = 0.5            # m 
     length_Z = 1              # m
 
-    # Sphere Definition
+    # Cylinder Definition
     Radius   = 0.1    # m
-    Position = [length_X/4, length_Y/2, length_Z/2] # m [x,y,z]
-    # Position = [0.5, 0.25, 0.5] # m [x,y,z]
+    # Position = [length_X/4, length_Y/2, length_Z/2] # m [x,y,z]
 
     # Fluid Settings 
-    Fluid_Density = 100.0; #1000.0;         # kg/m^3
-    Inflow_Velocity = 0.4;          # m/s
-    Kinematic_Viscosity = 0.002; #0.001;    # m^2/s 
+    Fluid_Density = 1000.0; #1000.0;         # kg/m^3
+    # Inflow_Velocity = 1.0 #0.4;              # m/s
+    Kinematic_Viscosity = 0.0004; #0.001;    # m^2/s 
+
+    # Reynolds and Mach Number Input
+    reynoldsNumber = 500                        # Target Reynolds number
+    Mach_Number = 0.01;                         # Target Mach number (Ma = U_lattice/c_s)
+                                                # Keep Ma < 0.1 for incompressible flow!
 
     # Simulation Settings
-    Simulation_Time = 5;  #8000     # s
-    delta_x = 0.01;                 # Grid spacing (physical units per lattice unit)
-    Mach_Number = 0.01;          # Target Mach number (Ma = U_lattice/c_s)
-                                # Keep Ma < 0.1 for incompressible flow!
+    Simulation_Time = 600;  #8000               # s
+    delta_x = 0.02 #0.01;                       # Grid spacing (physical units per lattice unit)
+   
 
-    # Compute Reynolds number (for reference)
-    Re = (Inflow_Velocity .* 2 .* Radius)/Kinematic_Viscosity;
-    Re_Log=floor(Int,Re)
+    # # Compute Reynolds number (for reference)
+    # Re = (Inflow_Velocity .* 2 .* Radius)/Kinematic_Viscosity;
+    # Re_Log=floor(Int,Re)
 
 
     # Plot Requests (Flags)
@@ -48,24 +51,43 @@ function run_JuLattice()
     Log_Simulation_Header()
 
     ##-------- Compute LBM Parameters from Mach Number --------##
-    # fixed lattice constant
-    lattice_speedOfSound = 1 / √3; #bleibt gleich bei 3D
+    lattice_speedOfSound = 1.0 / sqrt(3)
 
-    # Step 1: Lattice velocity from Mach number
+    Inflow_Velocity = reynoldsNumber * Kinematic_Viscosity / (2 * Radius)
+
+    speedOfSound = Inflow_Velocity / Mach_Number
+    # speedOfSound = Kinematic_Viscosity * reynoldsNumber / (Mach_Number * 2 * Radius)
+    delta_t = delta_x * lattice_speedOfSound / speedOfSound
+
+    lattice_viscosity = Kinematic_Viscosity * delta_t / (delta_x)^2
+
     lattice_inflow_velocity = Mach_Number * lattice_speedOfSound
-
-    # Step 2: Timestep from velocity scaling
-    # U_phys = (dx/dt) * U_lattice => dt = dx * U_lattice / U_phys
-    delta_t = delta_x * lattice_inflow_velocity / Inflow_Velocity
-    
-    # Step 3: Lattice viscosity from physical viscosity
-    # nu_phys = (dx²/dt) * nu_lattice => nu_lattice = nu_phys * dt/dx²
-    lattice_viscosity = Kinematic_Viscosity * delta_t / (delta_x * delta_x)
 
     # Step 4: Relaxation time and omega from lattice viscosity
     # nu_lattice = c_s² * (tau - 0.5) => tau = nu_lattice / c_s² + 0.5
     τ = lattice_viscosity / (lattice_speedOfSound * lattice_speedOfSound) + 0.5
     omega  = 1.0 / τ
+
+                        ##### Old Initialisation #####
+    # # fixed lattice constant
+    # lattice_speedOfSound = 1 / √3; #bleibt gleich bei 3D
+
+    # # Step 1: Lattice velocity from Mach number
+    # lattice_inflow_velocity = Mach_Number * lattice_speedOfSound
+
+    # # Step 2: Timestep from velocity scaling
+    # # U_phys = (dx/dt) * U_lattice => dt = dx * U_lattice / U_phys
+    # delta_t = delta_x * lattice_inflow_velocity / Inflow_Velocity
+    
+    # # Step 3: Lattice viscosity from physical viscosity
+    # # nu_phys = (dx²/dt) * nu_lattice => nu_lattice = nu_phys * dt/dx²
+    # lattice_viscosity = Kinematic_Viscosity * delta_t / (delta_x * delta_x)
+
+    # # Step 4: Relaxation time and omega from lattice viscosity
+    # # nu_lattice = c_s² * (tau - 0.5) => tau = nu_lattice / c_s² + 0.5
+    # τ = lattice_viscosity / (lattice_speedOfSound * lattice_speedOfSound) + 0.5
+    # omega  = 1.0 / τ
+                        ##### Old Initialisation #####
 
     ##-------- Convert user settings to lattice units --------##
     # Domain
@@ -73,20 +95,17 @@ function run_JuLattice()
     gridlengthY = ceil(Int, length_Y / delta_x);
     gridlengthZ = ceil(Int, length_Z / delta_x);
 
-    # # Sphere
-    # sphere_radius  = Radius/delta_x;
-    # sphere_position = Position ./ delta_x;
-
     # Cyliner
     cylinder_x = Int(round(gridlengthX / 3))
-    cylinder_y = Int(round(gridlengthY / 2))
+    cylinder_y = 2 + Int(round((gridlengthY-2)/2))
+    println("cylinder_y = $cylinder_y")
+    #cylinder_y = Int(round(gridlengthY / 2))
     cylinder_radius = Radius/delta_x
     cylinder_start = Int(round(gridlengthZ*0.25))
     cylinder_end = Int(round(gridlengthZ*0.75))
 
     # Fluid
     fluiddensity = Fluid_Density
-    #fluiddensity = 100;
 
     # ReynoldsCheck
     lattice_Re = (lattice_inflow_velocity .* 2 .* cylinder_radius)/lattice_viscosity; #Re_lattice = U*R/v -> sollte Re entsprechen weil Größen skaliert wurden
@@ -96,16 +115,20 @@ function run_JuLattice()
     Log_Discretization_Settings(delta_x, delta_t, lattice_Re_Log)
 
     # Print τ value
-    println("Computed relaxation time τ  = ", round(τ, digits=4))
-    println("Computed omega ω = ", round(omega, digits=4))
+    println("##### Computed Fluid Values #####")
+    println("Computed relaxation time τ  = ", round(τ, digits=10))
+    println("Computed omega ω = ", round(omega, digits=10))
+    println("Computed Inflow_Velocity (phsical) = ", round(Inflow_Velocity, digits=10))
     println("Reynolds number check:")
-    println("   Re (physical) = ", round(Re, digits=2))
+    Re_phys = Inflow_Velocity * 2 * Radius / Kinematic_Viscosity
+    println("   Re (physical) = ", round(Re_phys, digits=2))
     println("   Re (lattice) = ", round(lattice_Re, digits=2))
+    println("#################################")
 
     # Simulation Settings
     simulationTime = ceil(Int, Simulation_Time / delta_t);
 
-    Q = 19; #D3Q19
+    #Q = 19; #D3Q19
     # D3Q19
     # f000 = rest (0,0,0)
     # fm00, fp00 = x-axis (±1,0,0)
@@ -198,8 +221,10 @@ function run_JuLattice()
     omegaMag = zeros(gridlengthX, gridlengthY, gridlengthZ)
 
     #Define mid-Planes for plotting
-    midY = ceil(Int, gridlengthY/2)
-    midZ = ceil(Int, gridlengthZ/2)
+    midY = 2 + Int(round((gridlengthY-2)/2))
+    midZ = 2 + Int(round((gridlengthZ-2)/2))
+    println("midY = $midY")
+    println("midZ = $midZ")
 
     # more slices for debugging
     frontY = 2
@@ -212,109 +237,16 @@ function run_JuLattice()
     nearBotZ = 10
     nearTopZ = gridlengthZ-10
 
-    # # DEBUG: Checking for "row bug"
-    # initial_u = lattice_inflow_velocity
-    # u_debug = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    # rho_debug = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    # bc_anomaly_detected = Dict{String, Bool}()
-    
-    # function compute_u_from_fS!(u_out, rho_out)
-    #     for x in 2:gridlengthX-1
-    #         for y in 2:gridlengthY-1
-    #             for z in 2:gridlengthZ-1
-    #                 rho_out[x,y,z] = f000S[x,y,z] + 
-    #                     (fm00S[x,y,z] + fp00S[x,y,z] + f0m0S[x,y,z] + f0p0S[x,y,z] + f00mS[x,y,z] + f00pS[x,y,z]) +
-    #                     (fmm0S[x,y,z] + fmp0S[x,y,z] + fpm0S[x,y,z] + fpp0S[x,y,z] + 
-    #                      fm0mS[x,y,z] + fm0pS[x,y,z] + fp0mS[x,y,z] + fp0pS[x,y,z] +
-    #                      f0mmS[x,y,z] + f0mpS[x,y,z] + f0pmS[x,y,z] + f0ppS[x,y,z])
-                    
-    #                 u_out[x,y,z] = ((-fm00S[x,y,z] + fp00S[x,y,z]) +
-    #                     (-fmm0S[x,y,z] - fmp0S[x,y,z] + fpm0S[x,y,z] + fpp0S[x,y,z]) +
-    #                     (-fm0mS[x,y,z] - fm0pS[x,y,z] + fp0mS[x,y,z] + fp0pS[x,y,z])) / rho_out[x,y,z]
-    #             end
-    #         end
-    #     end
-    # end
 
-    # function check_u_rows(bc_name, timestep, y_idx, z_range, init_u, bc_detected)
-    #     key = bc_name
-    #     if haskey(bc_detected, key) && bc_detected[key]
-    #         return
-    #     end
-        
-    #     for z in z_range
-    #         row = u_debug[2:end-1, y_idx, z]
-    #         if length(unique(round.(row, digits=6))) == 1
-    #             row_val = row[1]
-    #             if abs(row_val) < 1e-10
-    #                 continue
-    #             end
-    #             diff = abs(row_val - init_u)
-    #             if diff > 0.1*abs(init_u)
-    #                 println(" HÄNDE HOCH:")
-    #                 println("   Timestep: $timestep")
-    #                 println("   BC: $bc_name")
-    #                 println("   Position: y=$y_idx, z=$z")
-    #                 println("   u_initial: $init_u")
-    #                 println("   u_after_BC: $row_val")
-    #                 println("   Difference: $diff")
-    #                 println("")
-    #                 # bc_detected[key] = true
-    #                 return
-    #             end
-    #         end
-    #     end
-    # end
-
-    # function check_u_rows_y(bc_name, timestep, y_range, z_idx, init_u, bc_detected)
-    #     key = bc_name
-    #     if haskey(bc_detected, key) && bc_detected[key]
-    #         return
-    #     end
-        
-    #     for y in y_range
-    #         row = u_debug[2:end-1, y, z_idx]
-    #         if length(unique(round.(row, digits=6))) == 1
-    #             row_val = row[1]
-    #             if abs(row_val) < 1e-10
-    #                 continue
-    #             end
-    #             diff = abs(row_val - init_u)
-    #             if diff > 0.1*abs(init_u)
-    #                 println(" HÄNDE HOCH")
-    #                 println("   Timestep: $timestep")
-    #                 println("   BC: $bc_name")
-    #                 println("   Position: y=$y, z=$z_idx")
-    #                 println("   u_initial: $init_u")
-    #                 println("   u_after_BC: $row_val")
-    #                 println("   Difference: $diff")
-    #                 println("")
-    #                 # bc_detected[key] = true
-    #                 return
-    #             end
-    #         end
-    #     end
-    # end
-
-
-
-
-    # # create object indetifier
-    # sphere = (gridX .- sphere_position[1]).^2 + (gridY .- sphere_position[2]).^2 + (gridZ .- sphere_position[3]).^2 .< sphere_radius.^2
-    # sphere_indices = findall(sphere)
-
-    # # create boundary indetifiers
-    # # walls = gridY .== 1 .| gridY .== gridlengthY .| gridZ .==1 .| gridZ .== gridlengthZ;
-    # inlet = gridX .== 1;
-    # outlet = gridX .== gridlengthX;
-
-    # create solid node mask
+    ## create solid node mask
     is_solid = falses(gridlengthX, gridlengthY, gridlengthZ)
+    is_wall = falses(gridlengthX, gridlengthY, gridlengthZ)
+    is_object = falses(gridlengthX, gridlengthY, gridlengthZ)
+
     for x in 1:gridlengthX, y in 1:gridlengthY, z in 1:gridlengthZ
         # walls
-        # if x==1 || x==gridlengthX || y==1 || y==gridlengthY || z==1 || z==gridlengthZ
         if y==1 || y==gridlengthY || z==1 || z==gridlengthZ
-
+            is_wall[x, y, z] = true
             is_solid[x, y, z] = true
             continue
         end
@@ -324,81 +256,21 @@ function run_JuLattice()
         dx = x- cylinder_x
         dy = y - cylinder_y
         if (z >= cylinder_start) && (z <= cylinder_end) && (sqrt(dx^2 + dy^2) <= cylinder_radius)
+            is_object[x, y, z] = true
             is_solid[x, y, z] = true
         end
 
     end
+    wall_indices = findall(is_wall)
+    object_indices = findall(is_object)
 
-    #Initialize distribution functions FLUID NODES and SOLID NODES
+    ## Initialize distribution functions FLUID NODES and SOLID NODES
     for x in 1:gridlengthX
         for y in 1:gridlengthY
             for z in 1:gridlengthZ
 
-                if is_solid[x, y, z]
-                    ux = 0.0
-                else
-                    ux = lattice_inflow_velocity
-                end
-
-                uy = 0.0
-                uz = 0.0
-                rho_init = fluiddensity
-                
-                # Pre-compute polynomial factors
-                ux2 = ux * ux
-                uy2 = uy * uy
-                uz2 = uz * uz
-                
-                Pm_u = 1 - 3*ux + 3*ux2
-                #P0_u = -2 + 3*ux2
-                P0_u = 1 - 1.5*ux2
-                Pp_u = 1 + 3*ux + 3*ux2
-                
-                Pm_v = 1 - 3*uy + 3*uy2
-                #P0_v = -2 + 3*uy2
-                P0_v = 1 - 1.5*uy2
-                Pp_v = 1 + 3*uy + 3*uy2
-                
-                Pm_w = 1 - 3*uz + 3*uz2
-                #P0_w = -2 + 3*uz2
-                P0_w = 1 - 1.5*uz2
-                Pp_w = 1 + 3*uz + 3*uz2
-        
-                # Push scheme: Rest particle (0,0,0) - weight 1/3
-                f000[x,y,z] = rho_init * P0_u * P0_v * P0_w / 3.0
-                
-                # Push scheme: Face neighbors - weight 1/18
-                fm00[x,y,z] = rho_init * Pm_u * P0_v * P0_w / 18.0 
-                fp00[x,y,z] = rho_init * Pp_u * P0_v * P0_w / 18.0 
-                
-                f0m0[x,y,z] = rho_init * P0_u * Pm_v * P0_w / 18.0 
-                f0p0[x,y,z] = rho_init * P0_u * Pp_v * P0_w / 18.0
-                
-                f00m[x,y,z] = rho_init * P0_u * P0_v * Pm_w / 18.0 
-                f00p[x,y,z] = rho_init * P0_u * P0_v * Pp_w / 18.0 
-                
-                # Push scheme: Edge neighbors - weight 1/36
-                # XY-plane edges
-                fmm0[x,y,z] = rho_init * Pm_u * Pm_v * P0_w / 36.0 
-                fmp0[x,y,z] = rho_init * Pm_u * Pp_v * P0_w / 36.0 
-                fpm0[x,y,z] = rho_init * Pp_u * Pm_v * P0_w / 36.0 
-                fpp0[x,y,z] = rho_init * Pp_u * Pp_v * P0_w / 36.0 
-                
-                # XZ-plane edges
-                fm0m[x,y,z] = rho_init * Pm_u * P0_v * Pm_w / 36.0 
-                fm0p[x,y,z] = rho_init * Pm_u * P0_v * Pp_w / 36.0
-                fp0m[x,y,z] = rho_init * Pp_u * P0_v * Pm_w / 36.0 
-                fp0p[x,y,z] = rho_init * Pp_u * P0_v * Pp_w / 36.0 
-                
-                # YZ-plane edges
-                f0mm[x,y,z] = rho_init * P0_u * Pm_v * Pm_w / 36.0 
-                f0mp[x,y,z] = rho_init * P0_u * Pm_v * Pp_w / 36.0 
-                f0pm[x,y,z] = rho_init * P0_u * Pp_v * Pm_w / 36.0 
-                f0pp[x,y,z] = rho_init * P0_u * Pp_v * Pp_w / 36.0
-                # is_solid = (x==1 || x==gridlengthX || y==1 || y==gridlengthY || z==1 || z==gridlengthZ)
-
-                # ux = is_solid ? 0.0 : lattice_inflow_velocity
-                ux = lattice_inflow_velocity
+                ux = is_solid[x, y, z] ? 0.0 : lattice_inflow_velocity
+                #ux = lattice_inflow_velocity
                 uy = 0.0
                 uz = 0.0
                 rho_init = fluiddensity
@@ -480,26 +352,17 @@ function run_JuLattice()
     f0pmS .= f0pm
     f0ppS .= f0pp
 
-    #Plot calls
+    ##  Plot calls
     if any((Plotvorticity, Plotvx, Plotvy, Plotvz, Plotdebug))
-        # #3D Plot
-        # if Plotvorticity == true
-        #     omegaMag_obs, step_text_omega, fig_omega = Create_Plot3D(gridlengthX, gridlengthY, gridlengthZ, omegaMag; title="|ω|")
-        #     screenOmega = GLMakie.Screen()
-        #     display(screenOmega, fig_omega)
-        # end
-
+                    
         if Plotvx==true
-            #xy slice at z=midZ
-            vx_xy_obs, step_text_vx_xy, fig_vx_xy = Create_Plot_XY(gridlengthX, gridlengthY, velocityX[:,:,midZ]; title="v_x at z=$(midZ)")
+            vx_xy_obs, step_text_vx_xy, fig_vx_xy = Create_Plot_XY(gridlengthX-2, gridlengthY-2, velocityX[2:gridlengthX-1,2:gridlengthY-1,midZ]; title="v_x at z=$(midZ)")
             screen_vx_xy = GLMakie.Screen()
             display(screen_vx_xy, fig_vx_xy)
 
-            #xz slice at y=midY
-            vx_xz_obs, step_text_vx_xz, fig_vx_xz = Create_Plot_XZ(gridlengthX, gridlengthZ, velocityX[:,midY,:]; title="v_x at y=$(midY)")
+            vx_xz_obs, step_text_vx_xz, fig_vx_xz = Create_Plot_XZ(gridlengthX-2, gridlengthZ-2, velocityX[2:gridlengthX-1,midY,2:gridlengthZ-1]; title="v_x at y=$(midY)")
             screen_vx_xz = GLMakie.Screen()
             display(screen_vx_xz, fig_vx_xz)
-
         end
 
         if Plotdebug == true
@@ -559,16 +422,13 @@ function run_JuLattice()
             display(screen_omega_xz, fig_omega_xz)    
         end
 
-
-        
-
-    end
+    end #Plot calls
 
     println("#################################")
     println("Starting Simulation:")
     # Run Simulation Loop
     for i in 1:simulationTime
-        ###### NEW STABILIZATION ######
+
         for x in 2:gridlengthX-1 #Iteration über alle Zellen außer die Randzellen
             for y in 2:gridlengthY-1
                 for z in 2:gridlengthZ-1
@@ -658,74 +518,217 @@ function run_JuLattice()
 
         ###### Boundary Conditions ######
         ## post collision Loop for bounce-back
-        for x in 1:gridlengthX, y in 1:gridlengthY, z in 1:gridlengthZ
-            if is_solid[x, y, z]
-                # +x 
-                if x+1 <= gridlengthX && !is_solid[x+1, y, z]
-                    fp00S[x+1, y, z] = fm00S[x, y, z]
-                end
-                # -x 
-                if x-1 >= 1 && !is_solid[x-1, y, z]
-                    fm00S[x-1, y, z] = fp00S[x, y, z]
-                end
-                # +y 
-                if y+1 <= gridlengthY && !is_solid[x, y+1, z]
-                    f0p0S[x, y+1, z] = f0m0S[x, y, z]
-                end
-                # -y 
-                if y-1 >= 1 && !is_solid[x, y-1, z]
-                    f0m0S[x, y-1, z] = f0p0S[x, y, z]
-                end
-                # +z 
-                if z+1 <= gridlengthZ && !is_solid[x, y, z+1]
-                    f00pS[x, y, z+1] = f00mS[x, y, z]
-                end
-                # -z 
-                if z-1 >= 1 && !is_solid[x, y, z-1]
-                    f00mS[x, y, z-1] = f00pS[x, y, z]
-                end
+        # for x in 1:gridlengthX, y in 1:gridlengthY, z in 1:gridlengthZ
+        #     if is_solid[x, y, z]
+        #         # +x 
+        #         if x+1 <= gridlengthX && !is_solid[x+1, y, z]
+        #             fp00S[x+1, y, z] = fm00S[x, y, z]
+        #         end
+        #         # -x 
+        #         if x-1 >= 1 && !is_solid[x-1, y, z]
+        #             fm00S[x-1, y, z] = fp00S[x, y, z]
+        #         end
+        #         # +y 
+        #         if y+1 <= gridlengthY && !is_solid[x, y+1, z]
+        #             f0p0S[x, y+1, z] = f0m0S[x, y, z]
+        #         end
+        #         # -y 
+        #         if y-1 >= 1 && !is_solid[x, y-1, z]
+        #             f0m0S[x, y-1, z] = f0p0S[x, y, z]
+        #         end
+        #         # +z 
+        #         if z+1 <= gridlengthZ && !is_solid[x, y, z+1]
+        #             f00pS[x, y, z+1] = f00mS[x, y, z]
+        #         end
+        #         # -z 
+        #         if z-1 >= 1 && !is_solid[x, y, z-1]
+        #             f00mS[x, y, z-1] = f00pS[x, y, z]
+        #         end
 
-                # XY
-                if x+1 <= gridlengthX && y+1 <= gridlengthY && !is_solid[x+1, y+1, z]
-                    fpp0S[x+1, y+1, z] = fmm0S[x, y, z]
-                end
-                if x-1 >= 1 && y-1 >= 1 && !is_solid[x-1, y-1, z]
-                    fmm0S[x-1, y-1, z] = fpp0S[x, y, z]
-                end
-                if x+1 <= gridlengthX && y-1 >= 1 && !is_solid[x+1, y-1, z]
-                    fpm0S[x+1, y-1, z] = fmp0S[x, y, z]
-                end
-                if x-1 >= 1 && y+1 <= gridlengthY && !is_solid[x-1, y+1, z]
-                    fmp0S[x-1, y+1, z] = fpm0S[x, y, z]
-                end
+        #         # XY
+        #         if x+1 <= gridlengthX && y+1 <= gridlengthY && !is_solid[x+1, y+1, z]
+        #             fpp0S[x+1, y+1, z] = fmm0S[x, y, z]
+        #         end
+        #         if x-1 >= 1 && y-1 >= 1 && !is_solid[x-1, y-1, z]
+        #             fmm0S[x-1, y-1, z] = fpp0S[x, y, z]
+        #         end
+        #         if x+1 <= gridlengthX && y-1 >= 1 && !is_solid[x+1, y-1, z]
+        #             fpm0S[x+1, y-1, z] = fmp0S[x, y, z]
+        #         end
+        #         if x-1 >= 1 && y+1 <= gridlengthY && !is_solid[x-1, y+1, z]
+        #             fmp0S[x-1, y+1, z] = fpm0S[x, y, z]
+        #         end
 
-                # XZ
-                if x+1 <= gridlengthX && z+1 <= gridlengthZ && !is_solid[x+1, y, z+1]
-                    fp0pS[x+1, y, z+1] = fm0mS[x, y, z]
-                end
-                if x-1 >= 1 && z-1 >= 1 && !is_solid[x-1, y, z-1]
-                    fm0mS[x-1, y, z-1] = fp0pS[x, y, z]
-                end
-                if x+1 <= gridlengthX && z-1 >= 1 && !is_solid[x+1, y, z-1]
-                    fp0mS[x+1, y, z-1] = fm0pS[x, y, z]
-                end
-                if x-1 >= 1 && z+1 <= gridlengthZ && !is_solid[x-1, y, z+1]
-                    fm0pS[x-1, y, z+1] = fp0mS[x, y, z]
-                end
+        #         # XZ
+        #         if x+1 <= gridlengthX && z+1 <= gridlengthZ && !is_solid[x+1, y, z+1]
+        #             fp0pS[x+1, y, z+1] = fm0mS[x, y, z]
+        #         end
+        #         if x-1 >= 1 && z-1 >= 1 && !is_solid[x-1, y, z-1]
+        #             fm0mS[x-1, y, z-1] = fp0pS[x, y, z]
+        #         end
+        #         if x+1 <= gridlengthX && z-1 >= 1 && !is_solid[x+1, y, z-1]
+        #             fp0mS[x+1, y, z-1] = fm0pS[x, y, z]
+        #         end
+        #         if x-1 >= 1 && z+1 <= gridlengthZ && !is_solid[x-1, y, z+1]
+        #             fm0pS[x-1, y, z+1] = fp0mS[x, y, z]
+        #         end
 
-                # YZ
-                if y+1 <= gridlengthY && z+1 <= gridlengthZ && !is_solid[x, y+1, z+1]
-                    f0ppS[x, y+1, z+1] = f0mmS[x, y, z]
-                end
-                if y-1 >= 1 && z-1 >= 1 && !is_solid[x, y-1, z-1]
-                    f0mmS[x, y-1, z-1] = f0ppS[x, y, z]
-                end
-                if y+1 <= gridlengthY && z-1 >= 1 && !is_solid[x, y+1, z-1]
-                    f0pmS[x, y+1, z-1] = f0mpS[x, y, z]
-                end
-                if y-1 >= 1 && z+1 <= gridlengthZ && !is_solid[x, y-1, z+1]
-                    f0mpS[x, y-1, z+1] = f0pmS[x, y, z]
-                end
+        #         # YZ
+        #         if y+1 <= gridlengthY && z+1 <= gridlengthZ && !is_solid[x, y+1, z+1]
+        #             f0ppS[x, y+1, z+1] = f0mmS[x, y, z]
+        #         end
+        #         if y-1 >= 1 && z-1 >= 1 && !is_solid[x, y-1, z-1]
+        #             f0mmS[x, y-1, z-1] = f0ppS[x, y, z]
+        #         end
+        #         if y+1 <= gridlengthY && z-1 >= 1 && !is_solid[x, y+1, z-1]
+        #             f0pmS[x, y+1, z-1] = f0mpS[x, y, z]
+        #         end
+        #         if y-1 >= 1 && z+1 <= gridlengthZ && !is_solid[x, y-1, z+1]
+        #             f0mpS[x, y-1, z+1] = f0pmS[x, y, z]
+        #         end
+        #     end
+        # end
+
+        # bounce-back walls
+        for wall in wall_indices
+            x, y, z = Tuple(wall)
+            # +x 
+            if x+1 <= gridlengthX && !is_solid[x+1, y, z]
+                fp00S[x+1, y, z] = fm00S[x, y, z]
+            end
+            # -x 
+            if x-1 >= 1 && !is_solid[x-1, y, z]
+                fm00S[x-1, y, z] = fp00S[x, y, z]
+            end
+            # +y 
+            if y+1 <= gridlengthY && !is_solid[x, y+1, z]
+                f0p0S[x, y+1, z] = f0m0S[x, y, z]
+            end
+            # -y 
+            if y-1 >= 1 && !is_solid[x, y-1, z]
+                f0m0S[x, y-1, z] = f0p0S[x, y, z]
+            end
+            # +z 
+            if z+1 <= gridlengthZ && !is_solid[x, y, z+1]
+                f00pS[x, y, z+1] = f00mS[x, y, z]
+            end
+            # -z 
+            if z-1 >= 1 && !is_solid[x, y, z-1]
+                f00mS[x, y, z-1] = f00pS[x, y, z]
+            end
+
+            # XY
+            if x+1 <= gridlengthX && y+1 <= gridlengthY && !is_solid[x+1, y+1, z]
+                fpp0S[x+1, y+1, z] = fmm0S[x, y, z]
+            end
+            if x-1 >= 1 && y-1 >= 1 && !is_solid[x-1, y-1, z]
+                fmm0S[x-1, y-1, z] = fpp0S[x, y, z]
+            end
+            if x+1 <= gridlengthX && y-1 >= 1 && !is_solid[x+1, y-1, z]
+                fpm0S[x+1, y-1, z] = fmp0S[x, y, z]
+            end
+            if x-1 >= 1 && y+1 <= gridlengthY && !is_solid[x-1, y+1, z]
+                fmp0S[x-1, y+1, z] = fpm0S[x, y, z]
+            end
+
+            # XZ
+            if x+1 <= gridlengthX && z+1 <= gridlengthZ && !is_solid[x+1, y, z+1]
+                fp0pS[x+1, y, z+1] = fm0mS[x, y, z]
+            end
+            if x-1 >= 1 && z-1 >= 1 && !is_solid[x-1, y, z-1]
+                fm0mS[x-1, y, z-1] = fp0pS[x, y, z]
+            end
+            if x+1 <= gridlengthX && z-1 >= 1 && !is_solid[x+1, y, z-1]
+                fp0mS[x+1, y, z-1] = fm0pS[x, y, z]
+            end
+            if x-1 >= 1 && z+1 <= gridlengthZ && !is_solid[x-1, y, z+1]
+                fm0pS[x-1, y, z+1] = fp0mS[x, y, z]
+            end
+
+            # YZ
+            if y+1 <= gridlengthY && z+1 <= gridlengthZ && !is_solid[x, y+1, z+1]
+                f0ppS[x, y+1, z+1] = f0mmS[x, y, z]
+            end
+            if y-1 >= 1 && z-1 >= 1 && !is_solid[x, y-1, z-1]
+                f0mmS[x, y-1, z-1] = f0ppS[x, y, z]
+            end
+            if y+1 <= gridlengthY && z-1 >= 1 && !is_solid[x, y+1, z-1]
+                f0pmS[x, y+1, z-1] = f0mpS[x, y, z]
+            end
+            if y-1 >= 1 && z+1 <= gridlengthZ && !is_solid[x, y-1, z+1]
+                f0mpS[x, y-1, z+1] = f0pmS[x, y, z]
+            end
+            
+        end
+
+        # bounce-back object
+        for object in object_indices
+            x, y, z = Tuple(object)
+            # +x 
+            if x+1 <= gridlengthX && !is_solid[x+1, y, z]
+                fp00S[x+1, y, z] = fm00S[x, y, z]
+            end
+            # -x 
+            if x-1 >= 1 && !is_solid[x-1, y, z]
+                fm00S[x-1, y, z] = fp00S[x, y, z]
+            end
+            # +y 
+            if y+1 <= gridlengthY && !is_solid[x, y+1, z]
+                f0p0S[x, y+1, z] = f0m0S[x, y, z]
+            end
+            # -y 
+            if y-1 >= 1 && !is_solid[x, y-1, z]
+                f0m0S[x, y-1, z] = f0p0S[x, y, z]
+            end
+            # +z 
+            if z+1 <= gridlengthZ && !is_solid[x, y, z+1]
+                f00pS[x, y, z+1] = f00mS[x, y, z]
+            end
+            # -z 
+            if z-1 >= 1 && !is_solid[x, y, z-1]
+                f00mS[x, y, z-1] = f00pS[x, y, z]
+            end
+
+            # XY
+            if x+1 <= gridlengthX && y+1 <= gridlengthY && !is_solid[x+1, y+1, z]
+                fpp0S[x+1, y+1, z] = fmm0S[x, y, z]
+            end
+            if x-1 >= 1 && y-1 >= 1 && !is_solid[x-1, y-1, z]
+                fmm0S[x-1, y-1, z] = fpp0S[x, y, z]
+            end
+            if x+1 <= gridlengthX && y-1 >= 1 && !is_solid[x+1, y-1, z]
+                fpm0S[x+1, y-1, z] = fmp0S[x, y, z]
+            end
+            if x-1 >= 1 && y+1 <= gridlengthY && !is_solid[x-1, y+1, z]
+                fmp0S[x-1, y+1, z] = fpm0S[x, y, z]
+            end
+
+            # XZ
+            if x+1 <= gridlengthX && z+1 <= gridlengthZ && !is_solid[x+1, y, z+1]
+                fp0pS[x+1, y, z+1] = fm0mS[x, y, z]
+            end
+            if x-1 >= 1 && z-1 >= 1 && !is_solid[x-1, y, z-1]
+                fm0mS[x-1, y, z-1] = fp0pS[x, y, z]
+            end
+            if x+1 <= gridlengthX && z-1 >= 1 && !is_solid[x+1, y, z-1]
+                fp0mS[x+1, y, z-1] = fm0pS[x, y, z]
+            end
+            if x-1 >= 1 && z+1 <= gridlengthZ && !is_solid[x-1, y, z+1]
+                fm0pS[x-1, y, z+1] = fp0mS[x, y, z]
+            end
+
+            # YZ
+            if y+1 <= gridlengthY && z+1 <= gridlengthZ && !is_solid[x, y+1, z+1]
+                f0ppS[x, y+1, z+1] = f0mmS[x, y, z]
+            end
+            if y-1 >= 1 && z-1 >= 1 && !is_solid[x, y-1, z-1]
+                f0mmS[x, y-1, z-1] = f0ppS[x, y, z]
+            end
+            if y+1 <= gridlengthY && z-1 >= 1 && !is_solid[x, y+1, z-1]
+                f0pmS[x, y+1, z-1] = f0mpS[x, y, z]
+            end
+            if y-1 >= 1 && z+1 <= gridlengthZ && !is_solid[x, y-1, z+1]
+                f0mpS[x, y-1, z+1] = f0pmS[x, y, z]
             end
         end
 
@@ -745,174 +748,28 @@ function run_JuLattice()
         fmp0S[gridlengthX-1, 3:gridlengthY-1, 2:gridlengthZ-1] .= fmp0S[1, 3:gridlengthY-1, 2:gridlengthZ-1]
         ## post collision Loop
         
+        ## Inlet / Outlet BC
+        # Inlet Zou-He Velocity
+        # unknown: fp00, fpp0, fpm0, fp0p, fp0m (+x direction)
+        x_inlet = 1
+        ux_inlet = lattice_inflow_velocity
 
+        # for y in 2:gridlengthY-1
+        #     for z in 2:gridlengthZ-1
 
-        # ## Sphere Bounce-Back 
-  
-        # f000S[sphere_indices] = f000[sphere_indices]
-        
-        # fm00S[sphere_indices] = fp00[sphere_indices]
-        # fp00S[sphere_indices] = fm00[sphere_indices]
-        # f0m0S[sphere_indices] = f0p0[sphere_indices]
-        # f0p0S[sphere_indices] = f0m0[sphere_indices]
-        # f00mS[sphere_indices] = f00p[sphere_indices]
-        # f00pS[sphere_indices] = f00m[sphere_indices]
-        
-        # # XY-plane edges
-        # fmm0S[sphere_indices] = fpp0[sphere_indices]
-        # fpp0S[sphere_indices] = fmm0[sphere_indices]
-        # fmp0S[sphere_indices] = fpm0[sphere_indices]
-        # fpm0S[sphere_indices] = fmp0[sphere_indices]
-        
-        # # XZ-plane edges
-        # fm0mS[sphere_indices] = fp0p[sphere_indices]
-        # fp0pS[sphere_indices] = fm0m[sphere_indices]
-        # fm0pS[sphere_indices] = fp0m[sphere_indices]
-        # fp0mS[sphere_indices] = fm0p[sphere_indices]
-        
-        # # YZ-plane edges
-        # f0mmS[sphere_indices] = f0pp[sphere_indices]
-        # f0ppS[sphere_indices] = f0mm[sphere_indices]
-        # f0mpS[sphere_indices] = f0pm[sphere_indices]
-        # f0pmS[sphere_indices] = f0mp[sphere_indices]
+        #         sum_known = f000S[x_inlet, y, z] +           # Rest
+        #             fm00S[x_inlet, y, z] +           # -x Richtung
+        #             f0m0S[x_inlet, y, z] + f0p0S[x_inlet, y, z] +  # ±y
+        #             f00mS[x_inlet, y, z] + f00pS[x_inlet, y, z] +  # ±z
+        #             fmm0S[x_inlet, y, z] + fmp0S[x_inlet, y, z] +  # -x,±y
+        #             fm0mS[x_inlet, y, z] + fm0pS[x_inlet, y, z] +  # -x,±z
+        #             f0mmS[x_inlet, y, z] + f0mpS[x_inlet, y, z] +  # ±y,±z
+        #             f0pmS[x_inlet, y, z] + f0ppS[x_inlet, y, z]
 
+        #         rho_inlet = sum_known / (1.0 - ux_inlet)
+        #     end
+        # end
 
-         
-        
-        # #periodic inlet/outlet overwriting
-        # # INLET  (left side)
-        # fp00S[2, 2:gridlengthY-1, 2:gridlengthZ-1] .= fp00S[gridlengthX, 2:gridlengthY-1, 2:gridlengthZ-1]
-        # fp0pS[2, 2:gridlengthY-1, 2:gridlengthZ-1] .= fp0pS[gridlengthX, 2:gridlengthY-1, 2:gridlengthZ-1]
-        # fp0mS[2, 2:gridlengthY-1, 2:gridlengthZ-1] .= fp0mS[gridlengthX, 2:gridlengthY-1, 2:gridlengthZ-1]
-        # fpm0S[2, 2:gridlengthY-1, 2:gridlengthZ-1] .= fpm0S[gridlengthX, 2:gridlengthY-1, 2:gridlengthZ-1]
-        # fpp0S[2, 2:gridlengthY-1, 2:gridlengthZ-1] .= fpp0S[gridlengthX, 2:gridlengthY-1, 2:gridlengthZ-1]
-        
-        # # OUTLET (right side)
-        # fm00S[gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= fm00S[1, 2:gridlengthY-1, 2:gridlengthZ-1]
-        # fm0pS[gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= fm0pS[1, 2:gridlengthY-1, 2:gridlengthZ-1]
-        # fm0mS[gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= fm0mS[1, 2:gridlengthY-1, 2:gridlengthZ-1]
-        # fmm0S[gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= fmm0S[1, 2:gridlengthY-1, 2:gridlengthZ-1]
-        # fmp0S[gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= fmp0S[1, 2:gridlengthY-1, 2:gridlengthZ-1]
-
-        # periodic inlet/outlet
-        # # INLET  (left side)
-        # fp00S[2, 2:gridlengthY-1, 2:gridlengthZ-1] .= fp00S[gridlengthX, 2:gridlengthY-1, 2:gridlengthZ-1]
-        # fp0pS[2, 2:gridlengthY-1, 3:gridlengthZ-1] .= fp0pS[gridlengthX, 2:gridlengthY-1, 3:gridlengthZ-1]
-        # fp0mS[2, 2:gridlengthY-1, 2:gridlengthZ-2] .= fp0mS[gridlengthX, 2:gridlengthY-1, 2:gridlengthZ-2]
-        # fpm0S[2, 2:gridlengthY-2, 2:gridlengthZ-1] .= fpm0S[gridlengthX, 2:gridlengthY-2, 2:gridlengthZ-1]
-        # fpp0S[2, 3:gridlengthY-1, 2:gridlengthZ-1] .= fpp0S[gridlengthX, 3:gridlengthY-1, 2:gridlengthZ-1]
-        
-        # # OUTLET (right side)
-        # fm00S[gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= fm00S[1, 2:gridlengthY-1, 2:gridlengthZ-1]
-        # fm0pS[gridlengthX-1, 2:gridlengthY-1, 3:gridlengthZ-1] .= fm0pS[1, 2:gridlengthY-1, 3:gridlengthZ-1]
-        # fm0mS[gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-2] .= fm0mS[1, 2:gridlengthY-1, 2:gridlengthZ-2]
-        # fmm0S[gridlengthX-1, 2:gridlengthY-2, 2:gridlengthZ-1] .= fmm0S[1, 2:gridlengthY-2, 2:gridlengthZ-1]
-        # fmp0S[gridlengthX-1, 3:gridlengthY-1, 2:gridlengthZ-1] .= fmp0S[1, 3:gridlengthY-1, 2:gridlengthZ-1]
-        
-        # # front wall (y=1)
-        # f0p0S[2:gridlengthX-1, 2, 2:gridlengthZ-1] .= f0m0S[2:gridlengthX-1, 1, 2:gridlengthZ-1]
-        # fpp0S[2:gridlengthX-1, 2, 2:gridlengthZ-1] .= fmm0S[1:gridlengthX-2, 1, 2:gridlengthZ-1]
-        # fmp0S[2:gridlengthX-1, 2, 2:gridlengthZ-1] .= fpm0S[3:gridlengthX, 1, 2:gridlengthZ-1]
-
-        #     # double counted populations (special handling at top/bot)
-        # f0pmS[2:gridlengthX-1, 2, 2:gridlengthZ-2] .= f0mpS[2:gridlengthX-1, 1, 3:gridlengthZ-1]
-        # f0ppS[2:gridlengthX-1, 2, 3:gridlengthZ-1] .= f0mmS[2:gridlengthX-1, 1, 2:gridlengthZ-2]
-
-        # # back wall (y=gridlengthY)
-        # f0m0S[2:gridlengthX-1, gridlengthY-1, 2:gridlengthZ-1] .= f0p0S[2:gridlengthX-1, gridlengthY, 2:gridlengthZ-1]
-        # fpm0S[2:gridlengthX-1, gridlengthY-1, 2:gridlengthZ-1] .= fmp0S[1:gridlengthX-2, gridlengthY, 2:gridlengthZ-1]
-        # # fmm0S[2:gridlengthX-1, gridlengthY-1, 2:gridlengthZ-1] .= fpp0S[3:gridlengthX, gridlengthY, 2:gridlengthZ-1]
-
-        #     # double counted populations (special handling at top/bot)
-        # f0mmS[2:gridlengthX-1, gridlengthY-1, 2:gridlengthZ-2] .= f0ppS[2:gridlengthX-1, gridlengthY, 3:gridlengthZ-1]
-        # f0mpS[2:gridlengthX-1, gridlengthY-1, 3:gridlengthZ-1] .= f0pmS[2:gridlengthX-1, gridlengthY, 2:gridlengthZ-2]
-        
-        # ## Bounceback walls
-        # # bottom wall (z=1)
-        # f00pS[2:gridlengthX-1, 2:gridlengthY-1, 2] .= f00mS[2:gridlengthX-1, 2:gridlengthY-1, 1]    # mitte
-        # f0ppS[2:gridlengthX-1, 2:gridlengthY-1, 2] .= f0mmS[2:gridlengthX-1, 1:gridlengthY-2, 1]
-        # f0mpS[2:gridlengthX-1, 2:gridlengthY-1, 2] .= f0pmS[2:gridlengthX-1, 3:gridlengthY, 1]
-        # fp0pS[2:gridlengthX-1, 2:gridlengthY-1, 2] .= fm0mS[1:gridlengthX-2, 2:gridlengthY-1, 1]
-        # fm0pS[2:gridlengthX-1, 2:gridlengthY-1, 2] .= fp0mS[3:gridlengthX, 2:gridlengthY-1, 1]
-
-        # # # DEBUG: Check after bottom wall
-        # # compute_u_from_fS!(u_debug, rho_debug)
-        # # check_u_rows("bot", i, frontY, 2:5, initial_u, bc_anomaly_detected)
-        # # check_u_rows("bot", i, backY, 2:5, initial_u, bc_anomaly_detected)
-
-        # # top wall (z=gridlengthZ)
-        # f00mS[2:gridlengthX-1, 2:gridlengthY-1, gridlengthZ-1] .= f00pS[2:gridlengthX-1, 2:gridlengthY-1, gridlengthZ]  # mitte
-        # f0pmS[2:gridlengthX-1, 2:gridlengthY-1, gridlengthZ-1] .= f0mpS[2:gridlengthX-1, 1:gridlengthY-2, gridlengthZ]
-        # f0mmS[2:gridlengthX-1, 2:gridlengthY-1, gridlengthZ-1] .= f0ppS[2:gridlengthX-1, 3:gridlengthY, gridlengthZ]
-        # fp0mS[2:gridlengthX-1, 2:gridlengthY-1, gridlengthZ-1] .= fm0pS[1:gridlengthX-2, 2:gridlengthY-1, gridlengthZ]
-        # fm0mS[2:gridlengthX-1, 2:gridlengthY-1, gridlengthZ-1] .= fp0pS[3:gridlengthX, 2:gridlengthY-1, gridlengthZ]
-
-        # #  # DEBUG: Check after top wall
-        # # compute_u_from_fS!(u_debug, rho_debug)
-        # # check_u_rows("top", i, frontY, (gridlengthZ-5):(gridlengthZ-1), initial_u, bc_anomaly_detected)
-        # # check_u_rows("top", i, backY, (gridlengthZ-5):(gridlengthZ-1), initial_u, bc_anomaly_detected)
-
-        # # front wall (y=1)
-        # f0p0S[2:gridlengthX-1, 2, 2:gridlengthZ-1] .= f0m0S[2:gridlengthX-1, 1, 2:gridlengthZ-1]
-        # fpp0S[2:gridlengthX-1, 2, 2:gridlengthZ-1] .= fmm0S[1:gridlengthX-2, 1, 2:gridlengthZ-1]
-        # fmp0S[2:gridlengthX-1, 2, 2:gridlengthZ-1] .= fpm0S[3:gridlengthX, 1, 2:gridlengthZ-1]
-
-        #     # double counted populations (special handling at top/bot)
-        # f0pmS[2:gridlengthX-1, 2, 2:gridlengthZ-2] .= f0mpS[2:gridlengthX-1, 1, 3:gridlengthZ-1]
-        # f0ppS[2:gridlengthX-1, 2, 3:gridlengthZ-1] .= f0mmS[2:gridlengthX-1, 1, 2:gridlengthZ-2]
-
-        # # # DEBUG: Check after front wall
-        # # compute_u_from_fS!(u_debug, rho_debug)
-        # # check_u_rows_y("front", i, 2:5, midZ, initial_u, bc_anomaly_detected)
-
-        # # back wall (y=gridlengthY)
-        # f0m0S[2:gridlengthX-1, gridlengthY-1, 2:gridlengthZ-1] .= f0p0S[2:gridlengthX-1, gridlengthY, 2:gridlengthZ-1]
-        # fpm0S[2:gridlengthX-1, gridlengthY-1, 2:gridlengthZ-1] .= fmp0S[1:gridlengthX-2, gridlengthY, 2:gridlengthZ-1]
-        # fmm0S[2:gridlengthX-1, gridlengthY-1, 2:gridlengthZ-1] .= fpp0S[3:gridlengthX, gridlengthY, 2:gridlengthZ-1]
-
-        #     # double counted populations (special handling at top/bot)
-        # f0mmS[2:gridlengthX-1, gridlengthY-1, 2:gridlengthZ-2] .= f0ppS[2:gridlengthX-1, gridlengthY, 3:gridlengthZ-1]
-        # f0mpS[2:gridlengthX-1, gridlengthY-1, 3:gridlengthZ-1] .= f0pmS[2:gridlengthX-1, gridlengthY, 2:gridlengthZ-2]
-
-        # # # DEBUG: Check after back wall
-        # # compute_u_from_fS!(u_debug, rho_debug)
-        # # check_u_rows_y("back", i, (gridlengthY-5):(gridlengthY-2), midZ, initial_u, bc_anomaly_detected)
-
-
-        # # periodic inlet/outlet
-        # # INLET  (left side)
-        # fp00S[2, 2:gridlengthY-1, 2:gridlengthZ-1] .= fp00S[gridlengthX, 2:gridlengthY-1, 2:gridlengthZ-1]
-        # fp0pS[2, 2:gridlengthY-1, 3:gridlengthZ-1] .= fp0pS[gridlengthX, 2:gridlengthY-1, 3:gridlengthZ-1]
-        # fp0mS[2, 2:gridlengthY-1, 2:gridlengthZ-2] .= fp0mS[gridlengthX, 2:gridlengthY-1, 2:gridlengthZ-2]
-        # fpm0S[2, 2:gridlengthY-2, 2:gridlengthZ-1] .= fpm0S[gridlengthX, 2:gridlengthY-2, 2:gridlengthZ-1]
-        # fpp0S[2, 3:gridlengthY-1, 2:gridlengthZ-1] .= fpp0S[gridlengthX, 3:gridlengthY-1, 2:gridlengthZ-1]
-        
-        # # OUTLET (right side)
-        # fm00S[gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= fm00S[1, 2:gridlengthY-1, 2:gridlengthZ-1]
-        # fm0pS[gridlengthX-1, 2:gridlengthY-1, 3:gridlengthZ-1] .= fm0pS[1, 2:gridlengthY-1, 3:gridlengthZ-1]
-        # fm0mS[gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-2] .= fm0mS[1, 2:gridlengthY-1, 2:gridlengthZ-2]
-        # fmm0S[gridlengthX-1, 2:gridlengthY-2, 2:gridlengthZ-1] .= fmm0S[1, 2:gridlengthY-2, 2:gridlengthZ-1]
-        # fmp0S[gridlengthX-1, 3:gridlengthY-1, 2:gridlengthZ-1] .= fmp0S[1, 3:gridlengthY-1, 2:gridlengthZ-1]
-
-
-        # # Sphere Bounceback
-        # # Cell faces - swap (vectorized)
-        # fp00S[sphere_indices], fm00S[sphere_indices] = fm00S[sphere_indices], fp00S[sphere_indices]
-        # f0p0S[sphere_indices], f0m0S[sphere_indices] = f0m0S[sphere_indices], f0p0S[sphere_indices]
-        # f00pS[sphere_indices], f00mS[sphere_indices] = f00mS[sphere_indices], f00pS[sphere_indices]
-
-        # # XY-plane edges (vectorized)
-        # fpp0S[sphere_indices], fmm0S[sphere_indices] = fmm0S[sphere_indices], fpp0S[sphere_indices]
-        # fpm0S[sphere_indices], fmp0S[sphere_indices] = fmp0S[sphere_indices], fpm0S[sphere_indices]
-
-        # # XZ-plane edges (vectorized)
-        # fp0pS[sphere_indices], fm0mS[sphere_indices] = fm0mS[sphere_indices], fp0pS[sphere_indices]
-        # fp0mS[sphere_indices], fm0pS[sphere_indices] = fm0pS[sphere_indices], fp0mS[sphere_indices]
-
-        # # YZ-plane edges (vectorized)
-        # f0ppS[sphere_indices], f0mmS[sphere_indices] = f0mmS[sphere_indices], f0ppS[sphere_indices]
-        # f0pmS[sphere_indices], f0mpS[sphere_indices] = f0mpS[sphere_indices], f0pmS[sphere_indices]
-        
 
         # Swap: SWAP POINTERS new distribution to "old"
         f000, f000S = f000S, f000
@@ -947,8 +804,6 @@ function run_JuLattice()
         #     dir[2:gridlengthX-1, 2:gridlengthY-1, [1, gridlengthZ]] .= 0.0
         # end
 
-        ###### NEW STABILIZATION #######
-
         # ------------------------ vorerst ohne ------------------------ 
         # ## Apply Boundary conditions
         # #Inlet velocity bc (unknown: f_1, f_8, f_9)
@@ -965,7 +820,8 @@ function run_JuLattice()
 
         # Plot of the field
         # if ((i % 10 == 0)) || (i == simulationTime)
-        if ((i % 20 == 0)) || (i == simulationTime)
+        # if ((i % 20 == 0)) || (i == simulationTime)
+        if ((i % 200 == 0)) || (i == simulationTime)
 
 
             #Copy velocities for plotting
@@ -1022,11 +878,11 @@ function run_JuLattice()
 
             if Plotvx==true
                 #refresh xy slice at z=midZ
-                vx_xy_obs[] = copy(velocityX[:,:,midZ])
+                vx_xy_obs[] = copy(velocityX[2:gridlengthX-1, 2:gridlengthY-1, midZ])
                 step_text_vx_xy[] = "Time step:$i, $(floor(Int, i*delta_t))s"
 
                 #refresh xz slice at y=midY
-                vx_xz_obs[] = copy(velocityX[:,midY,:])
+                vx_xz_obs[] = copy(velocityX[2:gridlengthX-1 ,midY, 2:gridlengthZ-1])
                 step_text_vx_xz[] = "Time step:$i, $(floor(Int, i*delta_t))s"
             end
 
