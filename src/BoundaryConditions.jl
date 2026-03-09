@@ -37,17 +37,21 @@ function compute_object_boundary_data(gridlengthX, gridlengthY, gridlengthZ,
                                       cylinder_start, cylinder_end, is_object, delta_x)
 
 
-    boundary_data = []
-    
+    # boundary_data = []
+    boundary_data = Tuple{Int,Int,Int,Int,Int,Int,Int,Int,Float64}[]
+
     # D3Q19 - without (0,0,0)
     directions = (
-    # Face    
-    (1,0,0), (-1,0,0), (0,1,0), (0,-1,0), (0,0,1), (0,0,-1),
-
+    ( 1, 0, 0,  2,  1), (-1, 0, 0,  1,  2),
+    ( 0, 1, 0,  4,  3), ( 0,-1, 0,  3,  4),
+    ( 0, 0, 1,  6,  5), ( 0, 0,-1,  5,  6),
     # Edges
-    (-1,-1,0), (-1,1,0), (1,-1,0), (1,1,0),
-    (-1,0,-1), (-1,0,1), (1,0,-1), (1,0,1),
-    (0,-1,-1), (0,-1,1), (0,1,-1), (0,1,1)
+    (-1,-1, 0,  7, 10), (-1, 1, 0,  8,  9),
+    ( 1,-1, 0,  9,  8), ( 1, 1, 0, 10,  7),
+    (-1, 0,-1, 11, 14), (-1, 0, 1, 12, 13),
+    ( 1, 0,-1, 13, 12), ( 1, 0, 1, 14, 11),
+    ( 0,-1,-1, 15, 18), ( 0,-1, 1, 16, 17),
+    ( 0, 1,-1, 17, 16), ( 0, 1, 1, 18, 15)
     )
     
     # Loop over fluid nodes
@@ -63,10 +67,11 @@ function compute_object_boundary_data(gridlengthX, gridlengthY, gridlengthZ,
         y0_phys = (y-2) * delta_x
 
         # push so that cylinder middle = (0,0)
+
         lx0 = x0_phys - cylinder_x
         ly0 = y0_phys - cylinder_y
 
-        for (cx, cy, cz) in directions
+        for (cx, cy, cz, idx_toward, idx_reflect) in directions
 
             # neighbor positions
             nx = x + cx
@@ -99,9 +104,17 @@ function compute_object_boundary_data(gridlengthX, gridlengthY, gridlengthZ,
             # Ray-casting -> q
             q = _ray_cylinder_q(lx0, ly0, lx1-lx0, ly1-ly0, cylinder_radius)
 
+
+            # for top/bot of cylinder and edge:
+            # ray doenst cross curved surface of cylinder, but we are at fluid node and neigbor in direction is solid!
+            # so "normal" bb -> q = 0.5
+            if q == Inf
+                q = 0.5
+            end
+            
             # check valid q then push to boundary_data (write to end of array)
             if 0.0 < q <= 1.0+1e-10
-                push!(boundary_data, (x, y, z, cx, cy, cz,q))
+                push!(boundary_data, (x, y, z, idx_toward, idx_reflect, cx, cy, cz, q))
             end
         end #for (cx, cy, cz)
     end #@inbounds for x,y,z
@@ -124,42 +137,16 @@ function apply_bouzidi_bc_3d!(boundary_data,
                 fm0mS, fm0pS, fp0mS, fp0pS,
                 f0mmS, f0mpS, f0pmS, f0ppS)
 
-    # (cx,cy,cz) -> (idx_in, idx_out)
-    # idx_in: directions towards solid node
-    # idx_out: opposite direction (this is what we compute for)
-    dir_map = Dict(
-        ( 1, 0, 0) => (2, 1), (-1, 0, 0) => (1, 2),
-        ( 0, 1, 0) => (4, 3), ( 0,-1, 0) => (3, 4),
-        ( 0, 0, 1) => (6, 5), ( 0, 0,-1) => (5, 6),
-
-        ( 1, 1, 0) => (10, 7), (-1,-1, 0) => (7, 10),
-        ( 1,-1, 0) => (9, 8),  (-1, 1, 0) => (8, 9),
-
-        ( 1, 0, 1) => (14,11), (-1, 0,-1) => (11,14),
-        ( 1, 0,-1) => (13,12), (-1, 0, 1) => (12,13),
-
-        ( 0, 1, 1) => (18,15), ( 0,-1,-1) => (15,18),
-        ( 0, 1,-1) => (17,16), ( 0,-1, 1) => (16,17)
-    )
-
-    @inbounds for (x, y, z, cx, cy, cz, q) in boundary_data
-        key = (cx, cy, cz)
-        if !haskey(dir_map, key)
-            continue
-        end
-
-        idx_toward, idx_reflect = dir_map[key]
+      @inbounds for (x, y, z, idx_toward, idx_reflect, cx, cy, cz, q) in boundary_data
         f_toward_solid = f_arrays[idx_toward]
-        f_reflected = f_arrays[idx_reflect]
+        f_reflected    = f_arrays[idx_reflect]
 
         q2 = 2.0 * q
         f_at_solid = f_toward_solid[x + cx, y + cy, z + cz]
 
         if q < 0.5
-            # f_new = 2q f_at_solid + (1-2q) f_i(x)
             f_new = q2 * f_at_solid + (1.0 - q2) * f_toward_solid[x, y, z]
         else
-            # f_new = f_at_solid/(2q) + (2q-1)/(2q) f_opposite(x-c)
             iq2 = 1.0 / q2
             r = (q2 - 1.0) * iq2
             f_opposite = f_reflected[x - cx, y - cy, z - cz]
@@ -168,6 +155,7 @@ function apply_bouzidi_bc_3d!(boundary_data,
 
         f_reflected[x, y, z] = f_new
     end
+
 
     return nothing
 end
