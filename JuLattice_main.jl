@@ -18,7 +18,7 @@ function run_JuLattice()
     length_Z = 1.2            # m
 
     # Cylinder Definition
-    Radius   = 0.1    # m
+    Radius   = 0.08 #0.1    # m
     # Position = [length_X/4, length_Y/2, length_Z/2] # m [x,y,z]
 
     # Fluid Settings 
@@ -27,20 +27,21 @@ function run_JuLattice()
     Kinematic_Viscosity = 0.0004; #0.001;    # m^2/s 
 
     # Reynolds and Mach Number Input
-    reynoldsNumber = 500                        # Target Reynolds number
+    reynoldsNumber = 400 #280 #200 #500                        # Target Reynolds number
     Mach_Number = 0.01;                         # Target Mach number (Ma = U_lattice/c_s)
                                                 # Keep Ma < 0.1 for incompressible flow!
 
     # Simulation Settings
     Simulation_Time = 600;  #8000               # s
-    delta_x = 0.015 #0.01;                       # Grid spacing (physical units per lattice unit)
+    delta_x = 0.01 #0.015 ;                       # Grid spacing (physical units per lattice unit)
    
     # Plot Requests (Flags)
     Plotvx = false;
     Plotvy = false;
     Plotvz = false;
     Plotvorticity = false;
-    Plotdebug = true;
+    Plotdebug = false;
+    Plotmag = true;
 
     # DEBUG Stability Check
     EnableStabilityCheck = false
@@ -88,8 +89,16 @@ function run_JuLattice()
     println("cylinder_y = $cylinder_y")
     #cylinder_y = Int(round(gridlengthY / 2))
     cylinder_radius = Radius/delta_x
-    cylinder_start = Int(round(gridlengthZ*0.25))
-    cylinder_end = Int(round(gridlengthZ*0.75))
+    cylinder_z_top = length_Z * 0.75
+    cylinder_z_bot = length_Z * 0.25
+
+    # Grid-idx for is_object (nodes inside of cylinder)
+    cylinder_start = 2 + Int(floor(cylinder_z_bot / delta_x))
+    cylinder_end   = 2 + Int(ceil(cylinder_z_top / delta_x))
+    
+    
+    # cylinder_start = Int(round(gridlengthZ*0.25))
+    # cylinder_end = Int(round(gridlengthZ*0.75))
 
     # Fluid
     # fluiddensity = Fluid_Density
@@ -202,6 +211,7 @@ function run_JuLattice()
     velocityX = zeros(gridlengthX, gridlengthY, gridlengthZ)
     velocityY = zeros(gridlengthX, gridlengthY, gridlengthZ)
     velocityZ = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    velocityMag = zeros(gridlengthX, gridlengthY, gridlengthZ)
 
     # omegaX = zeros(gridlengthX, gridlengthY, gridlengthZ)
     # omegaY = zeros(gridlengthX, gridlengthY, gridlengthZ)
@@ -230,6 +240,7 @@ function run_JuLattice()
     is_solid = falses(gridlengthX, gridlengthY, gridlengthZ)
     is_wall = falses(gridlengthX, gridlengthY, gridlengthZ)
     is_object = falses(gridlengthX, gridlengthY, gridlengthZ)
+
 
     for x in 1:gridlengthX, y in 1:gridlengthY, z in 1:gridlengthZ
         # walls
@@ -357,17 +368,53 @@ function run_JuLattice()
     GC.gc()
 
     ##  Plot calls
-    if any((Plotvorticity, Plotvx, Plotvy, Plotvz, Plotdebug))
+    if any((Plotvorticity, Plotvx, Plotvy, Plotvz, Plotdebug, Plotmag))
                     
-        if Plotvx==true
-            vx_xy_obs, step_text_vx_xy, fig_vx_xy = Create_Plot_XY(gridlengthX-2, gridlengthY-2, velocityX[2:gridlengthX-1,2:gridlengthY-1,midZ]; title="v_x at z=$(midZ)")
-            screen_vx_xy = GLMakie.Screen()
-            display(screen_vx_xy, fig_vx_xy)
+        # if Plotvx==true
+        #     vx_xy_obs, step_text_vx_xy, fig_vx_xy = Create_Plot_XY(gridlengthX-2, gridlengthY-2, velocityX[2:gridlengthX-1,2:gridlengthY-1,midZ]; title="v_x at z=$(midZ)")
+        #     screen_vx_xy = GLMakie.Screen()
+        #     display(screen_vx_xy, fig_vx_xy)
 
-            vx_xz_obs, step_text_vx_xz, fig_vx_xz = Create_Plot_XZ(gridlengthX-2, gridlengthZ-2, velocityX[2:gridlengthX-1,midY,2:gridlengthZ-1]; title="v_x at y=$(midY)")
-            screen_vx_xz = GLMakie.Screen()
-            display(screen_vx_xz, fig_vx_xz)
+        #     vx_xz_obs, step_text_vx_xz, fig_vx_xz = Create_Plot_XZ(gridlengthX-2, gridlengthZ-2, velocityX[2:gridlengthX-1,midY,2:gridlengthZ-1]; title="v_x at y=$(midY)")
+        #     screen_vx_xz = GLMakie.Screen()
+        #     display(screen_vx_xz, fig_vx_xz)
+        # end
+
+        if Plotvx == true
+            fig = Figure(size= (1000, 800))
+            ax1 = Axis(fig[1,1])
+            ax2 = Axis(fig[2,1])
+            
+            vx_xy_obs, step_text_vx_xy, hm1 = Create_Plot_XY(gridlengthX-2, gridlengthY-2, 
+                                                                velocityX[2:gridlengthX-1,2:gridlengthY-1,midZ]; 
+                                                                title="v_x at z=$(midZ)", ax=ax1)
+
+            vx_xz_obs, step_text_vx_xz, hm2 = Create_Plot_XZ(gridlengthX-2, gridlengthZ-2, 
+                                                                velocityX[2:gridlengthX-1,midY,2:gridlengthZ-1]; 
+                                                                title="v_x at y=$(midY)", ax=ax2)
+            Colorbar(fig[1, 2], hm1, label = "Lattice Velocity")  
+            Colorbar(fig[2, 2], hm2, label = "Lattice Velocity")
+            display(fig)
         end
+
+        if Plotmag == true
+            fig_mag = Figure(size= (1000, 800))
+            ax1_mag = Axis(fig_mag[1,1])
+            ax2_mag = Axis(fig_mag[2,1])
+            
+            mag_xy_obs, step_text_mag_xy, hm1_mag = Create_Plot_Mag_XY(gridlengthX-2, gridlengthY-2, 
+                                                                velocityMag[2:gridlengthX-1,2:gridlengthY-1, midZ]; 
+                                                                title="|v| at z=$(midZ)", ax=ax1_mag)
+
+            mag_xz_obs, step_text_mag_xz, hm2_mag = Create_Plot_Mag_XZ(gridlengthX-2, gridlengthZ-2, 
+                                                                velocityMag[2:gridlengthX-1,midY ,2:gridlengthZ-1]; 
+                                                                title="|v| at y=$(midY)", ax=ax2_mag)
+            Colorbar(fig_mag[1, 2], hm1_mag, label = "Lattice Velocity Magnitude")  
+            Colorbar(fig_mag[2, 2], hm2_mag, label = "Lattice Velocity Magnitude")
+            display(fig_mag)
+        end
+
+        
 
         if Plotdebug == true
             # vx | xz at front wall (y=2)
@@ -437,7 +484,7 @@ function run_JuLattice()
         #     for y in 2:gridlengthY-1
         #         for z in 2:gridlengthZ-1
 
-        for z in 2:gridlengthZ-1 #Iteration über alle Zellen außer die Randzellen
+        @inbounds for z in 2:gridlengthZ-1 #Iteration über alle Zellen außer die Randzellen
             for y in 2:gridlengthY-1
                 for x in 2:gridlengthX-1
 
@@ -541,7 +588,7 @@ function run_JuLattice()
         # fm0pS[gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= fm0pS[gridlengthX-2, 2:gridlengthY-1, 2:gridlengthZ-1]
         
         # bounce-back walls
-        for wall in wall_indices
+        @inbounds for wall in wall_indices
             x, y, z = Tuple(wall)
             # +x 
             if x+1 <= gridlengthX && !is_solid[x+1, y, z]
@@ -693,18 +740,24 @@ function run_JuLattice()
         end
 
 
+        if (i % 100 == 0) || (i == simulationTime)
+            Log_Simulation_Runtime(i, simulationTime)
+        end
 
         # Plot of the field
         # if ((i % 10 == 0)) || (i == simulationTime)
         # if ((i % 200 = 0)) || (i == simulationTime)
         # if ((i % 500 == 0)) || (i == simulationTime)
-        if any((Plotvorticity, Plotvx, Plotvy, Plotvz, Plotdebug)) && ((i % 200 == 0) || (i == simulationTime))
+        if any((Plotvorticity, Plotvx, Plotvy, Plotvz, Plotdebug, Plotmag)) && ((i % 500 == 0) || (i == simulationTime))
 
-
+            # Log_Simulation_Runtime(i, simulationTime)   
+            
             #Copy velocities for plotting
             velocityX .= u
             velocityY .= v
             velocityZ .= w
+
+            velocityMag .= sqrt.(u.^2 .+ v.^2 .+ w.^2)
 
             # Set velocities inside the sphere to zero
             velocityX[is_solid] .= NaN
@@ -727,9 +780,9 @@ function run_JuLattice()
             # omegaZ .= dv_dx .-du_dy
             # omegaMag .= sqrt.(omegaX.^2 .+ omegaY.^2 .+ omegaZ.^2)
             
-            if ((i % 100 == 0)) || (i == simulationTime)
-                Log_Simulation_Runtime(i, simulationTime)
-            end
+            # if ((i % 100 == 0)) || (i == simulationTime)
+            #     Log_Simulation_Runtime(i, simulationTime)
+            # end
             # Update the observables
             if Plotvorticity == true   
                                     
@@ -751,6 +804,14 @@ function run_JuLattice()
                 omega_xz_obs[] = copy(omegaMag[:,midY,:])
                 step_text_omega_xz[] = "Time step: $i, $(floor(Int, i*delta_t))s"
 
+            end
+
+            if Plotmag==true
+                mag_xy_obs[] = copy(velocityMag[2:gridlengthX-1, 2:gridlengthY-1, midZ])
+                step_text_mag_xy[] = "Time step: $i, $(floor(Int, i*delta_t))s"
+
+                mag_xz_obs[] = copy(velocityMag[2:gridlengthX-1 ,midY, 2:gridlengthZ-1])
+                step_text_mag_xz[] = "Time step:$i, $(floor(Int, i*delta_t))s"
             end
 
             if Plotvx==true

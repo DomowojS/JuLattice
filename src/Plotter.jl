@@ -1,7 +1,7 @@
 module Plotter
 using GLMakie
 using Colors
-export Create_Plot_XY, Create_Plot_XZ, Create_Vorticity_XY, Create_Vorticity_XZ
+export Create_Plot_XY, Create_Plot_XZ, Create_Vorticity_XY, Create_Vorticity_XZ, Create_Plot_Mag_XY, Create_Plot_Mag_XZ
 using ColorSchemes
 ## Set up Plot 
 ######################################################
@@ -26,39 +26,64 @@ using ColorSchemes
     end
 ######################################################
 
-    function Create_Plot_XY(nx::Int, ny::Int, field2d::Array{<:Real, 2}; title="vx slice XY")
-        vx_obs = Observable(field2d)
-        fig = Figure(size = (900, 400))
-        ax = Axis(fig[1,1], aspect = DataAspect(), title = title)
+    function Create_Plot_XY(nx::Int, ny::Int, field2d::Array{<:Real, 2}; title="vx slice XY", ax=nothing)
+        vx_obs = Observable(field2d)          
         colorrange = (-0.02, 0.02)
-        hm = heatmap!(ax, 1:nx, 1:ny, vx_obs; 
-                        colormap = :RdBu, 
-                        nan_color= :black, colorrange = colorrange, 
-                        interpolate=false)
-
-        Colorbar(fig[1, 2], hm, label = "Lattice_Velocity")
+        hm = heatmap!(ax, 1:nx, 1:ny, vx_obs;
+                        colormap = :RdBu,
+                        nan_color = :black, colorrange = colorrange,
+                        interpolate = false)
         xlims!(ax, 1, nx); ylims!(ax, 1, ny)
-        
+        ax.title = title
+        ax.aspect = DataAspect()
         step_text = Observable("Time step: 0, 0s")
-        Label(fig[2, 1:2], step_text, fontsize=14, halign = :left, padding = (10, 0, 5, 0))
-        return vx_obs, step_text, fig
+        text!(ax, 10, 10, text=step_text, color=:black, fontsize=14, align=(:left, :top))
+        return vx_obs, step_text, hm
     end
 
-    function Create_Plot_XZ(nx::Int, nz::Int, field2d::Array{<:Real, 2}; title="vx slice XZ")
+    function Create_Plot_XZ(nx::Int, nz::Int, field2d::Array{<:Real, 2}; title="vx slice XZ", ax=nothing)
         vx_obs = Observable(field2d)
-        fig = Figure(size = (900, 400))
-        ax = Axis(fig[1,1], aspect = DataAspect(), title = title)
         colorrange = (-0.02, 0.02)
         hm = heatmap!(ax, 1:nx, 1:nz, vx_obs; 
-                        colormap = :RdBu, 
-                        nan_color= :black, colorrange = colorrange,
-                        interpolate=false)
-        Colorbar(fig[1, 2], hm, label = "Lattice_Velocity")
+                    colormap = :RdBu, 
+                    nan_color= :black, colorrange = colorrange,
+                    interpolate=false)
         xlims!(ax, 1, nx); ylims!(ax, 1, nz)
-
+        ax.title = title
+        ax.aspect = DataAspect()
         step_text = Observable("Time step: 0, 0s")
-        Label(fig[2, 1:2], step_text, fontsize=14, halign = :left, padding = (10, 0, 5, 0))
-        return vx_obs, step_text, fig
+        text!(ax, 10, 10, text=step_text, color=:black, fontsize=14, align=(:left, :top))
+        return vx_obs, step_text, hm    
+    end
+
+    function Create_Plot_Mag_XY(nx::Int, ny::Int, field2d::Array{<:Real, 2}; title="Vel. Magnitude slice XY", ax=nothing)
+        vx_obs = Observable(field2d)          
+        colorrange = (-0.02, 0.02)
+        hm = heatmap!(ax, 1:nx, 1:ny, vx_obs;
+                        colormap = :RdBu,
+                        nan_color = :black, colorrange = colorrange,
+                        interpolate = false)
+        xlims!(ax, 1, nx); ylims!(ax, 1, ny)
+        ax.title = title
+        ax.aspect = DataAspect()
+        step_text = Observable("Time step: 0, 0s")
+        text!(ax, 10, 10, text=step_text, color=:black, fontsize=14, align=(:left, :top))
+        return vx_obs, step_text, hm
+    end
+
+    function Create_Plot_Mag_XZ(nx::Int, nz::Int, field2d::Array{<:Real, 2}; title="Vel. Magnitude slice XZ", ax=nothing)
+        vx_obs = Observable(field2d)
+        colorrange = (-0.03, 0.03)
+        hm = heatmap!(ax, 1:nx, 1:nz, vx_obs; 
+                    colormap = :RdBu, 
+                    nan_color= :black, colorrange = colorrange,
+                    interpolate=false)
+        xlims!(ax, 1, nx); ylims!(ax, 1, nz)
+        ax.title = title
+        ax.aspect = DataAspect()
+        step_text = Observable("Time step: 0, 0s")
+        text!(ax, 10, 10, text=step_text, color=:black, fontsize=14, align=(:left, :top))
+        return vx_obs, step_text, hm 
     end
 
     function Create_Vorticity_XY(nx::Int, ny::Int, vorticity_XY::Array{<:Real, 2}; title="|ω| slice XY")
