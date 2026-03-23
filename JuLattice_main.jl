@@ -4,22 +4,31 @@
 include("src/Plotter.jl")
 include("src/Logger.jl")
 include("src/BoundaryConditions.jl")
+include("src/TurbulenceModel.jl")
 
 using MeshGrid, GLMakie
 using .Plotter, .Logger
 using .BoundaryConditions
+using .TurbulenceModel 
 
 function run_JuLattice()
     ####################################  Initialize  ####################################
     ##-------- User Settings --------##
-    # Domain Settings
-    length_X = 2              # m
-    length_Y = 1              # m 
-    length_Z = 1.2            # m
-
     # Cylinder Definition
     Radius   = 0.08 #0.1    # m
+    D = 2 * Radius
     # Position = [length_X/4, length_Y/2, length_Z/2] # m [x,y,z]
+    
+    # Simulation Domain Settings
+    # length_X = 21 * D              # m
+    # length_Y = 11 * D              # m 
+    # length_Z = 16 * D              # m
+
+    length_X = 11 * D              # m
+    length_Y = 6 * D              # m 
+    length_Z = 8 * D              # m
+
+
 
     # Fluid Settings 
     Fluid_Density = 1000.0; #1000.0;         # kg/m^3
@@ -27,14 +36,15 @@ function run_JuLattice()
     Kinematic_Viscosity = 0.0004; #0.001;    # m^2/s 
 
     # Reynolds and Mach Number Input
-    reynoldsNumber = 400 #280 #200 #500                        # Target Reynolds number
-    Mach_Number = 0.01;                         # Target Mach number (Ma = U_lattice/c_s)
+    reynoldsNumber = 3000 #280 #200 #500                        # Target Reynolds number
+    Mach_Number = 0.03 #0.01;                         # Target Mach number (Ma = U_lattice/c_s)
                                                 # Keep Ma < 0.1 for incompressible flow!
 
     # Simulation Settings
     Simulation_Time = 600;  #8000               # s
-    delta_x = 0.01 #0.015 ;                       # Grid spacing (physical units per lattice unit)
-   
+    delta_x = 0.015 #0.01 ;                       # Grid spacing (physical units per lattice unit)
+    CS = 0.1    # CS ↑ = eddy viscosity ↑
+
     # Plot Requests (Flags)
     Plotvx = false;
     Plotvy = false;
@@ -83,22 +93,18 @@ function run_JuLattice()
     println("nodes in xz $gridlengthZ")
 
 
-    # Cylinder
-    cylinder_x = Int(round(gridlengthX / 3))
-    cylinder_y = 2 + Int(round((gridlengthY-2)/2))
-    println("cylinder_y = $cylinder_y")
-    #cylinder_y = Int(round(gridlengthY / 2))
-    cylinder_radius = Radius/delta_x
+    ## Cylinder Position
+    cylinder_x = Int(round((5.5 * D) / delta_x)) + 1
+    cylinder_y = Int(round((length_Y/ 2 ) / delta_x)) + 1
     cylinder_z_top = length_Z * 0.75
     cylinder_z_bot = length_Z * 0.25
+
+    # convert to lattice units
+    cylinder_radius = Radius/delta_x
 
     # Grid-idx for is_object (nodes inside of cylinder)
     cylinder_start = 2 + Int(floor(cylinder_z_bot / delta_x))
     cylinder_end   = 2 + Int(ceil(cylinder_z_top / delta_x))
-    
-    
-    # cylinder_start = Int(round(gridlengthZ*0.25))
-    # cylinder_end = Int(round(gridlengthZ*0.75))
 
     # Fluid
     # fluiddensity = Fluid_Density
@@ -135,7 +141,7 @@ function run_JuLattice()
     # fm0m, fm0p, fp0m, fp0p = xz-plane edges
     # f0mm, f0mp, f0pm, f0pp = yz-plane edges
 
-    #Define arrays for each direction D3Q9
+    # Define arrays for each direction D3Q9
     # f000 = rest (0,0,0)
     f000 = zeros(gridlengthX, gridlengthY, gridlengthZ)
     # fm00, fp00 = x-axis (±1,0,0)
@@ -162,8 +168,36 @@ function run_JuLattice()
     f0mp = zeros(gridlengthX, gridlengthY, gridlengthZ)
     f0pm = zeros(gridlengthX, gridlengthY, gridlengthZ)
     f0pp = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    
+    # # Define array for each direction after Collision (C)
+    # # f000 = rest (0,0,0)
+    # f000C = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    # # fm00, fp00 = x-axis (±1,0,0)
+    # fm00C = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    # fp00C = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    # # f0m0, f0p0 = y-axis (0,±1,0)
+    # f0m0C = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    # f0p0C = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    # # f00m, f00p = z-axis (0,0,±1)
+    # f00mC = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    # f00pC = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    # # fmm0, fmp0, fpm0, fpp0 = xy-plane edges
+    # fmm0C = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    # fmp0C = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    # fpm0C = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    # fpp0C = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    # # fm0m, fm0p, fp0m, fp0p = xz-plane edges
+    # fm0mC = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    # fm0pC = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    # fp0mC = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    # fp0pC = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    # # f0mm, f0mp, f0pm, f0pp = yz-plane edges
+    # f0mmC = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    # f0mpC = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    # f0pmC = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    # f0ppC = zeros(gridlengthX, gridlengthY, gridlengthZ)
 
-    #Define array for each direction after Collision+stream (S)
+    # Define array for each direction after stream (S)
     # f000 = rest (0,0,0)
     f000S = zeros(gridlengthX, gridlengthY, gridlengthZ)
     # fm00, fp00 = x-axis (±1,0,0)
@@ -190,6 +224,8 @@ function run_JuLattice()
     f0mpS = zeros(gridlengthX, gridlengthY, gridlengthZ)
     f0pmS = zeros(gridlengthX, gridlengthY, gridlengthZ)
     f0ppS = zeros(gridlengthX, gridlengthY, gridlengthZ)
+
+
 
     #Initialise macroscopic variables
     rho = ones(gridlengthX, gridlengthY, gridlengthZ) .* fluiddensity
@@ -235,13 +271,17 @@ function run_JuLattice()
     nearBotZ = 10
     nearTopZ = gridlengthZ-10
 
-    ### Pre Compute Boundary Conditions variables
+    ####### ####### classify nodes ####### #######
     ## create solid node mask
     is_solid = falses(gridlengthX, gridlengthY, gridlengthZ)
     is_wall = falses(gridlengthX, gridlengthY, gridlengthZ)
     is_object = falses(gridlengthX, gridlengthY, gridlengthZ)
+    is_fluid = falses(gridlengthX, gridlengthY, gridlengthZ)
+    
+    # pre compute fluid range
+    is_fluid[2:gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= true
 
-
+    # Solid and object mask
     for x in 1:gridlengthX, y in 1:gridlengthY, z in 1:gridlengthZ
         # walls
         if y==1 || y==gridlengthY || z==1 || z==gridlengthZ
@@ -263,6 +303,10 @@ function run_JuLattice()
     wall_indices = findall(is_wall)
     object_indices = findall(is_object)
 
+    # fluid mask
+    is_fluid .&= .!is_object
+    fluid_indices = findall(is_fluid)
+
     println("Computing Bouzidi boundary data...")
     boundary_data = compute_object_boundary_data(
         gridlengthX, gridlengthY, gridlengthZ,
@@ -272,11 +316,12 @@ function run_JuLattice()
         is_object, delta_x
     )
 
+
     # momentum coefficients for D3Q19 weights
     inlet_add_face = (2.0 / (18.0 * lattice_speedOfSound^2)) * lattice_inflow_velocity
     inlet_add_edge = (2.0 / (36.0 * lattice_speedOfSound^2)) * lattice_inflow_velocity
 
-    ## Initialize distribution functions FLUID NODES and SOLID NODES
+    #######  #######    Initialize distribution functions FLUID NODES and SOLID NODES ####### #######
     for x in 1:gridlengthX
         for y in 1:gridlengthY
             for z in 1:gridlengthZ
@@ -342,8 +387,8 @@ function run_JuLattice()
             end
         end
     end
-
-    #Initialise fS-Arrays for the first time as f-Arrays
+   
+    # fS's
     f000S .= f000 
     fm00S .= fm00
     fp00S .= fp00
@@ -367,21 +412,11 @@ function run_JuLattice()
     # Force GARBAGE COLLECTION to free unused memory
     GC.gc()
 
-    ##  Plot calls
+    ####### #######   Plot calls    ####### ####### 
     if any((Plotvorticity, Plotvx, Plotvy, Plotvz, Plotdebug, Plotmag))
                     
-        # if Plotvx==true
-        #     vx_xy_obs, step_text_vx_xy, fig_vx_xy = Create_Plot_XY(gridlengthX-2, gridlengthY-2, velocityX[2:gridlengthX-1,2:gridlengthY-1,midZ]; title="v_x at z=$(midZ)")
-        #     screen_vx_xy = GLMakie.Screen()
-        #     display(screen_vx_xy, fig_vx_xy)
-
-        #     vx_xz_obs, step_text_vx_xz, fig_vx_xz = Create_Plot_XZ(gridlengthX-2, gridlengthZ-2, velocityX[2:gridlengthX-1,midY,2:gridlengthZ-1]; title="v_x at y=$(midY)")
-        #     screen_vx_xz = GLMakie.Screen()
-        #     display(screen_vx_xz, fig_vx_xz)
-        # end
-
         if Plotvx == true
-            fig = Figure(size= (1000, 800))
+            fig = Figure(size= (1600, 1200))
             ax1 = Axis(fig[1,1])
             ax2 = Axis(fig[2,1])
             
@@ -398,7 +433,7 @@ function run_JuLattice()
         end
 
         if Plotmag == true
-            fig_mag = Figure(size= (1000, 800))
+            fig_mag = Figure(size= (1000, 1000))
             ax1_mag = Axis(fig_mag[1,1])
             ax2_mag = Axis(fig_mag[2,1])
             
@@ -411,6 +446,19 @@ function run_JuLattice()
                                                                 title="|v| at y=$(midY)", ax=ax2_mag)
             Colorbar(fig_mag[1, 2], hm1_mag, label = "Lattice Velocity Magnitude")  
             Colorbar(fig_mag[2, 2], hm2_mag, label = "Lattice Velocity Magnitude")
+
+            label_mag_xy = Label(fig_mag[3,1:2], text=step_text_mag_xy)
+            label_mag_xz = Label(fig_mag[4,1:2], text=step_text_mag_xz)
+
+            rowsize!(fig_mag.layout, 1, Fixed(350))
+            rowsize!(fig_mag.layout, 2, Fixed(350))
+            rowsize!(fig_mag.layout, 3, Fixed(30))
+            rowsize!(fig_mag.layout, 4, Fixed(30))
+            colsize!(fig_mag.layout, 1, Auto(0.9))
+            colsize!(fig_mag.layout, 2, Auto(0.1))
+            rowgap!(fig_mag.layout, 0)
+
+
             display(fig_mag)
         end
 
@@ -473,26 +521,23 @@ function run_JuLattice()
             display(screen_omega_xz, fig_omega_xz)    
         end
 
-    end #Plot calls
+    end ##### Plot calls
 
+    ###### ######   MAIN  LOOP ###### ###### 
     println("#################################")
     println("Starting Simulation:")
     # Run Simulation Loop
     for i in 1:simulationTime
-
-        # for x in 2:gridlengthX-1 #Iteration über alle Zellen außer die Randzellen
-        #     for y in 2:gridlengthY-1
-        #         for z in 2:gridlengthZ-1
-
-        @inbounds for z in 2:gridlengthZ-1 #Iteration über alle Zellen außer die Randzellen
+        
+        # Iteration über alle Zellen außer die Randzellen
+        @inbounds  for z in 2:gridlengthZ-1
             for y in 2:gridlengthY-1
                 for x in 2:gridlengthX-1
 
-
-                    if is_solid[x,y,z]
+                    if !is_fluid[x,y,z]
                         continue
                     end
-                
+                    
                     # Compute macroscopic quantities
                     rho[x,y,z] = f000[x,y,z] + 
                                 (fm00[x,y,z] + fp00[x,y,z] + f0m0[x,y,z] + f0p0[x,y,z] + f00m[x,y,z] + f00p[x,y,z]) +
@@ -512,6 +557,7 @@ function run_JuLattice()
                                 (-fm0m[x,y,z] + fm0p[x,y,z] - fp0m[x,y,z] + fp0p[x,y,z]) +
                                 (-f0mm[x,y,z] + f0mp[x,y,z] - f0pm[x,y,z] + f0pp[x,y,z])) / rho[x,y,z]
                     
+                    # Compute equilibrium
                     # Pre-compute polynomial factors
                     u2 = u[x,y,z] * u[x,y,z]
                     v2 = v[x,y,z] * v[x,y,z]
@@ -528,64 +574,110 @@ function run_JuLattice()
                     Pm_w = 1 - 3*w[x,y,z] + 3*w2
                     P0_w = 1 - 1.5*w2
                     Pp_w = 1 + 3*w[x,y,z] + 3*w2
+
+                    # Compute equilibrium distribution feq
+                    feq000 = rho[x,y,z] * P0_u * P0_v * P0_w / 3.0
+
+                    # Face directions
+                    feqm00 = rho[x,y,z] * Pm_u * P0_v * P0_w / 18.0
+                    feqp00 = rho[x,y,z] * Pp_u * P0_v * P0_w / 18.0
+
+                    feq0m0 = rho[x,y,z] * P0_u * Pm_v * P0_w / 18.0
+                    feq0p0 = rho[x,y,z] * P0_u * Pp_v * P0_w / 18.0
+
+                    feq00m = rho[x,y,z] * P0_u * P0_v * Pm_w / 18.0
+                    feq00p = rho[x,y,z] * P0_u * P0_v * Pp_w / 18.0
+
+                    # XY edges
+                    feqmm0 = rho[x,y,z] * Pm_u * Pm_v * P0_w / 36.0
+                    feqmp0 = rho[x,y,z] * Pm_u * Pp_v * P0_w / 36.0
+                    feqpm0 = rho[x,y,z] * Pp_u * Pm_v * P0_w / 36.0
+                    feqpp0 = rho[x,y,z] * Pp_u * Pp_v * P0_w / 36.0
+
+                    # XZ edges
+                    feqm0m = rho[x,y,z] * Pm_u * P0_v * Pm_w / 36.0
+                    feqm0p = rho[x,y,z] * Pm_u * P0_v * Pp_w / 36.0
+                    feqp0m = rho[x,y,z] * Pp_u * P0_v * Pm_w / 36.0
+                    feqp0p = rho[x,y,z] * Pp_u * P0_v * Pp_w / 36.0
+
+                    # YZ edges
+                    feq0mm = rho[x,y,z] * P0_u * Pm_v * Pm_w / 36.0
+                    feq0mp = rho[x,y,z] * P0_u * Pm_v * Pp_w / 36.0
+                    feq0pm = rho[x,y,z] * P0_u * Pp_v * Pm_w / 36.0
+                    feq0pp = rho[x,y,z] * P0_u * Pp_v * Pp_w / 36.0 
+
+                    # Compute Non-equilibrium distribution parts
+                    fneq000 = f000[x,y,z] - feq000
                     
-                    # Push scheme: Rest particle (0,0,0) - weight 1/3
-                    f000S[x,y,z] = f000[x,y,z] + omega * (rho[x,y,z] * P0_u * P0_v * P0_w / 3.0 - f000[x,y,z])
-                    
-                    # Push scheme: Face neighbors - weight 1/18
-                    fm00S[x-1,y,z] = fm00[x,y,z] + omega * (rho[x,y,z] * Pm_u * P0_v * P0_w / 18.0 - fm00[x,y,z])
-                    fp00S[x+1,y,z] = fp00[x,y,z] + omega * (rho[x,y,z] * Pp_u * P0_v * P0_w / 18.0 - fp00[x,y,z])
-                    
-                    f0m0S[x,y-1,z] = f0m0[x,y,z] + omega * (rho[x,y,z] * P0_u * Pm_v * P0_w / 18.0 - f0m0[x,y,z])
-                    f0p0S[x,y+1,z] = f0p0[x,y,z] + omega * (rho[x,y,z] * P0_u * Pp_v * P0_w / 18.0 - f0p0[x,y,z])
-                    
-                    f00mS[x,y,z-1] = f00m[x,y,z] + omega * (rho[x,y,z] * P0_u * P0_v * Pm_w / 18.0 - f00m[x,y,z])
-                    f00pS[x,y,z+1] = f00p[x,y,z] + omega * (rho[x,y,z] * P0_u * P0_v * Pp_w / 18.0 - f00p[x,y,z])
-                    
-                    # Push scheme: Edge neighbors - weight 1/36
+                    fneqm00 = fm00[x,y,z] - feqm00
+                    fneqp00 = fp00[x,y,z] - feqp00
+
+                    fneq0m0 = f0m0[x,y,z] - feq0m0
+                    fneq0p0 = f0p0[x,y,z] - feq0p0
+
+                    fneq00m = f00m[x,y,z] - feq00m
+                    fneq00p = f00p[x,y,z] - feq00p
+
+                    fneqmm0 = fmm0[x,y,z] - feqmm0
+                    fneqmp0 = fmp0[x,y,z] - feqmp0
+                    fneqpm0 = fpm0[x,y,z] - feqpm0
+                    fneqpp0 = fpp0[x,y,z] - feqpp0
+
+                    fneqm0m = fm0m[x,y,z] - feqm0m
+                    fneqm0p = fm0p[x,y,z] - feqm0p
+                    fneqp0m = fp0m[x,y,z] - feqp0m
+                    fneqp0p = fp0p[x,y,z] - feqp0p
+
+                    fneq0mm = f0mm[x,y,z] - feq0mm
+                    fneq0mp = f0mp[x,y,z] - feq0mp
+                    fneq0pm = f0pm[x,y,z] - feq0pm
+                    fneq0pp = f0pp[x,y,z] - feq0pp
+
+                    # compute Smagorinsky variables 
+                    pi_neq_norm = compute_pi_norm(
+                        fneqm00, fneqp00, fneq0m0, fneq0p0, fneq00m, fneq00p,
+                        fneqmm0, fneqmp0, fneqpm0, fneqpp0,
+                        fneqm0m, fneqm0p, fneqp0m, fneqp0p,
+                        fneq0mm, fneq0mp, fneq0pm, fneq0pp
+                    )
+
+                    omega_local = smagorinsky_omega(τ, CS, pi_neq_norm, rho[x,y,z])
+
+                    # Push scheme: Stream+Collision
+                    # Rest particle
+                    f000S[x,y,z] = f000[x,y,z] + omega_local * (feq000 - f000[x,y,z])
+
+                    # Face neighbors
+                    fm00S[x-1,y,z] = fm00[x,y,z] + omega_local * (feqm00 - fm00[x,y,z])
+                    fp00S[x+1,y,z] = fp00[x,y,z] + omega_local * (feqp00 - fp00[x,y,z])
+
+                    f0m0S[x,y-1,z] = f0m0[x,y,z] + omega_local * (feq0m0 - f0m0[x,y,z])
+                    f0p0S[x,y+1,z] = f0p0[x,y,z] + omega_local * (feq0p0 - f0p0[x,y,z])
+
+                    f00mS[x,y,z-1] = f00m[x,y,z] + omega_local * (feq00m - f00m[x,y,z])
+                    f00pS[x,y,z+1] = f00p[x,y,z] + omega_local * (feq00p - f00p[x,y,z])
+
                     # XY-plane edges
-                    fmm0S[x-1,y-1,z] = fmm0[x,y,z] + omega * (rho[x,y,z] * Pm_u * Pm_v * P0_w / 36.0 - fmm0[x,y,z])
-                    fmp0S[x-1,y+1,z] = fmp0[x,y,z] + omega * (rho[x,y,z] * Pm_u * Pp_v * P0_w / 36.0 - fmp0[x,y,z])
-                    fpm0S[x+1,y-1,z] = fpm0[x,y,z] + omega * (rho[x,y,z] * Pp_u * Pm_v * P0_w / 36.0 - fpm0[x,y,z])
-                    fpp0S[x+1,y+1,z] = fpp0[x,y,z] + omega * (rho[x,y,z] * Pp_u * Pp_v * P0_w / 36.0 - fpp0[x,y,z])
-                    
+                    fmm0S[x-1,y-1,z] = fmm0[x,y,z] + omega_local * (feqmm0 - fmm0[x,y,z])
+                    fmp0S[x-1,y+1,z] = fmp0[x,y,z] + omega_local * (feqmp0 - fmp0[x,y,z])
+                    fpm0S[x+1,y-1,z] = fpm0[x,y,z] + omega_local * (feqpm0 - fpm0[x,y,z])
+                    fpp0S[x+1,y+1,z] = fpp0[x,y,z] + omega_local * (feqpp0 - fpp0[x,y,z])
+
                     # XZ-plane edges
-                    fm0mS[x-1,y,z-1] = fm0m[x,y,z] + omega * (rho[x,y,z] * Pm_u * P0_v * Pm_w / 36.0 - fm0m[x,y,z])
-                    fm0pS[x-1,y,z+1] = fm0p[x,y,z] + omega * (rho[x,y,z] * Pm_u * P0_v * Pp_w / 36.0 - fm0p[x,y,z])
-                    fp0mS[x+1,y,z-1] = fp0m[x,y,z] + omega * (rho[x,y,z] * Pp_u * P0_v * Pm_w / 36.0 - fp0m[x,y,z])
-                    fp0pS[x+1,y,z+1] = fp0p[x,y,z] + omega * (rho[x,y,z] * Pp_u * P0_v * Pp_w / 36.0 - fp0p[x,y,z])
-                    
+                    fm0mS[x-1,y,z-1] = fm0m[x,y,z] + omega_local * (feqm0m - fm0m[x,y,z])
+                    fm0pS[x-1,y,z+1] = fm0p[x,y,z] + omega_local * (feqm0p - fm0p[x,y,z])
+                    fp0mS[x+1,y,z-1] = fp0m[x,y,z] + omega_local * (feqp0m - fp0m[x,y,z])
+                    fp0pS[x+1,y,z+1] = fp0p[x,y,z] + omega_local * (feqp0p - fp0p[x,y,z])
+
                     # YZ-plane edges
-                    f0mmS[x,y-1,z-1] = f0mm[x,y,z] + omega * (rho[x,y,z] * P0_u * Pm_v * Pm_w / 36.0 - f0mm[x,y,z])
-                    f0mpS[x,y-1,z+1] = f0mp[x,y,z] + omega * (rho[x,y,z] * P0_u * Pm_v * Pp_w / 36.0 - f0mp[x,y,z])
-                    f0pmS[x,y+1,z-1] = f0pm[x,y,z] + omega * (rho[x,y,z] * P0_u * Pp_v * Pm_w / 36.0 - f0pm[x,y,z])
-                    f0ppS[x,y+1,z+1] = f0pp[x,y,z] + omega * (rho[x,y,z] * P0_u * Pp_v * Pp_w / 36.0 - f0pp[x,y,z])
+                    f0mmS[x,y-1,z-1] = f0mm[x,y,z] + omega_local * (feq0mm - f0mm[x,y,z])
+                    f0mpS[x,y-1,z+1] = f0mp[x,y,z] + omega_local * (feq0mp - f0mp[x,y,z])
+                    f0pmS[x,y+1,z-1] = f0pm[x,y,z] + omega_local * (feq0pm - f0pm[x,y,z])
+                    f0ppS[x,y+1,z+1] = f0pp[x,y,z] + omega_local * (feq0pp - f0pp[x,y,z])
 
                 end
             end
         end
-        # # INLET: moving wall bounceback with momentum addition
-        # # # compute inflow populations fp00S, fpp0S, fpm0S, fp0pS, fp0mS
-        # # # # momentum coefficients for D3Q19 weights
-        # # # inlet_add_face = (2.0 / (18.0 * lattice_speedOfSound^2)) * lattice_inflow_velocity
-        # # # inlet_add_edge = (2.0 / (36.0 * lattice_speedOfSound^2)) * lattice_inflow_velocity
-
-        # # # Compute new populations
-        # fp00S[2, 2:gridlengthY-1, 2:gridlengthZ-1] .= fm00S[1, 2:gridlengthY-1, 2:gridlengthZ-1] .+ inlet_add_face
-        # fpp0S[2, 2:gridlengthY-1, 2:gridlengthZ-1] .= fmp0S[1, 2:gridlengthY-1, 2:gridlengthZ-1] .+ inlet_add_edge
-        # fpm0S[2, 2:gridlengthY-1, 2:gridlengthZ-1] .= fmm0S[1, 2:gridlengthY-1, 2:gridlengthZ-1] .+ inlet_add_edge
-        # fp0pS[2, 2:gridlengthY-1, 2:gridlengthZ-1] .= fm0pS[1, 2:gridlengthY-1, 2:gridlengthZ-1] .+ inlet_add_edge
-        # fp0mS[2, 2:gridlengthY-1, 2:gridlengthZ-1] .= fm0mS[1, 2:gridlengthY-1, 2:gridlengthZ-1] .+ inlet_add_edge
-        
-        # # # OUTLET: no-gradient bounceback 
-        # # # all populations that stream in -x direction from previous neighbor
-        # # # fm00S, fmm0S, fmp0S, fm0mS, fm0pS
-        
-        # fm00S[gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= fm00S[gridlengthX-2, 2:gridlengthY-1, 2:gridlengthZ-1]
-        # fmm0S[gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= fmm0S[gridlengthX-2, 2:gridlengthY-1, 2:gridlengthZ-1]
-        # fmp0S[gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= fmp0S[gridlengthX-2, 2:gridlengthY-1, 2:gridlengthZ-1]
-        # fm0mS[gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= fm0mS[gridlengthX-2, 2:gridlengthY-1, 2:gridlengthZ-1]
-        # fm0pS[gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= fm0pS[gridlengthX-2, 2:gridlengthY-1, 2:gridlengthZ-1]
         
         # bounce-back walls
         @inbounds for wall in wall_indices
@@ -668,10 +760,7 @@ function run_JuLattice()
 
         # INLET: moving wall bounceback with momentum addition
         # # compute inflow populations fp00S, fpp0S, fpm0S, fp0pS, fp0mS
-        # # # momentum coefficients for D3Q19 weights
-        # # inlet_add_face = (2.0 / (18.0 * lattice_speedOfSound^2)) * lattice_inflow_velocity
-        # # inlet_add_edge = (2.0 / (36.0 * lattice_speedOfSound^2)) * lattice_inflow_velocity
-
+        # # momentum coefficients for D3Q19 weights
         # # Compute new populations
         fp00S[2, 2:gridlengthY-1, 2:gridlengthZ-1] .= fm00S[1, 2:gridlengthY-1, 2:gridlengthZ-1] .+ inlet_add_face
         fpp0S[2, 2:gridlengthY-1, 2:gridlengthZ-1] .= fmp0S[1, 2:gridlengthY-1, 2:gridlengthZ-1] .+ inlet_add_edge
@@ -679,7 +768,7 @@ function run_JuLattice()
         fp0pS[2, 2:gridlengthY-1, 2:gridlengthZ-1] .= fm0pS[1, 2:gridlengthY-1, 2:gridlengthZ-1] .+ inlet_add_edge
         fp0mS[2, 2:gridlengthY-1, 2:gridlengthZ-1] .= fm0mS[1, 2:gridlengthY-1, 2:gridlengthZ-1] .+ inlet_add_edge
         
-        # # OUTLET: no-gradient bounceback 
+        # OUTLET: no-gradient bounceback 
         # # all populations that stream in -x direction from previous neighbor
         # # fm00S, fmm0S, fmp0S, fm0mS, fm0pS
         
@@ -745,10 +834,7 @@ function run_JuLattice()
         end
 
         # Plot of the field
-        # if ((i % 10 == 0)) || (i == simulationTime)
-        # if ((i % 200 = 0)) || (i == simulationTime)
-        # if ((i % 500 == 0)) || (i == simulationTime)
-        if any((Plotvorticity, Plotvx, Plotvy, Plotvz, Plotdebug, Plotmag)) && ((i % 500 == 0) || (i == simulationTime))
+        if any((Plotvorticity, Plotvx, Plotvy, Plotvz, Plotdebug, Plotmag)) && ((i % 200 == 0) || (i == simulationTime))
 
             # Log_Simulation_Runtime(i, simulationTime)   
             
@@ -760,55 +846,19 @@ function run_JuLattice()
             velocityMag .= sqrt.(u.^2 .+ v.^2 .+ w.^2)
 
             # Set velocities inside the sphere to zero
-            velocityX[is_solid] .= NaN
-            velocityY[is_solid] .= NaN
-            velocityZ[is_solid] .= NaN
-
-            # # # Compute vorticity 3D
-            # #vorticity
-            # dv_dx = (circshift(velocityY, (-1,0,0)) .- circshift(velocityY, (1,0,0))) ./ 2
-            # dw_dx = (circshift(velocityZ, (-1,0,0)) .- circshift(velocityZ, (1,0,0))) ./ 2
-
-            # du_dy = (circshift(velocityX, (0,-1,0)) .- circshift(velocityX, (0,1,0))) ./ 2
-            # dw_dy = (circshift(velocityZ, (0,-1,0)) .- circshift(velocityZ, (0,1,0))) ./ 2
-            
-            # du_dz = (circshift(velocityX, (0,0,-1)) .- circshift(velocityX, (0,0,1))) ./ 2
-            # dv_dz = (circshift(velocityY, (0,0,-1)) .- circshift(velocityY, (0,0,1))) ./ 2
-
-            # omegaX .= dw_dy .- dv_dz
-            # omegaY .= du_dz .- dw_dx
-            # omegaZ .= dv_dx .-du_dy
-            # omegaMag .= sqrt.(omegaX.^2 .+ omegaY.^2 .+ omegaZ.^2)
-            
-            # if ((i % 100 == 0)) || (i == simulationTime)
-            #     Log_Simulation_Runtime(i, simulationTime)
-            # end
+            velocityX[is_object] .= NaN
+            velocityY[is_object] .= NaN
+            velocityZ[is_object] .= NaN
+            velocityMag[is_object] .= NaN         
+     
             # Update the observables
             if Plotvorticity == true   
                                     
-                #Mask inlet outlet
-                omegaMag[inlet] .= 0.0
-                omegaMag[outlet] .= 0.0
-                # Mask the cylinder region
-                omegaMag[sphere] .= NaN
-                
-                # #3D update: 
-                # omegaMag_obs[] = omegaMag
-                # step_text_omega[] = "Time step: $i, $(floor(Int, i*delta_t))s"
-                
-                #2D update:
-                #xy at midZ
-                omega_xy_obs[] = copy(omegaMag[:,:,midZ])
-                step_text_omega_xy[] = "Time step: $i, $(floor(Int, i*delta_t))s" 
-                #xz at midY
-                omega_xz_obs[] = copy(omegaMag[:,midY,:])
-                step_text_omega_xz[] = "Time step: $i, $(floor(Int, i*delta_t))s"
-
             end
 
             if Plotmag==true
                 mag_xy_obs[] = copy(velocityMag[2:gridlengthX-1, 2:gridlengthY-1, midZ])
-                step_text_mag_xy[] = "Time step: $i, $(floor(Int, i*delta_t))s"
+                step_text_mag_xy[] = "Time step: $i / $simulationTime \n $(floor(Int, i*delta_t))s"
 
                 mag_xz_obs[] = copy(velocityMag[2:gridlengthX-1 ,midY, 2:gridlengthZ-1])
                 step_text_mag_xz[] = "Time step:$i, $(floor(Int, i*delta_t))s"
