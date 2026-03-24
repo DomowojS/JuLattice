@@ -528,16 +528,35 @@ function run_JuLattice()
     println("Starting Simulation:")
     # Run Simulation Loop
     for i in 1:simulationTime
+
+        t_debug = @elapsed begin
         
-        # Iteration über alle Zellen außer die Randzellen
-        @inbounds  for z in 2:gridlengthZ-1
+        # @inbounds Threads.@threads for idx in fluid_indices
+            
+        #     x, y, z = Tuple(idx)
+        # DEBUG THREADING
+        let f000=f000, f000S=f000S,
+            fm00=fm00, fm00S=fm00S, fp00=fp00, fp00S=fp00S,
+            f0m0=f0m0, f0m0S=f0m0S, f0p0=f0p0, f0p0S=f0p0S,
+            f00m=f00m, f00mS=f00mS, f00p=f00p, f00pS=f00pS,
+            fmm0=fmm0, fmm0S=fmm0S, fmp0=fmp0, fmp0S=fmp0S,
+            fpm0=fpm0, fpm0S=fpm0S, fpp0=fpp0, fpp0S=fpp0S,
+            fm0m=fm0m, fm0mS=fm0mS, fm0p=fm0p, fm0pS=fm0pS,
+            fp0m=fp0m, fp0mS=fp0mS, fp0p=fp0p, fp0pS=fp0pS,
+            f0mm=f0mm, f0mmS=f0mmS, f0mp=f0mp, f0mpS=f0mpS,
+            f0pm=f0pm, f0pmS=f0pmS, f0pp=f0pp, f0ppS=f0ppS,
+            rho=rho, u=u, v=v, w=w, is_fluid=is_fluid
+
+        # # Iteration über alle Zellen außer die Randzellen
+        @inbounds Threads.@threads for z in 2:gridlengthZ-1
             for y in 2:gridlengthY-1
                 for x in 2:gridlengthX-1
 
                     if !is_fluid[x,y,z]
                         continue
                     end
-                    
+
+
                     # Compute macroscopic quantities
                     rho[x,y,z] = f000[x,y,z] + 
                                 (fm00[x,y,z] + fp00[x,y,z] + f0m0[x,y,z] + f0p0[x,y,z] + f00m[x,y,z] + f00p[x,y,z]) +
@@ -674,11 +693,17 @@ function run_JuLattice()
                     f0mpS[x,y-1,z+1] = f0mp[x,y,z] + omega_local * (feq0mp - f0mp[x,y,z])
                     f0pmS[x,y+1,z-1] = f0pm[x,y,z] + omega_local * (feq0pm - f0pm[x,y,z])
                     f0ppS[x,y+1,z+1] = f0pp[x,y,z] + omega_local * (feq0pp - f0pp[x,y,z])
-
-                end
-            end
-        end
+        # end #end fluid_nodes
+                end #end x
+            end #end y
+        end #end z
+        end #end let (debug)
+        end #end elapsed
         
+        if i <= 10
+            println("Step $i mainloop: $(round(t_debug * 1000, digits=1))ms")
+        end
+
         # bounce-back walls
         @inbounds for wall in wall_indices
             x, y, z = Tuple(wall)
@@ -904,8 +929,7 @@ function run_JuLattice()
 
             end
             yield()
-            #sleep(0.05)
-            sleep(0.05)
+            sleep(0.01)
         end
 
     end
