@@ -15,263 +15,89 @@ function run_JuLattice()
     ####################################  Initialize  ####################################
     ##-------- User Settings --------##
     # Cylinder Definition
-    Radius   = 0.08 #0.1    # m
+    Radius   = 0.08 #0.1                 # m
     D = 2 * Radius
-    # Position = [length_X/4, length_Y/2, length_Z/2] # m [x,y,z]
     
     # Simulation Domain Settings
-    # length_X = 21 * D              # m
-    # length_Y = 11 * D              # m 
-    # length_Z = 16 * D              # m
-
-    length_X = 11 * D              # m
-    length_Y = 6 * D              # m 
-    length_Z = 8 * D              # m
-
-
+    # length_X = 21 * D                 # m
+    # length_Y = 11 * D                 # m 
+    # length_Z = 16 * D                 # m
+    length_X = 11 * D                   # m
+    length_Y = 6 * D                    # m 
+    length_Z = 8 * D                    # m
 
     # Fluid Settings 
-    Fluid_Density = 1000.0; #1000.0;         # kg/m^3
-    # Inflow_Velocity = 1.0 #0.4;              # m/s
-    Kinematic_Viscosity = 0.0004; #0.001;    # m^2/s 
-
-    # Reynolds and Mach Number Input
+    Kinematic_Viscosity = 0.0004; #0.001;                       # m^2/s 
     reynoldsNumber = 3000 #280 #200 #500                        # Target Reynolds number
-    Mach_Number = 0.03 #0.01;                         # Target Mach number (Ma = U_lattice/c_s)
-                                                # Keep Ma < 0.1 for incompressible flow!
+    Mach_Number = 0.03 #0.01;                                   # Target Mach number (Ma = U_lattice/c_s)
+                                                                # Keep Ma < 0.1 for incompressible flow!
 
     # Simulation Settings
-    Simulation_Time = 600;  #8000               # s
-    delta_x = 0.015 #0.01 ;                       # Grid spacing (physical units per lattice unit)
-    CS = 0.1    # CS ↑ = eddy viscosity ↑
+    Simulation_Time = 60;                                       # s
+    delta_x         = 0.015 #0.01 ;                             # Grid spacing (physical units per lattice unit)
+    CS              = 0.1                                       # CS ↑ = eddy viscosity ↑
 
     # Plot Requests (Flags)
     Plotvx = false;
-    Plotvy = false;
-    Plotvz = false;
-    Plotvorticity = false;
-    Plotdebug = false;
     Plotmag = true;
-
-    # DEBUG Stability Check
-    EnableStabilityCheck = false
-    CheckEvery = 200
-    VelLimit = 0.2
-    RhoMinLimit = 100.0
-    RhoMaxLimit = 5000.0
-
-
-    ####-------- Run Simulation --------#####
-    Log_Simulation_Header()
+    Plotdebug = false;
 
     ##-------- Compute LBM Parameters from Mach Number --------##
-    lattice_speedOfSound = 1.0 / sqrt(3)
-
-    Inflow_Velocity = reynoldsNumber * Kinematic_Viscosity / (2 * Radius)
-
-    speedOfSound = Inflow_Velocity / Mach_Number
-    # speedOfSound = Kinematic_Viscosity * reynoldsNumber / (Mach_Number * 2 * Radius)
-    delta_t = delta_x * lattice_speedOfSound / speedOfSound
-
-    lattice_viscosity = Kinematic_Viscosity * delta_t / (delta_x)^2
-
+    lattice_speedOfSound    = 1.0 / sqrt(3)
+    Inflow_Velocity         = reynoldsNumber * Kinematic_Viscosity / (2 * Radius)
+    speedOfSound            = Inflow_Velocity / Mach_Number
+    delta_t                 = delta_x * lattice_speedOfSound / speedOfSound
+    lattice_viscosity       = Kinematic_Viscosity * delta_t / (delta_x)^2
     lattice_inflow_velocity = Mach_Number * lattice_speedOfSound
 
-    # Step 4: Relaxation time and omega from lattice viscosity
     # nu_lattice = c_s² * (tau - 0.5) => tau = nu_lattice / c_s² + 0.5
-    τ = lattice_viscosity / (lattice_speedOfSound * lattice_speedOfSound) + 0.5
-    omega  = 1.0 / τ
+    τ       = lattice_viscosity / (lattice_speedOfSound * lattice_speedOfSound) + 0.5
+    omega   = 1.0 / τ
 
+    fluiddensity = 1.0 # lattice units
+    simulationTime = ceil(Int, Simulation_Time / delta_t);  #lattice units
+    
     ##-------- Convert user settings to lattice units --------##
     # Domain
     gridlengthX = ceil(Int, length_X / delta_x);
     gridlengthY = ceil(Int, length_Y / delta_x);
     gridlengthZ = ceil(Int, length_Z / delta_x);
 
-    println("nodes in x: $gridlengthX")
-    println("nodes in y: $gridlengthY")
-    println("nodes in xz $gridlengthZ")
-
-
-    ## Cylinder Position
-    cylinder_x = Int(round((5.5 * D) / delta_x)) + 1
-    cylinder_y = Int(round((length_Y/ 2 ) / delta_x)) + 1
-    cylinder_z_top = length_Z * 0.75
-    cylinder_z_bot = length_Z * 0.25
-
-    # convert to lattice units
+    # Cylinder Position
+    cylinder_x      = Int(round((5.5 * D) / delta_x)) + 1
+    cylinder_y      = Int(round((length_Y/ 2 ) / delta_x)) + 1
+    cylinder_z_top  = length_Z * 0.75
+    cylinder_z_bot  = length_Z * 0.25
     cylinder_radius = Radius/delta_x
 
     # Grid-idx for is_object (nodes inside of cylinder)
     cylinder_start = 2 + Int(floor(cylinder_z_bot / delta_x))
-    cylinder_end   = 2 + Int(ceil(cylinder_z_top / delta_x))
-
-    # Fluid
-    # fluiddensity = Fluid_Density
-    fluiddensity = 1.0 # lattice units
-    # ReynoldsCheck
-    lattice_Re = (lattice_inflow_velocity .* 2 .* cylinder_radius)/lattice_viscosity; #Re_lattice = U*R/v -> sollte Re entsprechen weil Größen skaliert wurden
-    lattice_Re_Log=floor(Int,lattice_Re)
-
-    # Log 
-    Log_Discretization_Settings(delta_x, delta_t, lattice_Re_Log)
-
-    # Print τ value
-    println("##### Computed Fluid Values #####")
-    println("Computed relaxation time τ  = ", round(τ, digits=10))
-    println("Computed omega ω = ", round(omega, digits=10))
-    println("Computed Inflow_Velocity (phsical) = ", round(Inflow_Velocity, digits=10))
-    println("Computed lattice_inflow_velocity (lattice) = ", round(lattice_inflow_velocity, digits= 10))
-    println("Reynolds number check:")
-    Re_phys = Inflow_Velocity * 2 * Radius / Kinematic_Viscosity
-    println("   Re (physical) = ", round(Re_phys, digits=2))
-    println("   Re (lattice) = ", round(lattice_Re, digits=2))
-    println("#################################")
-
-    # Simulation Settings
-    simulationTime = ceil(Int, Simulation_Time / delta_t);
-
-    #Q = 19; #D3Q19
-    # D3Q19
-    # f000 = rest (0,0,0)
-    # fm00, fp00 = x-axis (±1,0,0)
-    # f0m0, f0p0 = y-axis (0,±1,0)
-    # f00m, f00p = z-axis (0,0,±1)
-    # fmm0, fmp0, fpm0, fpp0 = xy-plane edges
-    # fm0m, fm0p, fp0m, fp0p = xz-plane edges
-    # f0mm, f0mp, f0pm, f0pp = yz-plane edges
-
-    # Define arrays for each direction D3Q9
-    # f000 = rest (0,0,0)
-    f000 = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    # fm00, fp00 = x-axis (±1,0,0)
-    fm00 = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    fp00 = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    # f0m0, f0p0 = y-axis (0,±1,0)
-    f0m0 = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    f0p0 = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    # f00m, f00p = z-axis (0,0,±1)
-    f00m = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    f00p = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    # fmm0, fmp0, fpm0, fpp0 = xy-plane edges
-    fmm0 = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    fmp0 = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    fpm0 = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    fpp0 = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    # fm0m, fm0p, fp0m, fp0p = xz-plane edges
-    fm0m = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    fm0p = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    fp0m = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    fp0p = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    # f0mm, f0mp, f0pm, f0pp = yz-plane edges
-    f0mm = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    f0mp = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    f0pm = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    f0pp = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    cylinder_end   = 2 + Int(ceil(cylinder_z_top / delta_x))  
     
-    # # Define array for each direction after Collision (C)
-    # # f000 = rest (0,0,0)
-    # f000C = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    # # fm00, fp00 = x-axis (±1,0,0)
-    # fm00C = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    # fp00C = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    # # f0m0, f0p0 = y-axis (0,±1,0)
-    # f0m0C = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    # f0p0C = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    # # f00m, f00p = z-axis (0,0,±1)
-    # f00mC = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    # f00pC = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    # # fmm0, fmp0, fpm0, fpp0 = xy-plane edges
-    # fmm0C = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    # fmp0C = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    # fpm0C = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    # fpp0C = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    # # fm0m, fm0p, fp0m, fp0p = xz-plane edges
-    # fm0mC = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    # fm0pC = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    # fp0mC = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    # fp0pC = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    # # f0mm, f0mp, f0pm, f0pp = yz-plane edges
-    # f0mmC = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    # f0mpC = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    # f0pmC = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    # f0ppC = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    # Reynolds Check:
+    # Re_lattice = U*R/v -> sollte Re entsprechen weil Größen skaliert wurden
+    Re_lattice = floor(Int, ((lattice_inflow_velocity .* 2 .* cylinder_radius)/lattice_viscosity)) 
+    Re_phys = Inflow_Velocity * 2 * Radius / Kinematic_Viscosity
 
-    # Define array for each direction after stream (S)
-    # f000 = rest (0,0,0)
-    f000S = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    # fm00, fp00 = x-axis (±1,0,0)
-    fm00S = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    fp00S = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    # f0m0, f0p0 = y-axis (0,±1,0)
-    f0m0S = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    f0p0S = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    # f00m, f00p = z-axis (0,0,±1)
-    f00mS = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    f00pS = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    # fmm0, fmp0, fpm0, fpp0 = xy-plane edges
-    fmm0S = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    fmp0S = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    fpm0S = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    fpp0S = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    # fm0m, fm0p, fp0m, fp0p = xz-plane edges
-    fm0mS = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    fm0pS = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    fp0mS = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    fp0pS = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    # f0mm, f0mp, f0pm, f0pp = yz-plane edges
-    f0mmS = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    f0mpS = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    f0pmS = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    f0ppS = zeros(gridlengthX, gridlengthY, gridlengthZ)
-
-
-
-    #Initialise macroscopic variables
-    rho = ones(gridlengthX, gridlengthY, gridlengthZ) .* fluiddensity
-    u = zeros(gridlengthX, gridlengthY, gridlengthZ)    #ux
-    v = zeros(gridlengthX, gridlengthY, gridlengthZ)    #uy
-    w = zeros(gridlengthX, gridlengthY, gridlengthZ)    #uz
-
-    # create grid
-    gridX, gridY, gridZ = meshgrid(1:gridlengthX, 1:gridlengthY, 1:gridlengthZ);
-
-    #Swap of Y and X axis: (Y,X,Z) -> (X,Y,Z)
-    if size(gridX) == (gridlengthY, gridlengthX, gridlengthZ) #check for format of grids
-        gridX = permutedims(gridX, (2,1,3))
-        gridY = permutedims(gridY, (2,1,3))
-        gridZ = permutedims(gridZ, (2,1,3))
-    end    
-
-    # Initialise velocity arrays for plotting
-    velocityX = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    velocityY = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    velocityZ = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    velocityMag = zeros(gridlengthX, gridlengthY, gridlengthZ)
-
-    # omegaX = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    # omegaY = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    # omegaZ = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    # omegaMag = zeros(gridlengthX, gridlengthY, gridlengthZ)
-
-    #Define mid-Planes for plotting
+    # Define Slice indices for plotting
     midY = 2 + Int(round((gridlengthY-2)/2))
     midZ = 2 + Int(round((gridlengthZ-2)/2))
-    println("midY = $midY")
-    println("midZ = $midZ")
 
-    # more slices for debugging
+    # more slices for debugg plots
     frontY = 2
     backY = gridlengthY-1
     botZ = 2
     topZ = gridlengthZ-1
-
     nearFrontY = 10
     nearBackY = gridlengthY-10
     nearBotZ = 10
     nearTopZ = gridlengthZ-10
 
-    ####### ####### classify nodes ####### #######
+    # Inlet momentum coefficients for D3Q19 weights (velocity bounceback)
+    inlet_add_face = (2.0 / (18.0 * lattice_speedOfSound^2)) * lattice_inflow_velocity
+    inlet_add_edge = (2.0 / (36.0 * lattice_speedOfSound^2)) * lattice_inflow_velocity
+
+    ##--------  classify nodes --------##
     ## create solid node mask
     is_solid = falses(gridlengthX, gridlengthY, gridlengthZ)
     is_wall = falses(gridlengthX, gridlengthY, gridlengthZ)
@@ -301,12 +127,13 @@ function run_JuLattice()
 
     end
     wall_indices = findall(is_wall)
-    object_indices = findall(is_object)
+    # object_indices = findall(is_object)
 
     # fluid mask
     is_fluid .&= .!is_object
-    fluid_indices = findall(is_fluid)
+    # fluid_indices = findall(is_fluid)
 
+    ##-------- precompute BC --------##
     println("Computing Bouzidi boundary data...")
     boundary_data = compute_object_boundary_data(
         gridlengthX, gridlengthY, gridlengthZ,
@@ -316,18 +143,87 @@ function run_JuLattice()
         is_object, delta_x
     )
 
+    ##-------- Array Allocation --------##
+    #Q = 19; #D3Q19
+    # D3Q19
+    # f000 = rest (0,0,0)
+    # fm00, fp00 = x-axis (±1,0,0)
+    # f0m0, f0p0 = y-axis (0,±1,0)
+    # f00m, f00p = z-axis (0,0,±1)
+    # fmm0, fmp0, fpm0, fpp0 = xy-plane edges
+    # fm0m, fm0p, fp0m, fp0p = xz-plane edges
+    # f0mm, f0mp, f0pm, f0pp = yz-plane edges
 
-    # momentum coefficients for D3Q19 weights
-    inlet_add_face = (2.0 / (18.0 * lattice_speedOfSound^2)) * lattice_inflow_velocity
-    inlet_add_edge = (2.0 / (36.0 * lattice_speedOfSound^2)) * lattice_inflow_velocity
+    # Define arrays for each direction D3Q9
+    f000 = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    fm00 = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    fp00 = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    f0m0 = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    f0p0 = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    f00m = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    f00p = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    fmm0 = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    fmp0 = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    fpm0 = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    fpp0 = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    fm0m = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    fm0p = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    fp0m = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    fp0p = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    f0mm = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    f0mp = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    f0pm = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    f0pp = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    
+    # Define array for each direction after stream (and after Collision) (S)
+    f000S = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    fm00S = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    fp00S = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    f0m0S = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    f0p0S = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    f00mS = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    f00pS = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    fmm0S = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    fmp0S = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    fpm0S = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    fpp0S = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    fm0mS = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    fm0pS = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    fp0mS = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    fp0pS = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    f0mmS = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    f0mpS = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    f0pmS = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    f0ppS = zeros(gridlengthX, gridlengthY, gridlengthZ)
 
-    #######  #######    Initialize distribution functions FLUID NODES and SOLID NODES ####### #######
+    # Initialise macroscopic variables
+    rho = ones(gridlengthX, gridlengthY, gridlengthZ) .* fluiddensity
+    u = zeros(gridlengthX, gridlengthY, gridlengthZ)    #ux
+    v = zeros(gridlengthX, gridlengthY, gridlengthZ)    #uy
+    w = zeros(gridlengthX, gridlengthY, gridlengthZ)    #uz
+
+    # create grid
+    gridX, gridY, gridZ = meshgrid(1:gridlengthX, 1:gridlengthY, 1:gridlengthZ);
+    #Swap of Y and X axis: (Y,X,Z) -> (X,Y,Z)
+    if size(gridX) == (gridlengthY, gridlengthX, gridlengthZ) #check for format of grids
+        gridX = permutedims(gridX, (2,1,3))
+        gridY = permutedims(gridY, (2,1,3))
+        gridZ = permutedims(gridZ, (2,1,3))
+    end    
+
+    # Initialise velocity arrays for plotting
+    velocityX = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    velocityY = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    velocityZ = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    velocityMag = zeros(gridlengthX, gridlengthY, gridlengthZ)
+
+    
+    ##--------  Initialize distribution functions FLUID NODES and SOLID NODES  --------##
     for x in 1:gridlengthX
         for y in 1:gridlengthY
             for z in 1:gridlengthZ
 
                 ux = is_solid[x, y, z] ? 0.0 : lattice_inflow_velocity
-                #ux = lattice_inflow_velocity
                 uy = 0.0
                 uz = 0.0
                 rho_init = fluiddensity
@@ -338,17 +234,14 @@ function run_JuLattice()
                 uz2 = uz * uz
                 
                 Pm_u = 1 - 3*ux + 3*ux2
-                #P0_u = -2 + 3*ux2
                 P0_u = 1 - 1.5*ux2
                 Pp_u = 1 + 3*ux + 3*ux2
                 
                 Pm_v = 1 - 3*uy + 3*uy2
-                #P0_v = -2 + 3*uy2
                 P0_v = 1 - 1.5*uy2
                 Pp_v = 1 + 3*uy + 3*uy2
                 
                 Pm_w = 1 - 3*uz + 3*uz2
-                #P0_w = -2 + 3*uz2
                 P0_w = 1 - 1.5*uz2
                 Pp_w = 1 + 3*uz + 3*uz2
         
@@ -384,11 +277,11 @@ function run_JuLattice()
                 f0pm[x,y,z] = rho_init * P0_u * Pp_v * Pm_w / 36.0 
                 f0pp[x,y,z] = rho_init * P0_u * Pp_v * Pp_w / 36.0
             
-            end
-        end
-    end
+            end#z
+        end#y
+    end#x
    
-    # fS's
+    ##-------- Initialise fS's --------##
     f000S .= f000 
     fm00S .= fm00
     fp00S .= fp00
@@ -412,129 +305,43 @@ function run_JuLattice()
     # Force GARBAGE COLLECTION to free unused memory
     GC.gc()
 
-    ####### #######   Plot calls    ####### ####### 
-    if any((Plotvorticity, Plotvx, Plotvy, Plotvz, Plotdebug, Plotmag))
-                    
-        if Plotvx == true
-            fig = Figure(size= (1600, 1200))
-            ax1 = Axis(fig[1,1])
-            ax2 = Axis(fig[2,1])
-            
-            vx_xy_obs, step_text_vx_xy, hm1 = Create_Plot_XY(gridlengthX-2, gridlengthY-2, 
-                                                                velocityX[2:gridlengthX-1,2:gridlengthY-1,midZ]; 
-                                                                title="v_x at z=$(midZ)", ax=ax1)
+    ##--------  Logging  --------##
+    Log_Simulation_Header()
+    Log_Grid_Dimensions(gridlengthX, gridlengthY, gridlengthZ, delta_x, delta_t)
+    Log_Fluid_Parameters(τ, omega, Inflow_Velocity, lattice_inflow_velocity, Re_phys, Re_lattice)
+    Log_Simulation_Start()
 
-            vx_xz_obs, step_text_vx_xz, hm2 = Create_Plot_XZ(gridlengthX-2, gridlengthZ-2, 
-                                                                velocityX[2:gridlengthX-1,midY,2:gridlengthZ-1]; 
-                                                                title="v_x at y=$(midY)", ax=ax2)
-            Colorbar(fig[1, 2], hm1, label = "Lattice Velocity")  
-            Colorbar(fig[2, 2], hm2, label = "Lattice Velocity")
-            display(fig)
-        end
+    ##--------  Plot calls  --------## 
+    # Initialise Observables
+    vx_xy_obs = nothing; step_text_vx_xy = nothing
+    vx_xz_obs = nothing; step_text_vx_xz = nothing
+    mag_xy_obs = nothing; step_text_mag_xy = nothing
+    mag_xz_obs = nothing; step_text_mag_xz = nothing
+    vx_xz_front_obs = nothing; step_text_vx_xz_front = nothing
+    vx_xz_back_obs = nothing; step_text_vx_xz_back = nothing
+    
+    if Plotvx
+        vx_xy_obs, step_text_vx_xy, vx_xz_obs, step_text_vx_xz = 
+            setup_vx_plot(gridlengthX, gridlengthY, gridlengthZ, velocityX, midY, midZ)
+    end
 
-        if Plotmag == true
-            fig_mag = Figure(size= (1000, 1000))
-            ax1_mag = Axis(fig_mag[1,1])
-            ax2_mag = Axis(fig_mag[2,1])
-            
-            mag_xy_obs, step_text_mag_xy, hm1_mag = Create_Plot_Mag_XY(gridlengthX-2, gridlengthY-2, 
-                                                                velocityMag[2:gridlengthX-1,2:gridlengthY-1, midZ]; 
-                                                                title="|v| at z=$(midZ)", ax=ax1_mag)
+    if Plotmag
+        mag_xy_obs, step_text_mag_xy, mag_xz_obs, step_text_mag_xz = 
+            setup_mag_plot(gridlengthX, gridlengthY, gridlengthZ, velocityMag, midY, midZ)
+    end
 
-            mag_xz_obs, step_text_mag_xz, hm2_mag = Create_Plot_Mag_XZ(gridlengthX-2, gridlengthZ-2, 
-                                                                velocityMag[2:gridlengthX-1,midY ,2:gridlengthZ-1]; 
-                                                                title="|v| at y=$(midY)", ax=ax2_mag)
-            Colorbar(fig_mag[1, 2], hm1_mag, label = "Lattice Velocity Magnitude")  
-            Colorbar(fig_mag[2, 2], hm2_mag, label = "Lattice Velocity Magnitude")
-
-            label_mag_xy = Label(fig_mag[3,1:2], text=step_text_mag_xy)
-            label_mag_xz = Label(fig_mag[4,1:2], text=step_text_mag_xz)
-
-            rowsize!(fig_mag.layout, 1, Fixed(350))
-            rowsize!(fig_mag.layout, 2, Fixed(350))
-            rowsize!(fig_mag.layout, 3, Fixed(30))
-            rowsize!(fig_mag.layout, 4, Fixed(30))
-            colsize!(fig_mag.layout, 1, Auto(0.9))
-            colsize!(fig_mag.layout, 2, Auto(0.1))
-            rowgap!(fig_mag.layout, 0)
-
-
-            display(fig_mag)
-        end
-
-        
-
-        if Plotdebug == true
-            # vx | xz at front wall (y=2)
-            vx_xz_front_obs, step_text_vx_xz_front, fig_vx_xz_front = Create_Plot_XZ(gridlengthX, gridlengthZ, velocityX[:,frontY,:]; title="v_x at y=$(frontY) [FRONT]")
-            screen_vx_xz_front = GLMakie.Screen()
-            display(screen_vx_xz_front, fig_vx_xz_front)
-
-            # # vx | xz at near front (y=10)
-            # vx_xz_nearfront_obs, step_text_vx_xz_nearfront, fig_vx_xz_nearfront = Create_Plot_XZ(gridlengthX, gridlengthZ, velocityX[:,nearFrontY,:]; title="v_x at y=$(nearFrontY) [near FRONT]")
-            # screen_vx_xz_nearfront = GLMakie.Screen()
-            # display(screen_vx_xz_nearfront, fig_vx_xz_nearfront)
-
-            # vx | xz at back wall (y=gridlengthY-1)
-            vx_xz_back_obs, step_text_vx_xz_back, fig_vx_xz_back = Create_Plot_XZ(gridlengthX, gridlengthZ, velocityX[:,backY,:]; title="v_x at y=$(backY) [BACK]")
-            screen_vx_xz_back = GLMakie.Screen()
-            display(screen_vx_xz_back, fig_vx_xz_back)
-
-            # # vx | xz at near back (y=gridlengthY-10)
-            # vx_xz_nearback_obs, step_text_vx_xz_nearback, fig_vx_xz_nearback = Create_Plot_XZ(gridlengthX, gridlengthZ, velocityX[:,nearBackY,:]; title="v_x at y=$(nearBackY) [near BACK]")
-            # screen_vx_xz_nearback = GLMakie.Screen()
-            # display(screen_vx_xz_nearback, fig_vx_xz_nearback)
-
-            # # vy | xz at front wall (y=2)
-            # vy_xz_front_obs, step_text_vy_xz_front, fig_vy_xz_front = Create_Plot_XY(gridlengthX, gridlengthZ, velocityY[:,frontY,:]; title="v_y at y=$(frontY) [FRONT]")
-            # screen_vy_xz_front = GLMakie.Screen()
-            # display(screen_vy_xz_front, fig_vy_xz_front)
-
-            # # vy | xz at back wall (y=gridlengthY-1)
-            # vy_xz_back_obs, step_text_vy_xz_back, fig_vy_xz_back = Create_Plot_XY(gridlengthX, gridlengthZ, velocityY[:,backY,:]; title="v_y at y=$(backY) [BACK]")
-            # screen_vy_xz_back = GLMakie.Screen()
-            # display(screen_vy_xz_back, fig_vy_xz_back)
-            
-        end
-
-        if Plotvy==true 
-            velocityY_obs, text_obj_vy, step_text_vy, fig_vy = Create_Plot(gridlengthX, gridlengthY, velocityY, "Y")
-            screen3 = GLMakie.Screen()
-            display(screen3, fig_vy)
-        end
-
-        if Plotvz==true
-            velocityZ_obs, text_obj_vz, step_text_vz, fig_vz = Create_Plot(gridlengthX, gridlengthZ, velocityZ, "Z")
-            screen4 = GLMakie.Screen()
-            display(screen4, fig_vz)
-        end
-
-        if Plotvorticity == true
-            #xy slice at z=midZ
-            omega_xy_obs, step_text_omega_xy, fig_omega_xy = Create_Vorticity_XY(gridlengthX, gridlengthY, omegaMag[:,:,midZ]; title = "|ω| at z=$(midZ)")
-            screen_omega_xy = GLMakie.Screen()
-            display(screen_omega_xy, fig_omega_xy)
-
-            #xz slice at y=midY
-            omega_xz_obs, step_text_omega_xz, fig_omega_xz = Create_Vorticity_XZ(gridlengthX, gridlengthZ, omegaMag[:,midY,:]; title = "|ω| at y=$(midY)")
-            screen_omega_xz = GLMakie.Screen()
-            display(screen_omega_xz, fig_omega_xz)    
-        end
-
-    end ##### Plot calls
-
-    ###### ######   MAIN  LOOP ###### ###### 
-    println("#################################")
-    println("Starting Simulation:")
+    if Plotdebug
+        vx_xz_front_obs, step_text_vx_xz_front, vx_xz_back_obs, step_text_vx_xz_back =
+            setup_debug_plots(gridlengthX, gridlengthZ, velocityX, frontY, backY)
+    end
+    
+    ##--------  MAIN  LOOP --------## 
     # Run Simulation Loop
     for i in 1:simulationTime
 
         t_debug = @elapsed begin
-        
-        # @inbounds Threads.@threads for idx in fluid_indices
-            
-        #     x, y, z = Tuple(idx)
-        # DEBUG THREADING
+    
+        # THREADING
         let f000=f000, f000S=f000S,
             fm00=fm00, fm00S=fm00S, fp00=fp00, fp00S=fp00S,
             f0m0=f0m0, f0m0S=f0m0S, f0p0=f0p0, f0p0S=f0p0S,
@@ -547,7 +354,7 @@ function run_JuLattice()
             f0pm=f0pm, f0pmS=f0pmS, f0pp=f0pp, f0ppS=f0ppS,
             rho=rho, u=u, v=v, w=w, is_fluid=is_fluid
 
-        # # Iteration über alle Zellen außer die Randzellen
+        # Iteration über alle Zellen außer die Randzellen
         @inbounds Threads.@threads for z in 2:gridlengthZ-1
             for y in 2:gridlengthY-1
                 for x in 2:gridlengthX-1
@@ -558,72 +365,83 @@ function run_JuLattice()
 
 
                     # Compute macroscopic quantities
-                    rho[x,y,z] = f000[x,y,z] + 
+                    rho_loc = f000[x,y,z] + 
                                 (fm00[x,y,z] + fp00[x,y,z] + f0m0[x,y,z] + f0p0[x,y,z] + f00m[x,y,z] + f00p[x,y,z]) +
                                 (fmm0[x,y,z] + fmp0[x,y,z] + fpm0[x,y,z] + fpp0[x,y,z] + 
                                 fm0m[x,y,z] + fm0p[x,y,z] + fp0m[x,y,z] + fp0p[x,y,z] +
                                 f0mm[x,y,z] + f0mp[x,y,z] + f0pm[x,y,z] + f0pp[x,y,z])
+
+                    rho[x,y,z] = rho_loc
+                    inv_rho = 1.0 / rho_loc
                     
-                    u[x,y,z] = ((-fm00[x,y,z] + fp00[x,y,z]) +
+                    u_loc = ((-fm00[x,y,z] + fp00[x,y,z]) +
                                 (-fmm0[x,y,z] - fmp0[x,y,z] + fpm0[x,y,z] + fpp0[x,y,z]) +
-                                (-fm0m[x,y,z] - fm0p[x,y,z] + fp0m[x,y,z] + fp0p[x,y,z])) / rho[x,y,z]
+                                (-fm0m[x,y,z] - fm0p[x,y,z] + fp0m[x,y,z] + fp0p[x,y,z])) * inv_rho
                     
-                    v[x,y,z] = ((-f0m0[x,y,z] + f0p0[x,y,z]) +
+                    v_loc = ((-f0m0[x,y,z] + f0p0[x,y,z]) +
                                 (-fmm0[x,y,z] + fmp0[x,y,z] - fpm0[x,y,z] + fpp0[x,y,z]) +
-                                (-f0mm[x,y,z] - f0mp[x,y,z] + f0pm[x,y,z] + f0pp[x,y,z])) / rho[x,y,z]
+                                (-f0mm[x,y,z] - f0mp[x,y,z] + f0pm[x,y,z] + f0pp[x,y,z])) * inv_rho
                     
-                    w[x,y,z] = ((-f00m[x,y,z] + f00p[x,y,z]) +
+                    w_loc = ((-f00m[x,y,z] + f00p[x,y,z]) +
                                 (-fm0m[x,y,z] + fm0p[x,y,z] - fp0m[x,y,z] + fp0p[x,y,z]) +
-                                (-f0mm[x,y,z] + f0mp[x,y,z] - f0pm[x,y,z] + f0pp[x,y,z])) / rho[x,y,z]
+                                (-f0mm[x,y,z] + f0mp[x,y,z] - f0pm[x,y,z] + f0pp[x,y,z])) * inv_rho
+
+                    u[x,y,z] = u_loc
+                    v[x,y,z] = v_loc
+                    w[x,y,z] = w_loc
                     
                     # Compute equilibrium
                     # Pre-compute polynomial factors
-                    u2 = u[x,y,z] * u[x,y,z]
-                    v2 = v[x,y,z] * v[x,y,z]
-                    w2 = w[x,y,z] * w[x,y,z]
+                    u2 = u_loc * u_loc
+                    v2 = v_loc * v_loc
+                    w2 = w_loc * w_loc
                     
-                    Pm_u = 1 - 3*u[x,y,z] + 3*u2
+                    Pm_u = 1 - 3 * u_loc + 3*u2
                     P0_u = 1 - 1.5*u2
-                    Pp_u = 1 + 3*u[x,y,z] + 3*u2
+                    Pp_u = 1 + 3 * u_loc + 3*u2
                     
-                    Pm_v = 1 - 3*v[x,y,z] + 3*v2
+                    Pm_v = 1 - 3 * v_loc + 3*v2
                     P0_v = 1 - 1.5*v2
-                    Pp_v = 1 + 3*v[x,y,z] + 3*v2
+                    Pp_v = 1 + 3*v_loc + 3*v2
                     
-                    Pm_w = 1 - 3*w[x,y,z] + 3*w2
+                    Pm_w = 1 - 3*w_loc + 3*w2
                     P0_w = 1 - 1.5*w2
-                    Pp_w = 1 + 3*w[x,y,z] + 3*w2
+                    Pp_w = 1 + 3*w_loc + 3*w2
+
+                    rho_inv3 = rho_loc * (1.0/3.0)
+                    rho_inv18 = rho_loc * (1.0/18.0)
+                    rho_inv36 = rho_loc * (1.0/36.0)
 
                     # Compute equilibrium distribution feq
-                    feq000 = rho[x,y,z] * P0_u * P0_v * P0_w / 3.0
+                    feq000 = P0_u * P0_v * P0_w * rho_inv3
 
                     # Face directions
-                    feqm00 = rho[x,y,z] * Pm_u * P0_v * P0_w / 18.0
-                    feqp00 = rho[x,y,z] * Pp_u * P0_v * P0_w / 18.0
+                    feqm00 = Pm_u * P0_v * P0_w * rho_inv18
+                    feqp00 = Pp_u * P0_v * P0_w * rho_inv18
 
-                    feq0m0 = rho[x,y,z] * P0_u * Pm_v * P0_w / 18.0
-                    feq0p0 = rho[x,y,z] * P0_u * Pp_v * P0_w / 18.0
+                    feq0m0 = P0_u * Pm_v * P0_w * rho_inv18
+                    feq0p0 = P0_u * Pp_v * P0_w * rho_inv18
 
-                    feq00m = rho[x,y,z] * P0_u * P0_v * Pm_w / 18.0
-                    feq00p = rho[x,y,z] * P0_u * P0_v * Pp_w / 18.0
+                    feq00m = P0_u * P0_v * Pm_w * rho_inv18
+                    feq00p = P0_u * P0_v * Pp_w * rho_inv18
 
                     # XY edges
-                    feqmm0 = rho[x,y,z] * Pm_u * Pm_v * P0_w / 36.0
-                    feqmp0 = rho[x,y,z] * Pm_u * Pp_v * P0_w / 36.0
-                    feqpm0 = rho[x,y,z] * Pp_u * Pm_v * P0_w / 36.0
-                    feqpp0 = rho[x,y,z] * Pp_u * Pp_v * P0_w / 36.0
+                    feqmm0 = Pm_u * Pm_v * P0_w * rho_inv36
+                    feqmp0 = Pm_u * Pp_v * P0_w * rho_inv36
+                    feqpm0 = Pp_u * Pm_v * P0_w * rho_inv36
+                    feqpp0 = Pp_u * Pp_v * P0_w * rho_inv36
 
                     # XZ edges
-                    feqm0m = rho[x,y,z] * Pm_u * P0_v * Pm_w / 36.0
-                    feqm0p = rho[x,y,z] * Pm_u * P0_v * Pp_w / 36.0
-                    feqp0m = rho[x,y,z] * Pp_u * P0_v * Pm_w / 36.0
-                    feqp0p = rho[x,y,z] * Pp_u * P0_v * Pp_w / 36.0
+                    feqm0m = Pm_u * P0_v * Pm_w * rho_inv36
+                    feqm0p = Pm_u * P0_v * Pp_w * rho_inv36
+                    feqp0m = Pp_u * P0_v * Pm_w * rho_inv36
+                    feqp0p = Pp_u * P0_v * Pp_w * rho_inv36
 
                     # YZ edges
-                    feq0mm = rho[x,y,z] * P0_u * Pm_v * Pm_w / 36.0
-                    feq0mp = rho[x,y,z] * P0_u * Pm_v * Pp_w / 36.0
-                    feq0pm = rho[x,y,z] * P0_u * Pp_v * Pm_w / 36.0
-                    feq0pp = rho[x,y,z] * P0_u * Pp_v * Pp_w / 36.0 
+                    feq0mm = P0_u * Pm_v * Pm_w * rho_inv36
+                    feq0mp = P0_u * Pm_v * Pp_w * rho_inv36
+                    feq0pm = P0_u * Pp_v * Pm_w * rho_inv36
+                    feq0pp = P0_u * Pp_v * Pp_w * rho_inv36
 
                     # Compute Non-equilibrium distribution parts
                     fneq000 = f000[x,y,z] - feq000
@@ -660,7 +478,7 @@ function run_JuLattice()
                         fneq0mm, fneq0mp, fneq0pm, fneq0pp
                     )
 
-                    omega_local = smagorinsky_omega(τ, CS, pi_neq_norm, rho[x,y,z])
+                    omega_local = smagorinsky_omega(τ, CS, pi_neq_norm, rho_loc)
 
                     # Push scheme: Stream+Collision
                     # Rest particle
@@ -699,7 +517,8 @@ function run_JuLattice()
         end #end z
         end #end let (debug)
         end #end elapsed
-        
+
+        # debug timecheck for mainloop with elapsed
         if i <= 10
             println("Step $i mainloop: $(round(t_debug * 1000, digits=1))ms")
         end
@@ -774,7 +593,7 @@ function run_JuLattice()
                 f0mpS[x, y-1, z+1] = f0pmS[x, y, z]
             end
             
-        end
+        end#for wall in wall_indices
 
         # bounce-back object | Bouzidi bounceback (IBB)
         apply_bouzidi_bc_3d!(boundary_data,
@@ -787,21 +606,21 @@ function run_JuLattice()
         # # compute inflow populations fp00S, fpp0S, fpm0S, fp0pS, fp0mS
         # # momentum coefficients for D3Q19 weights
         # # Compute new populations
-        fp00S[2, 2:gridlengthY-1, 2:gridlengthZ-1] .= fm00S[1, 2:gridlengthY-1, 2:gridlengthZ-1] .+ inlet_add_face
-        fpp0S[2, 2:gridlengthY-1, 2:gridlengthZ-1] .= fmp0S[1, 2:gridlengthY-1, 2:gridlengthZ-1] .+ inlet_add_edge
-        fpm0S[2, 2:gridlengthY-1, 2:gridlengthZ-1] .= fmm0S[1, 2:gridlengthY-1, 2:gridlengthZ-1] .+ inlet_add_edge
-        fp0pS[2, 2:gridlengthY-1, 2:gridlengthZ-1] .= fm0pS[1, 2:gridlengthY-1, 2:gridlengthZ-1] .+ inlet_add_edge
-        fp0mS[2, 2:gridlengthY-1, 2:gridlengthZ-1] .= fm0mS[1, 2:gridlengthY-1, 2:gridlengthZ-1] .+ inlet_add_edge
+        @views fp00S[2, 2:gridlengthY-1, 2:gridlengthZ-1] .= fm00S[1, 2:gridlengthY-1, 2:gridlengthZ-1] .+ inlet_add_face
+        @views fpp0S[2, 2:gridlengthY-1, 2:gridlengthZ-1] .= fmp0S[1, 2:gridlengthY-1, 2:gridlengthZ-1] .+ inlet_add_edge
+        @views fpm0S[2, 2:gridlengthY-1, 2:gridlengthZ-1] .= fmm0S[1, 2:gridlengthY-1, 2:gridlengthZ-1] .+ inlet_add_edge
+        @views fp0pS[2, 2:gridlengthY-1, 2:gridlengthZ-1] .= fm0pS[1, 2:gridlengthY-1, 2:gridlengthZ-1] .+ inlet_add_edge
+        @views fp0mS[2, 2:gridlengthY-1, 2:gridlengthZ-1] .= fm0mS[1, 2:gridlengthY-1, 2:gridlengthZ-1] .+ inlet_add_edge
         
         # OUTLET: no-gradient bounceback 
         # # all populations that stream in -x direction from previous neighbor
         # # fm00S, fmm0S, fmp0S, fm0mS, fm0pS
         
-        fm00S[gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= fm00S[gridlengthX-2, 2:gridlengthY-1, 2:gridlengthZ-1]
-        fmm0S[gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= fmm0S[gridlengthX-2, 2:gridlengthY-1, 2:gridlengthZ-1]
-        fmp0S[gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= fmp0S[gridlengthX-2, 2:gridlengthY-1, 2:gridlengthZ-1]
-        fm0mS[gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= fm0mS[gridlengthX-2, 2:gridlengthY-1, 2:gridlengthZ-1]
-        fm0pS[gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= fm0pS[gridlengthX-2, 2:gridlengthY-1, 2:gridlengthZ-1]
+        @views fm00S[gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= fm00S[gridlengthX-2, 2:gridlengthY-1, 2:gridlengthZ-1]
+        @views fmm0S[gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= fmm0S[gridlengthX-2, 2:gridlengthY-1, 2:gridlengthZ-1]
+        @views fmp0S[gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= fmp0S[gridlengthX-2, 2:gridlengthY-1, 2:gridlengthZ-1]
+        @views fm0mS[gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= fm0mS[gridlengthX-2, 2:gridlengthY-1, 2:gridlengthZ-1]
+        @views fm0pS[gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= fm0pS[gridlengthX-2, 2:gridlengthY-1, 2:gridlengthZ-1]
         
    
 
@@ -824,116 +643,37 @@ function run_JuLattice()
         f0mm, f0mmS = f0mmS, f0mm
         f0mp, f0mpS = f0mpS, f0mp
         f0pm, f0pmS = f0pmS, f0pm
-        f0pp, f0ppS = f0ppS, f0pp
-
-        # DEBUG STABILITY CHECK
-        if EnableStabilityCheck && ((i % CheckEvery == 0) || (i == 1))
-            has_nan = any(isnan, u) || any(isnan, v) || any(isnan, w) || any(isnan, rho)
-            has_inf = any(isinf, u) || any(isinf, v) || any(isinf, w) || any(isinf, rho)
-
-            umax = maximum(abs, u)
-            vmax = maximum(abs, v)
-            wmax = maximum(abs, w)
-
-            rhomin = minimum(rho)
-            rhomax = maximum(rho)
-            rho_total = sum(rho)
-            min_rho_location = argmin(rho)
-
-            println("CHK step=$i | umax=$umax vmax=$vmax wmax=$wmax | rho_min=$rhomin rho_max=$rhomax | rho_total = $rho_total")
-            println("MIN RHO AT: $min_rho_location")
-
-            if has_nan || has_inf || (umax > VelLimit) || (vmax > VelLimit) || (wmax > VelLimit) ||
-            (rhomin < RhoMinLimit) || (rhomax > RhoMaxLimit)
-                println("UNSTABLE at step $i")
-                println("  has_nan=$has_nan has_inf=$has_inf")
-                println("  umax=$umax vmax=$vmax wmax=$wmax")
-                println("  rho_min=$rhomin rho_max=$rhomax")
-                break
-            end
-        end
-
+        f0pp, f0ppS = f0ppS, f0pp     
 
         if (i % 100 == 0) || (i == simulationTime)
             Log_Simulation_Runtime(i, simulationTime)
         end
 
         # Plot of the field
-        if any((Plotvorticity, Plotvx, Plotvy, Plotvz, Plotdebug, Plotmag)) && ((i % 200 == 0) || (i == simulationTime))
+        if any((Plotvx, Plotdebug, Plotmag)) && ((i % 200 == 0) || (i == simulationTime))
 
-            # Log_Simulation_Runtime(i, simulationTime)   
-            
-            #Copy velocities for plotting
-            velocityX .= u
+            velocityX .= u 
             velocityY .= v
             velocityZ .= w
-
-            velocityMag .= sqrt.(u.^2 .+ v.^2 .+ w.^2)
-
-            # Set velocities inside the sphere to zero
+            @. velocityMag = sqrt(u^2 + v^2 + w^2)
             velocityX[is_object] .= NaN
-            velocityY[is_object] .= NaN
-            velocityZ[is_object] .= NaN
-            velocityMag[is_object] .= NaN         
-     
-            # Update the observables
-            if Plotvorticity == true   
-                                    
-            end
+            velocityMag[is_object] .= NaN
 
-            if Plotmag==true
-                mag_xy_obs[] = copy(velocityMag[2:gridlengthX-1, 2:gridlengthY-1, midZ])
-                step_text_mag_xy[] = "Time step: $i / $simulationTime \n $(floor(Int, i*delta_t))s"
+            update_plots!(Plotmag, Plotvx, Plotdebug,
+                          velocityMag, velocityX,
+                          gridlengthX, gridlengthY, gridlengthZ, midY, midZ, frontY, backY,
+                          i, simulationTime, delta_t,
+                          mag_xy_obs, step_text_mag_xy, mag_xz_obs, step_text_mag_xz,
+                          vx_xy_obs, step_text_vx_xy, vx_xz_obs, step_text_vx_xz,
+                          vx_xz_front_obs, step_text_vx_xz_front, vx_xz_back_obs, step_text_vx_xz_back)
 
-                mag_xz_obs[] = copy(velocityMag[2:gridlengthX-1 ,midY, 2:gridlengthZ-1])
-                step_text_mag_xz[] = "Time step:$i, $(floor(Int, i*delta_t))s"
-            end
-
-            if Plotvx==true
-                #refresh xy slice at z=midZ
-                vx_xy_obs[] = copy(velocityX[2:gridlengthX-1, 2:gridlengthY-1, midZ])
-                step_text_vx_xy[] = "Time step:$i, $(floor(Int, i*delta_t))s"
-
-                #refresh xz slice at y=midY
-                vx_xz_obs[] = copy(velocityX[2:gridlengthX-1 ,midY, 2:gridlengthZ-1])
-                step_text_vx_xz[] = "Time step:$i, $(floor(Int, i*delta_t))s"
-            end
-
-            if Plotvy==true 
-                velocityY_obs[] = copy(velocityY) 
-                step_text_vy[] = "Time step: $i, $(floor(Int, i*delta_t))s"
-            end
-
-            if Plotdebug==true
-                #vx_xz_front_obs[] = copy(velocityX[:,frontY,:])
-                vx_xz_front_obs[] = velocityX[:,frontY,:]
-
-                step_text_vx_xz_front[] = "Time step:$i, $(floor(Int, i*delta_t))s"
-                
-                # vx_xz_nearfront_obs[] = copy(velocityX[:,nearFrontY,:])
-                # step_text_vx_xz_nearfront[] = "Time step:$i, $(floor(Int, i*delta_t))s"
-
-                #vx_xz_back_obs[] = copy(velocityX[:,backY,:])
-                vx_xz_back_obs[] = velocityX[:,backY,:]
-
-                step_text_vx_xz_back[] = "Time step:$i, $(floor(Int, i*delta_t))s"
-                
-                # vx_xz_nearback_obs[] = copy(velocityX[:,nearBackY,:])
-                # step_text_vx_xz_nearback[] = "Time step:$i, $(floor(Int, i*delta_t))s"
-
-                # vy_xz_front_obs[] = copy(velocityY[:,frontY,:])
-                # step_text_vy_xz_front[] = "Time step:$i, $(floor(Int, i*delta_t))s"
-
-                # vy_xz_back_obs[] = copy(velocityY[:,backY,:])
-                # step_text_vy_xz_back[] = "Time step:$i, $(floor(Int, i*delta_t))s"
-
-            end
             yield()
             sleep(0.01)
-        end
+        end#any((Plotvx, Plotdebug, Plotmag)) && ((i % 200 == 0) || (i == simulationTime))
 
-    end
+    end#i in 1:simulationTime
 
     Log_Simulation_Tail()
-end
+
+end#run_JuLattice()
 run_JuLattice()

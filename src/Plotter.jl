@@ -1,11 +1,13 @@
 module Plotter
 using GLMakie
 using Colors
-export Create_Plot_XY, Create_Plot_XZ, Create_Vorticity_XY, Create_Vorticity_XZ, Create_Plot_Mag_XY, Create_Plot_Mag_XZ
 using ColorSchemes
-## Set up Plot 
-######################################################
 
+export Create_Plot_XY, Create_Plot_XZ, Create_Vorticity_XY, Create_Vorticity_XZ, Create_Plot_Mag_XY, Create_Plot_Mag_XZ,
+       setup_vx_plot, setup_mag_plot, setup_debug_plots, update_plots!
+
+## Custom Heatmap settings 
+######################################################
     function transparency_map(n::Int=256)
         t = range(-1, 1; length = n)
         alpha = 0.05 .+ 0.95 .* abs.(t)
@@ -26,6 +28,101 @@ using ColorSchemes
     end
 ######################################################
 
+## Plot setup functions
+######################################################
+function setup_vx_plot(gridlengthX, gridlengthY, gridlengthZ, velocityX, midY, midZ)
+    fig = Figure(size = (1400, 1200))
+    ax1 = Axis(fig[1,1])
+    ax2 = Axis(fig[2,1])
+    vx_xy_obs, step_text_vx_xy, hm1 = Create_Plot_XY(gridlengthX-2, gridlengthY-2,
+                                                           velocityX[2:gridlengthX-1, 2:gridlengthY-1, midZ];
+                                                           title="v_x at z=$(midZ)", ax=ax1)
+    vx_xz_obs, step_text_vx_xz, hm2 = Create_Plot_XZ(gridlengthX-2, gridlengthZ-2,
+                                                        velocityX[2:gridlengthX-1, midY, 2:gridlengthZ-1];
+                                                        title="v_x at y=$(midY)", ax=ax2)
+    Colorbar(fig[1, 2], hm1, label = "Lattice Velocity")
+    Colorbar(fig[2, 2], hm2, label = "Lattice Velocity")
+    display(fig)
+    return vx_xy_obs, step_text_vx_xy, vx_xz_obs, step_text_vx_xz
+end
+
+function setup_mag_plot(gridlengthX, gridlengthY, gridlengthZ, velocityMag, midY, midZ)
+    fig_mag = Figure(size = (1000, 800))
+        ax1_mag = Axis(fig_mag[1,1])
+        ax2_mag = Axis(fig_mag[2,1])
+        mag_xy_obs, step_text_mag_xy, hm1_mag = Create_Plot_Mag_XY(gridlengthX-2, gridlengthY-2,
+                                                                     velocityMag[2:gridlengthX-1, 2:gridlengthY-1, midZ];
+                                                                     title="|v| at z=$(midZ)", ax=ax1_mag)
+        mag_xz_obs, step_text_mag_xz, hm2_mag = Create_Plot_Mag_XZ(gridlengthX-2, gridlengthZ-2,
+                                                                     velocityMag[2:gridlengthX-1, midY, 2:gridlengthZ-1];
+                                                                     title="|v| at y=$(midY)", ax=ax2_mag)
+        Colorbar(fig_mag[1, 2], hm1_mag, label = "Lattice Velocity Magnitude")
+        Colorbar(fig_mag[2, 2], hm2_mag, label = "Lattice Velocity Magnitude")
+        Label(fig_mag[3,1:2], text=step_text_mag_xy)
+        rowsize!(fig_mag.layout, 1, Fixed(320))
+        rowsize!(fig_mag.layout, 2, Fixed(320))
+        rowsize!(fig_mag.layout, 3, Fixed(30))
+        colsize!(fig_mag.layout, 1, Auto(0.9))
+        colsize!(fig_mag.layout, 2, Auto(0.1))
+        rowgap!(fig_mag.layout, 0)
+        display(fig_mag)
+        return mag_xy_obs, step_text_mag_xy, mag_xz_obs, step_text_mag_xz
+end
+
+function setup_debug_plots(gridlengthX, gridlengthZ, velocityX, frontY, backY)
+    vx_xz_front_obs, step_text_vx_xz_front, fig_front = Create_Plot_XZ(gridlengthX, gridlengthZ,
+                                                                              velocityX[:, frontY, :];
+                                                                              title="v_x at y=$(frontY) [FRONT]")
+    screen_front = GLMakie.Screen()
+    display(screen_front, fig_front)
+
+    vx_xz_back_obs, step_text_vx_xz_back, fig_back = Create_Plot_XZ(gridlengthX, gridlengthZ,
+                                                                        velocityX[:, backY, :];
+                                                                        title="v_x at y=$(backY) [BACK]")
+    screen_back = GLMakie.Screen()
+    display(screen_back, fig_back)
+    return vx_xz_front_obs, step_text_vx_xz_front, vx_xz_back_obs, step_text_vx_xz_back
+end
+######################################################
+
+## update_plots
+######################################################
+function update_plots!(Plotmag, Plotvx, Plotdebug,
+                        velocityMag, velocityX,
+                        gridlengthX, gridlengthY, gridlengthZ, midY, midZ, frontY, backY,
+                        i, simulationTime, delta_t,
+                        mag_xy_obs=nothing, step_text_mag_xy=nothing,
+                        mag_xz_obs=nothing, step_text_mag_xz=nothing,
+                        vx_xy_obs=nothing, step_text_vx_xy=nothing,
+                        vx_xz_obs=nothing, step_text_vx_xz=nothing,
+                        vx_xz_front_obs=nothing, step_text_vx_xz_front=nothing,
+                        vx_xz_back_obs=nothing, step_text_vx_xz_back=nothing)
+
+    if Plotmag
+        mag_xy_obs[] = velocityMag[2:gridlengthX-1, 2:gridlengthY-1, midZ]
+        step_text_mag_xy[] = "Time step: $i / $simulationTime \n $(floor(Int, i*delta_t))s"
+        mag_xz_obs[] = velocityMag[2:gridlengthX-1, midY, 2:gridlengthZ-1]
+        step_text_mag_xz[] = "Time step: $i / $simulationTime \n $(floor(Int, i*delta_t))s"
+    end
+    if Plotvx
+        vx_xy_obs[] = velocityX[2:gridlengthX-1, 2:gridlengthY-1, midZ]
+        step_text_vx_xy[] = "Time step: $i / $simulationTime \n $(floor(Int, i*delta_t))s"
+        vx_xz_obs[] = velocityX[2:gridlengthX-1, midY, 2:gridlengthZ-1]
+        step_text_vx_xz[] = "Time step: $i / $simulationTime \n $(floor(Int, i*delta_t))s"
+    end
+    if Plotdebug
+        vx_xz_back_obs[] = velocityX[:,backY,:]
+        step_text_vx_xz_back[] = "Time step: $i / $simulationTime \n $(floor(Int, i*delta_t))s"
+        vx_xz_front_obs[] = velocityX[:,frontY,:]
+        step_text_vx_xz_front[] = "Time step: $i / $simulationTime \n $(floor(Int, i*delta_t))s"
+    end
+    
+end
+######################################################
+
+
+## Plotting functions
+######################################################
     function Create_Plot_XY(nx::Int, ny::Int, field2d::Array{<:Real, 2}; title="vx slice XY", ax=nothing)
         vx_obs = Observable(field2d)          
         colorrange = (-0.02, 0.02)
@@ -66,8 +163,8 @@ using ColorSchemes
         xlims!(ax, 1, nx); ylims!(ax, 1, ny)
         ax.title = title
         ax.aspect = DataAspect()
-        step_text = Observable("Time step: 0, 0s")
-        text!(ax, 10, 10, text=step_text, color=:black, fontsize=14, align=(:left, :top))
+        step_text = Observable("Time step: 0 / 0, \n0s")
+        #text!(ax, 10, 10, text=step_text, color=:black, fontsize=14, align=(:left, :top))
         return vx_obs, step_text, hm
     end
 
@@ -82,124 +179,10 @@ using ColorSchemes
         ax.title = title
         ax.aspect = DataAspect()
         step_text = Observable("Time step: 0, 0s")
-        text!(ax, 10, 10, text=step_text, color=:black, fontsize=14, align=(:left, :top))
+        #text!(ax, 10, 10, text=step_text, color=:black, fontsize=14, align=(:left, :top))
         return vx_obs, step_text, hm 
     end
-
-    function Create_Vorticity_XY(nx::Int, ny::Int, vorticity_XY::Array{<:Real, 2}; title="|ω| slice XY")
-        omega_obs = Observable(vorticity_XY)
-        fig = Figure(size = (900, 400))
-        ax = Axis(fig[1,1], aspect = DataAspect(), title = title)
-        hm = heatmap!(ax, 1:nx, 1:ny, omega_obs;
-                      colormap = transparency_map_vorticity(),
-                      nan_color = :black,
-                      colorrange = (0.0, 0.05),
-                      transparency = true)
-        Colorbar(fig[1,2], hm, label = "|ω| (lattice)")
-        xlims!(ax, 1, nx); ylims!(ax, 1, ny)
-        step_text = Observable("Time step: 0, 0s")
-        text!(ax, ceil(Int, nx*0.05), ceil(Int, ny*0.05), text = step_text, color = :black, fontsize = 14)
-        
-        return omega_obs, step_text, fig
-    end
-
-    function Create_Vorticity_XZ(nx::Int, nz::Int, vorticity_XZ::Array{<:Real, 2}; title="|ω| slice XZ")
-        omega_obs = Observable(vorticity_XZ)
-        fig = Figure(size = (900, 400))
-        ax = Axis(fig[1,1], aspect = DataAspect(), title = title)
-        hm = heatmap!(ax, 1:nx, 1:nz, omega_obs;
-                      colormap = transparency_map_vorticity(),
-                      nan_color = :black,
-                      colorrange = (0.0, 0.05),
-                      transparency = true)
-        Colorbar(fig[1,2], hm, label = "|ω| (lattice)")
-        xlims!(ax, 1, nx); ylims!(ax, 1, nz)
-        step_text = Observable("Time step: 0, 0s")
-        text!(ax, ceil(Int, nx*0.05), ceil(Int, nz*0.05), text = step_text, color = :black, fontsize = 14)
-        
-        return omega_obs, step_text, fig
-    end
-
-
-
-
-
-
-
-
-
-    # function Create_Plot3D(nx::Int, ny::Int, nz::Int, field3d::Array{<:Real,3}; title="Test123")
-    #     # Initialize Plot arrays
-    #     vol_obs = Observable(Float32.(field3d))
-    #     # Set up the figure and axis with explicit sizing
-    #     fig = Figure(size = (900, 700))
-    #     ax  = Axis3(fig[1, 1], title = title)
-
-    #     plt = volume!(ax, vol_obs; colormap = :turbo, transparency = true, colorrange = (0f0, 50f0))
-    #     Colorbar(fig[1, 2], plt, label = title)
-
-    #     #Create a text element for time step display
-    #     step_text = Observable("Time step: 0, 0s")
-    #     text!(ax, 1, 1, nz, text = step_text, color = :white, fontsize = 22, align = (:left, :bottom))
-
-    #     return vol_obs, step_text, fig
-    # end
-
-    #############################################################################
-    # function Create_Plot(gridlengthX::Int64, gridlengthY::Int64)
-    #     ## Set up the figure and axis
-    #     # Initialize Plot arrays
-    #     vorticity = zeros(gridlengthX, gridlengthY);
-    #     vorticity_obs = Observable(vorticity);       
-    #     # Set up the figure and axis with explicit sizing
-    #     fig = Figure(size = (1000, 400))
-    #     ax = Axis(fig[1, 1], aspect = DataAspect(), title = "Vorticity")
-
-    #     # Display the vorticity field using a heatmap with dynamic color range
-    #     hm = heatmap!(ax, 1:gridlengthX, 1:gridlengthY, vorticity_obs, 
-    #                 colormap = :curl, 
-    #                 nan_color = :black,
-    #                 colorrange = (-0.2, 0.2))
-    #     Colorbar(fig[1, 2], hm, label = "Lattice_Vorticity")
-    #     rowsize!(fig.layout, 1, ax.scene.viewport[].widths[2])
-    #     # Set axis limits explicitly
-    #     xlims!(ax, 1, gridlengthX)
-    #     ylims!(ax, 1, gridlengthY)
-
-    #     # Create a text element for time step display
-    #     step_text = Observable("Time step: 0, 0s")
-    #     text_obj = text!(ax, ceil(Int, (gridlengthX*2/100)), ceil(Int, (gridlengthY*2/100)), text = step_text, 
-    #             color = :black, fontsize = 14)
-    #             return vorticity, vorticity_obs, text_obj, step_text, fig
-    # end#Plot_Vorticity
-
-    # function Create_Plot(gridlengthX::Int64, gridlengthY::Int64, velocityX::Array{Float64, 2}, Direction::String)
-    #             ## Set up the figure and axis
-    #     # Initialize Plot arrays
-    #     velocity_obs = Observable(velocityX);       
-    #     # Set up the figure and axis with explicit sizing
-    #     fig = Figure(size = (1000, 400))
-    #     ax = Axis(fig[1, 1], aspect = DataAspect(), title = "Velocity_$Direction")
-
-    #     # Display the vorticity field using a heatmap with dynamic color range
-    #     hm = heatmap!(ax, 1:gridlengthX, 1:gridlengthY, velocity_obs, 
-    #                 colormap = :inferno, 
-    #                 nan_color = :black,
-    #                 colorrange = (-0.2, 0.2))
-    #     Colorbar(fig[1, 2], hm, label = "Lattice_Velocity_$Direction")
-    #     rowsize!(fig.layout, 1, ax.scene.viewport[].widths[2])
-    #     # Set axis limits explicitly
-    #     xlims!(ax, 1, gridlengthX)
-    #     ylims!(ax, 1, gridlengthY)
-
-    #     # Create a text element for time step display
-    #     step_text = Observable("Time step: 0, 0s")
-    #     text_obj = text!(ax, ceil(Int, (gridlengthX*2/100)), ceil(Int, (gridlengthY*2/100)), text = step_text, 
-    #             color = :black, fontsize = 14)
-
-    #             return velocity_obs, text_obj, step_text, fig
-    # end#Plot_vx
-
-## Update Plot
+######################################################
+    
 
 end#module
