@@ -47,7 +47,12 @@ function setup_vx_plot(gridlengthX, gridlengthY, gridlengthZ, velocityX, midY, m
 end
 
 function setup_mag_plot(gridlengthX, gridlengthY, gridlengthZ, velocityMag, midY, midZ)
-    fig_mag = Figure(size = (1000, 800))
+    ny = gridlengthY - 2
+    nz = gridlengthZ - 2
+    base_height = 280
+    row2_height = round(Int, base_height * nz / ny)
+
+    fig_mag = Figure(size = (1000, base_height + row2_height + 30 + 150))
         ax1_mag = Axis(fig_mag[1,1])
         ax2_mag = Axis(fig_mag[2,1])
         mag_xy_obs, step_text_mag_xy, hm1_mag = Create_Plot_Mag_XY(gridlengthX-2, gridlengthY-2,
@@ -59,8 +64,8 @@ function setup_mag_plot(gridlengthX, gridlengthY, gridlengthZ, velocityMag, midY
         Colorbar(fig_mag[1, 2], hm1_mag, label = "Lattice Velocity Magnitude")
         Colorbar(fig_mag[2, 2], hm2_mag, label = "Lattice Velocity Magnitude")
         Label(fig_mag[3,1:2], text=step_text_mag_xy)
-        rowsize!(fig_mag.layout, 1, Fixed(320))
-        rowsize!(fig_mag.layout, 2, Fixed(320))
+        rowsize!(fig_mag.layout, 1, Fixed(base_height))
+        rowsize!(fig_mag.layout, 2, Fixed(row2_height))
         rowsize!(fig_mag.layout, 3, Fixed(30))
         colsize!(fig_mag.layout, 1, Auto(0.9))
         colsize!(fig_mag.layout, 2, Auto(0.1))
