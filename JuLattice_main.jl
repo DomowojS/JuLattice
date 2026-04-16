@@ -17,32 +17,35 @@ function run_JuLattice()
     ####################################  Initialize  ####################################
     ##-------- User Settings --------##
     # Cylinder Definition
-    Radius   = 0.08 #0.1                 # m
+    #Radius   = 0.0115 #0.08 #0.1        # m (D = 0.023m)
+    Radius = 0.08 #TEST
     D = 2 * Radius
     
-    # Simulation Domain Settings
-    length_X = 21 * D                 # m
-    length_Y = 11 * D                 # m
-    length_Z = 16 * D                 # m
-    # length_X = 11 * D                   # m
-    # length_Y = 6 * D                    # m 
-    # length_Z = 8 * D                    # m
+    #Simulation Domain Settings
+    length_X = 15.5*D#20.5 * D                 # m
+    length_Y = 5.0*D #0.6                      # m
+    length_Z = 5.0*D #0.6                      # m
+
 
     # Fluid Settings 
-    Kinematic_Viscosity = 0.0004; #0.001;                       # m^2/s 
-    reynoldsNumber = 3000 #280 #200 #500                        # Target Reynolds number
-    Mach_Number = 0.03 #0.01;                                   # Target Mach number (Ma = U_lattice/c_s)
+    Kinematic_Viscosity = 1e-6 #0.0004; #0.001;                       # m^2/s 
+    reynoldsNumber = 2760 #280 #200 #500                        # Target Reynolds number
+    Mach_Number = 0.05 #0.03 #0.01;                                   # Target Mach number (Ma = U_lattice/c_s)
                                                                 # Keep Ma < 0.1 for incompressible flow!
 
     # Simulation Settings
     Simulation_Time = 60;                                       # s
-    delta_x         = 0.01 #0.01 ;                             # Grid spacing (physical units per lattice unit)
-    CS              = 0.1                                       # CS ↑ = eddy viscosity ↑
+    # 0.0023 => 10 = D/Δx || 0.00115 => 20 = D/Δx
+    delta_x         = 0.01 #0.0023  #0.02 #0.01  0.00115 zu viel ram benötigt     Grid spacing (physical units per lattice unit)
+    # Smagorinsky constant CS
+    CS              = 0.1 #0.17 #1/3 #0.1   #0.333 1/3          # CS ↑ = eddy viscosity ↑
 
     # Plot Requests (Flags)
     Plotvx = false;
     Plotmag = true;
     Plotdebug = false;
+    Plotvorticity = false;
+    vorticity_mode = :component # :component (ω_z / ω_y)   or   :magnitude (|ω|)
 
     ##-------- Compute LBM Parameters from Mach Number --------##
     lattice_speedOfSound    = 1.0 / sqrt(3)
@@ -68,13 +71,13 @@ function run_JuLattice()
     # Cylinder Position
     cylinder_x      = Int(round((5.5 * D) / delta_x)) + 1
     cylinder_y      = Int(round((length_Y/ 2 ) / delta_x)) + 1
-    cylinder_z_top  = length_Z * 0.75
-    cylinder_z_bot  = length_Z * 0.25
+    cylinder_z_top  = length_Z  #length_Z * 0.75 #
+    cylinder_z_bot  = 0.0 #length_Z * 0.25 #
     cylinder_radius = Radius/delta_x
 
     # Grid-idx for is_object (nodes inside of cylinder)
-    cylinder_start = 2 + Int(floor(cylinder_z_bot / delta_x))
-    cylinder_end   = 2 + Int(ceil(cylinder_z_top / delta_x))  
+    cylinder_start = 2 #2 + Int(floor(cylinder_z_bot / delta_x))
+    cylinder_end   = gridlengthZ-1 #2 + Int(ceil(cylinder_z_top / delta_x))  
     
     # Reynolds Check:
     # Re_lattice = U*R/v -> should match Re_phys since quantities are scaled
@@ -84,6 +87,21 @@ function run_JuLattice()
     # Define Slice indices for plotting
     midY = 2 + Int(round((gridlengthY-2)/2))
     midZ = 2 + Int(round((gridlengthZ-2)/2))
+
+    ##-------- Probe Setup --------## 
+    D_lat   = Int(round(D / delta_x))
+    probe_x = cylinder_x + 3 * D_lat
+    probe_z = midZ
+    probe_ys = collect(2:gridlengthY-1)
+    n_probe = length(probe_ys) # Vector{Int64}
+
+    sample_interval = 10        # every 10 steps sapmling
+    log_interval = 1000         # every 1000 steps writing to .CSV
+
+    cumulativ_u = zeros(n_probe)
+    cumulativ_v = zeros(n_probe)
+    cumulativ_w = zeros(n_probe)
+    cumulativ_count = 0
 
     # more slices for debugg plots
     frontY = 2
@@ -137,11 +155,12 @@ function run_JuLattice()
 
     ##-------- precompute BC --------##
     println("Computing Bouzidi boundary data...")
+
     boundary_data = compute_object_boundary_data(
         gridlengthX, gridlengthY, gridlengthZ,
         (cylinder_x -2) * delta_x,  (cylinder_y -2) * delta_x,
         cylinder_radius * delta_x,
-        cylinder_start, cylinder_end,
+        cylinder_z_bot, cylinder_z_top,
         is_object, delta_x
     )
 
@@ -219,8 +238,9 @@ function run_JuLattice()
     velocityY = zeros(gridlengthX, gridlengthY, gridlengthZ)
     velocityZ = zeros(gridlengthX, gridlengthY, gridlengthZ)
     velocityMag = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    vortZ = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    vortY = zeros(gridlengthX, gridlengthY, gridlengthZ)
 
-    
     ##--------  Initialize distribution functions FLUID NODES and SOLID NODES  --------##
     for x in 1:gridlengthX
         for y in 1:gridlengthY
@@ -314,6 +334,11 @@ function run_JuLattice()
     Log_Fluid_Parameters(τ, omega, Inflow_Velocity, lattice_inflow_velocity, Re_phys, Re_lattice)
     Log_Simulation_Start()
 
+    ##-------- Logging into .CSV --------##
+    open("wake_profil.csv", "w") do io
+        println(io, "t_phys, y_phys, cumulativ_mean_u, cumulativ_mean_v, cumulativ_mean_w")
+    end
+
     ##--------  Plot calls  --------## 
     # Initialise Observables
     vx_xy_obs = nothing; step_text_vx_xy = nothing
@@ -322,6 +347,9 @@ function run_JuLattice()
     mag_xz_obs = nothing; step_text_mag_xz = nothing
     vx_xz_front_obs = nothing; step_text_vx_xz_front = nothing
     vx_xz_back_obs = nothing; step_text_vx_xz_back = nothing
+    vort_xy_obs = nothing; step_text_vort_xy = nothing
+    vort_xz_obs = nothing; step_text_vort_xz = nothing
+
     
     if Plotvx
         vx_xy_obs, step_text_vx_xy, vx_xz_obs, step_text_vx_xz = 
@@ -336,6 +364,11 @@ function run_JuLattice()
     if Plotdebug
         vx_xz_front_obs, step_text_vx_xz_front, vx_xz_back_obs, step_text_vx_xz_back =
             setup_debug_plots(gridlengthX, gridlengthZ, velocityX, frontY, backY)
+    end
+   
+    if Plotvorticity
+    vort_xy_obs, step_text_vort_xy, vort_xz_obs, step_text_vort_xz =
+        setup_vorticity_plot(gridlengthX, gridlengthY, gridlengthZ, vortZ, vortY, midY, midZ; mode=vorticity_mode)
     end
     
     ##--------  MAIN  LOOP --------## 
@@ -486,12 +519,35 @@ function run_JuLattice()
         f0pm, f0pmS = f0pmS, f0pm
         f0pp, f0ppS = f0ppS, f0pp     
 
+        ##-------- Probe Sampling (cumulativ mean) --------##
+        if i % sample_interval == 0
+            cumulativ_count +=1
+            @inbounds for j in eachindex(probe_ys)
+                y = probe_ys[j]
+                cumulativ_u[j] += (u[probe_x, y, probe_z] - cumulativ_u[j]) / cumulativ_count
+                cumulativ_v[j] += (v[probe_x, y, probe_z] - cumulativ_v[j]) / cumulativ_count
+                cumulativ_w[j] += (w[probe_x, y, probe_z] - cumulativ_w[j]) / cumulativ_count
+            end
+        end
+        
+        if i % log_interval == 0
+            t_phys = i * delta_t
+            open("wake_profil.csv", "a") do io
+                for j in eachindex(probe_ys)
+                    y_phys = (probe_ys[j] - 1) * delta_x # account for 1-based offset
+                    println(io, "$t_phys, $y_phys, $(cumulativ_u[j]), $(cumulativ_v[j]), $(cumulativ_w[j])")
+                end
+            end
+        end
+
+
+
         if (i % 100 == 0) || (i == simulationTime)
             Log_Simulation_Runtime(i, simulationTime)
         end
 
         # Plot of the field
-        if any((Plotvx, Plotdebug, Plotmag)) && ((i % 200 == 0) || (i == simulationTime))
+        if any((Plotvx, Plotdebug, Plotmag, Plotvorticity)) && ((i % 100 == 0) || (i == simulationTime))
 
             velocityX .= u 
             # velocityY .= v
@@ -500,13 +556,43 @@ function run_JuLattice()
             velocityX[is_object] .= NaN
             velocityMag[is_object] .= NaN
 
+            # Vorticity calculation
+            if Plotvorticity
+                if vorticity_mode == :magnitude
+                    @inbounds for z in 2:gridlengthZ-1, y in 2:gridlengthY-1, x in 2:gridlengthX-1
+                    if is_solid[x,y,z]
+                        vortZ[x,y,z] = NaN; vortY[x,y,z] = NaN
+                    else
+                        wx = (w[x,y+1,z] - w[x,y-1,z]) * 0.5 - (v[x,y,z+1] - v[x,y,z-1]) * 0.5
+                        wy = (u[x,y,z+1] - u[x,y,z-1]) * 0.5 - (w[x+1,y,z] - w[x-1,y,z]) * 0.5
+                        wz = (v[x+1,y,z] - v[x-1,y,z]) * 0.5 - (u[x,y+1,z] - u[x,y-1,z]) * 0.5
+                        mag = sqrt(wx*wx + wy*wy + wz*wz)
+                        vortZ[x,y,z] = mag; vortY[x,y,z] = mag
+                    end
+                end
+                else  # :component
+                    @inbounds for z in 2:gridlengthZ-1, y in 2:gridlengthY-1, x in 2:gridlengthX-1
+                        if is_solid[x,y,z]
+                            vortZ[x,y,z] = NaN; vortY[x,y,z] = NaN
+                        else
+                            vortZ[x,y,z] = (v[x+1,y,z] - v[x-1,y,z]) * 0.5 - (u[x,y+1,z] - u[x,y-1,z]) * 0.5
+                            vortY[x,y,z] = (u[x,y,z+1] - u[x,y,z-1]) * 0.5 - (w[x+1,y,z] - w[x-1,y,z]) * 0.5
+                        end
+                    end
+                end
+            end
+                    
             update_plots!(Plotmag, Plotvx, Plotdebug,
                           velocityMag, velocityX,
                           gridlengthX, gridlengthY, gridlengthZ, midY, midZ, frontY, backY,
                           i, simulationTime, delta_t,
                           mag_xy_obs, step_text_mag_xy, mag_xz_obs, step_text_mag_xz,
                           vx_xy_obs, step_text_vx_xy, vx_xz_obs, step_text_vx_xz,
-                          vx_xz_front_obs, step_text_vx_xz_front, vx_xz_back_obs, step_text_vx_xz_back)
+                          vx_xz_front_obs, step_text_vx_xz_front, vx_xz_back_obs, step_text_vx_xz_back;
+                          Plotvorticity=Plotvorticity,
+                          vortZ=vortZ, vortY=vortY,
+                          vort_xy_obs=vort_xy_obs, step_text_vort_xy=step_text_vort_xy,
+                          vort_xz_obs=vort_xz_obs, step_text_vort_xz=step_text_vort_xz)
 
             yield()
             sleep(0.01)

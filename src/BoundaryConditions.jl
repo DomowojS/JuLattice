@@ -2,43 +2,71 @@ module BoundaryConditions
 
 export compute_object_boundary_data, apply_bouzidi_bc_3d!
 
-function _ray_cylinder_q(lx0, ly0, dlx, dly, cylinder_radius)
+function _ray_cylinder_q(lx0, ly0, dlx, dly, z0_phys, dz_phys, 
+                         cylinder_radius, z_bot_phys, z_top_phys)
+    
     q = Inf
 
-    # ray: l0 + t*dl
+    # ray: r(t) = l0 + t*dl
     # circle of cylinder: x^2 + y^2 = R^2
     # ray in circle equation:
+    # (x0 + t*dx)^2 + (y0 + t*dy)^2 - R^2 = 0
     # a*t^2 + b*t + c = 0
     # check for intersections with discriminant
 
     a = dlx^2 + dly^2
-    b = 2.0 * (lx0* dlx + ly0 * dly)
-    c = lx0^2 + ly0^2 - cylinder_radius^2
+    if a > 1e-10
+        b = 2.0 * (lx0* dlx + ly0 * dly)
+        c = lx0^2 + ly0^2 - cylinder_radius^2
 
-    disc = b^2 - 4.0 * a * c
+        disc = b^2 - 4.0 * a * c
 
-    if disc >= 0.0
-        sqrt_disc = sqrt(disc)
-        t1 = (-b - sqrt_disc) / (2 * a)
-        t2 = (-b + sqrt_disc) / (2 * a)
+        if disc >= 0.0
+            sqrt_disc = sqrt(disc)
+            t1 = (-b - sqrt_disc) / (2 * a)
+            t2 = (-b + sqrt_disc) / (2 * a)
 
-        for t in (t1, t2)
-            if 0.0 < t <= 1.0 + 1e-10
-                q = min(q, t)
+            for t in (t1, t2)
+                if 0.0 < t <= 1.0 + 1e-10
+                    z_at_t = z0_phys + t * dz_phys
+                    if z_at_t >= z_bot_phys - 1e-10 && z_at_t <= z_top_phys + 1e-10
+                        q = min(q, t)
+                    end
+                end
             end
         end
     end
     
+    # ray: z(t) = z0 + t * dz
+    # z_cap: z-coord for bot/top
+    # z_cap = z0 + t * dz <-> t = (z_cap - z0_phys) / dz_phys
+    # then: check if x/y are INSIDE of circle area
+    if abs(dz_phys) > 1e-10
+        for z_cap in (z_bot_phys, z_top_phys)
+            t = (z_cap - z0_phys) / dz_phys
+            if 0.0 < t <= 1.0 + 1e-10
+               x_at_t = lx0 + t * dlx
+               y_at_t = ly0 + t * dly
+               if x_at_t^2 + y_at_t^2 <= cylinder_radius^2 + 1e-10
+                    q  = min(q, t)
+               end
+            end
+        end
+    end
+
     return q    
 end
 
 function compute_object_boundary_data(gridlengthX, gridlengthY, gridlengthZ,
                                       cylinder_x, cylinder_y, cylinder_radius,
-                                      cylinder_start, cylinder_end, is_object, delta_x)
+                                      cylinder_z_bot, cylinder_z_top, is_object, delta_x)
 
 
     # boundary_data = []
     boundary_data = Tuple{Int,Int,Int,Int,Int,Int,Int,Int,Float64}[]
+
+    #DEBUG
+    obj_neighbor_count = 0
 
     # D3Q19 - without (0,0,0)
     directions = (
@@ -61,10 +89,13 @@ function compute_object_boundary_data(gridlengthX, gridlengthY, gridlengthZ,
         if is_object[x, y, z]
             continue
         end
+        #DEBUG
+        obj_neighbor_count +=1
 
         # convert to physical coordinates
         x0_phys = (x-2) * delta_x
         y0_phys = (y-2) * delta_x
+        z0_phys = (z-2) * delta_x
 
         # push so that cylinder middle = (0,0)
 
@@ -88,21 +119,20 @@ function compute_object_boundary_data(gridlengthX, gridlengthY, gridlengthZ,
                 continue
             end
 
-            # Is in cylinder z-range?
-            if !(nz >= cylinder_start && nz <= cylinder_end)
-                continue
-            end
-
             # neighbor position physical
             x1_phys = (nx-2) * delta_x
             y1_phys = (ny-2) * delta_x
+            z1_phys = (nz-2) * delta_x
 
             # local coordinates of neighbor
             lx1 = x1_phys - cylinder_x
             ly1 = y1_phys - cylinder_y
+            dz_phys = z1_phys - z0_phys
 
             # Ray-casting -> q
-            q = _ray_cylinder_q(lx0, ly0, lx1-lx0, ly1-ly0, cylinder_radius)
+            q = _ray_cylinder_q(lx0, ly0, lx1-lx0, ly1-ly0, 
+                                z0_phys, dz_phys, 
+                                cylinder_radius, cylinder_z_bot, cylinder_z_top)
 
 
             # for top/bot of cylinder and edge:
@@ -119,6 +149,8 @@ function compute_object_boundary_data(gridlengthX, gridlengthY, gridlengthZ,
         end #for (cx, cy, cz)
     end #@inbounds for x,y,z
     
+    #DEBUG
+    println("DEBUG: obj nieghbors found: $obj_neighbor_count")
     println("✓ Bouzidi BC: $(length(boundary_data)) boundary nodes found")
     return boundary_data
 end
