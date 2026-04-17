@@ -17,14 +17,13 @@ function run_JuLattice()
     ####################################  Initialize  ####################################
     ##-------- User Settings --------##
     # Cylinder Definition
-    #Radius   = 0.0115 #0.08 #0.1        # m (D = 0.023m)
-    Radius = 0.08 #TEST
+    Radius   = 0.0115 #0.08 #0.1        # m (D = 0.023m)
     D = 2 * Radius
     
     #Simulation Domain Settings
-    length_X = 15.5*D#20.5 * D                 # m
-    length_Y = 5.0*D #0.6                      # m
-    length_Z = 5.0*D #0.6                      # m
+    length_X = 20.5 * D                 # m
+    length_Y = 0.6                      # m
+    length_Z = 0.6                      # m
 
 
     # Fluid Settings 
@@ -36,7 +35,7 @@ function run_JuLattice()
     # Simulation Settings
     Simulation_Time = 60;                                       # s
     # 0.0023 => 10 = D/Δx || 0.00115 => 20 = D/Δx
-    delta_x         = 0.01 #0.0023  #0.02 #0.01  0.00115 zu viel ram benötigt     Grid spacing (physical units per lattice unit)
+    delta_x         = 0.0023  #0.02 #0.01  0.00115 zu viel ram benötigt     Grid spacing (physical units per lattice unit)
     # Smagorinsky constant CS
     CS              = 0.1 #0.17 #1/3 #0.1   #0.333 1/3          # CS ↑ = eddy viscosity ↑
 
@@ -416,7 +415,7 @@ function run_JuLattice()
         end #end elapsed
 
         # debug timecheck for mainloop with elapsed
-        if i >= 5 && <= 15
+        if i >= 5 && i<= 15
             println("Step $i mainloop: $(round(t_debug * 1000, digits=1))ms")
         end
         
@@ -424,7 +423,7 @@ function run_JuLattice()
             est_total_s = t_debug * simulationTime
             est_hours = floor(Int, est_total_s / 3600)
             est_minutes = floor(Int, (est_total_s % 3600) / 60)
-            println("---> Estimated total simulation time: ~$(est_hours)h $(est_minutes)min ($simulationTime) steps x $(round(t_debug*1000, digits=1)ms)")    
+            println("---> Estimated total simulation time: ~$(est_hours)h $(est_minutes)min ($simulationTime) steps x $(round(t_debug*1000, digits=1))ms")    
         end
 
         # bounce-back walls
