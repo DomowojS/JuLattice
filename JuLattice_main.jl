@@ -177,6 +177,9 @@ function run_JuLattice()
         cylinder_z_bot, cylinder_z_top,
         is_object, delta_x
     )
+    A_lat = (2.0 * cylinder_radius) * Float64(cylinder_end - cylinder_start + 1)
+    Cd = 0.0
+    Cl = 0.0
 
     ##-------- Array Allocation --------##
     #Q = 19; #D3Q19
@@ -349,9 +352,15 @@ function run_JuLattice()
     Log_Simulation_Start()
 
     ##-------- Logging into .CSV --------##
+    # velocities, mean and std
     open("wake_profil.csv", "w") do io
         println(io, "t_phys, y_phys, u, v, w, mean_u, mean_v, mean_w, std_u, std_v, std_w")
     end
+
+    # forces
+    forces_io = open("forces.csv", "w")
+    println(forces_io, "t_phys, Cd, Cl")
+
 
     ##--------  Plot calls  --------## 
     # Initialise Observables
@@ -484,11 +493,14 @@ function run_JuLattice()
         end#for wall in wall_indices
 
         # bounce-back object | Bouzidi bounceback (IBB)
-        apply_bouzidi_bc_3d!(boundary_data,
+        F_x_lat, F_y_lat = apply_bouzidi_bc_3d!(boundary_data,
                              fm00S, fp00S, f0m0S, f0p0S, f00mS, f00pS,
                              fmm0S, fmp0S, fpm0S, fpp0S,
                              fm0mS, fm0pS, fp0mS, fp0pS,
                              f0mmS, f0mpS, f0pmS, f0ppS)
+        
+        Cd = 2.0 * F_x_lat / (fluiddensity * lattice_inflow_velocity^2 * A_lat)
+        Cl = 2.0 * F_y_lat / (fluiddensity * lattice_inflow_velocity^2 * A_lat)
 
         # INLET: moving wall bounceback with momentum addition
         # # compute inflow populations fp00S, fpp0S, fpm0S, fp0pS, fp0mS
@@ -538,6 +550,10 @@ function run_JuLattice()
             buf_ptr         += 1
             cumulativ_count += 1
             sample_times[buf_ptr] = i * delta_t
+
+            println(forces_io, "$(i * delta_t), $Cd, $Cl")
+
+
             fac = cumulativ_count > 1 ? 1.0 / (cumulativ_count -1) : 0.0
             
             @inbounds for j in eachindex(probe_ys)
@@ -575,10 +591,7 @@ function run_JuLattice()
                     for s in 1:samples_per_flush-1
                         for j in eachindex(probe_ys)
                             y_phys = (probe_ys[j] - 1) * delta_x
-                            println(io, "$(sample_times[s]), $y_phys, 
-                                    $(sample_buf_u[j,s]), $(sample_buf_v[j,s]), $(sample_buf_w[j,s]),
-                                    $(sample_buf_mean_u[j,s]), $(sample_buf_mean_v[j,s]), $(sample_buf_mean_w[j,s]), 
-                                    $(sample_buf_std_u[j,s]), $(sample_buf_std_v[j,s]), $(sample_buf_std_w[j,s])")
+                            println(io, "$(sample_times[s]), $y_phys, $(sample_buf_u[j,s]), $(sample_buf_v[j,s]), $(sample_buf_w[j,s]), $(sample_buf_mean_u[j,s]), $(sample_buf_mean_v[j,s]), $(sample_buf_mean_w[j,s]), $(sample_buf_std_u[j,s]), $(sample_buf_std_v[j,s]), $(sample_buf_std_w[j,s])")
                         end
                     end
                 end
@@ -654,13 +667,20 @@ function run_JuLattice()
     end#i in 1:simulationTime
 
     ##-------- Log final step --------##
-    t_phys = simulationTime * delta_t
-    open("wake_profil.csv", "a") do  io
-        for j in eachindex(probe_ys)
-            y_phys = (probe_ys[j] - 1) * delta_x
-            println(io, "$t_phys, $y_phys,  $(cumulativ_u[j]), $(cumulativ_v[j]), $(cumulativ_w[j])")    
+    open("wake_profil.csv", "a") do io
+        for s in 1:buf_ptr
+            for j in eachindex(probe_ys)
+                y_phys = (probe_ys[j] - 1) * delta_x
+                println(io, join([sample_times[s], y_phys,
+                        sample_buf_u[j,s], sample_buf_v[j,s], sample_buf_w[j,s],
+                        sample_buf_mean_u[j,s], sample_buf_mean_v[j,s], sample_buf_mean_w[j,s],
+                        sample_buf_std_u[j,s], sample_buf_std_v[j,s], sample_buf_std_w[j,s]
+                ], ", "))
+            end
         end
     end
+    # close forces.csv
+    close(forces_io)
 
     Log_Simulation_Tail()
 

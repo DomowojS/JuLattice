@@ -65,9 +65,6 @@ function compute_object_boundary_data(gridlengthX, gridlengthY, gridlengthZ,
     # boundary_data = []
     boundary_data = Tuple{Int,Int,Int,Int,Int,Int,Int,Int,Float64}[]
 
-    #DEBUG
-    obj_neighbor_count = 0
-
     # D3Q19 - without (0,0,0)
     directions = (
     ( 1, 0, 0,  2,  1), (-1, 0, 0,  1,  2),
@@ -89,9 +86,7 @@ function compute_object_boundary_data(gridlengthX, gridlengthY, gridlengthZ,
         if is_object[x, y, z]
             continue
         end
-        #DEBUG
-        obj_neighbor_count +=1
-
+   
         # convert to physical coordinates
         x0_phys = (x-2) * delta_x
         y0_phys = (y-2) * delta_x
@@ -148,9 +143,7 @@ function compute_object_boundary_data(gridlengthX, gridlengthY, gridlengthZ,
             end
         end #for (cx, cy, cz)
     end #@inbounds for x,y,z
-    
-    #DEBUG
-    println("DEBUG: obj nieghbors found: $obj_neighbor_count")
+
     println("✓ Bouzidi BC: $(length(boundary_data)) boundary nodes found")
     return boundary_data
 end
@@ -169,6 +162,9 @@ function apply_bouzidi_bc_3d!(boundary_data,
                 fm0mS, fm0pS, fp0mS, fp0pS,
                 f0mmS, f0mpS, f0pmS, f0ppS)
 
+    F_x = 0.0
+    F_y = 0.0
+
       @inbounds for (x, y, z, idx_toward, idx_reflect, cx, cy, cz, q) in boundary_data
         f_toward_solid = f_arrays[idx_toward]
         f_reflected    = f_arrays[idx_reflect]
@@ -186,10 +182,14 @@ function apply_bouzidi_bc_3d!(boundary_data,
         end
 
         f_reflected[x, y, z] = f_new
+        
+        # Force calculation
+        F_x += cx * (f_toward_solid[x, y, z] + f_new)
+        F_y += cy * (f_toward_solid[x, y, z] + f_new)
     end
 
 
-    return nothing
+    return F_x,  F_y
 end
 
 
