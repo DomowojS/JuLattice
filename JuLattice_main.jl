@@ -95,13 +95,27 @@ function run_JuLattice()
     probe_ys = collect(2:gridlengthY-1)
     n_probe = length(probe_ys) # Vector{Int64}
 
-    sample_interval = 10        # every 10 steps sapmling
-    log_interval = 1000         # every 1000 steps writing to .CSV
+    sample_dt_phys      = 0.1   # sampling rate
+    log_dt_phys         = 1.0   # logging rate for csv-flush
+    sample_interval     = max(1, round(Int, sample_dt_phys / delta_t))
+    samples_per_flush   = max(1, round(Int, log_dt_phys / sample_dt_phys))
 
-    cumulativ_u = zeros(n_probe)
-    cumulativ_v = zeros(n_probe)
-    cumulativ_w = zeros(n_probe)
-    cumulativ_count = 0
+    sample_times        = zeros(samples_per_flush)
+    sample_buf_u        = zeros(n_probe, samples_per_flush)
+    sample_buf_v        = zeros(n_probe, samples_per_flush)
+    sample_buf_w        = zeros(n_probe, samples_per_flush)
+    sample_buf_mean_u   = zeros(n_probe, samples_per_flush)
+    sample_buf_mean_v   = zeros(n_probe, samples_per_flush)
+    sample_buf_mean_w   = zeros(n_probe, samples_per_flush)
+    sample_buf_std_u    = zeros(n_probe, samples_per_flush)
+    sample_buf_std_v    = zeros(n_probe, samples_per_flush)
+    sample_buf_std_w    = zeros(n_probe, samples_per_flush)
+    buf_ptr = 0
+
+    cumulativ_mean_u    = zeros(n_probe); cumulativ_M2_u = zeros(n_probe)
+    cumulativ_mean_v    = zeros(n_probe); cumulativ_M2_v = zeros(n_probe)
+    cumulativ_mean_w    = zeros(n_probe); cumulativ_M2_w = zeros(n_probe)
+    cumulativ_count     = 0
 
     # more slices for debugg plots
     frontY = 2
@@ -336,7 +350,7 @@ function run_JuLattice()
 
     ##-------- Logging into .CSV --------##
     open("wake_profil.csv", "w") do io
-        println(io, "t_phys, y_phys, cumulativ_mean_u, cumulativ_mean_v, cumulativ_mean_w")
+        println(io, "t_phys, y_phys, u, v, w, mean_u, mean_v, mean_w, std_u, std_v, std_w")
     end
 
     ##--------  Plot calls  --------## 
@@ -521,25 +535,64 @@ function run_JuLattice()
 
         ##-------- Probe Sampling (cumulativ mean) --------##
         if i % sample_interval == 0
-            cumulativ_count +=1
+            buf_ptr         += 1
+            cumulativ_count += 1
+            sample_times[buf_ptr] = i * delta_t
+            fac = cumulativ_count > 1 ? 1.0 / (cumulativ_count -1) : 0.0
+            
             @inbounds for j in eachindex(probe_ys)
                 y = probe_ys[j]
-                cumulativ_u[j] += (u[probe_x, y, probe_z] - cumulativ_u[j]) / cumulativ_count
-                cumulativ_v[j] += (v[probe_x, y, probe_z] - cumulativ_v[j]) / cumulativ_count
-                cumulativ_w[j] += (w[probe_x, y, probe_z] - cumulativ_w[j]) / cumulativ_count
-            end
-        end
-        
-        if i % log_interval == 0
-            t_phys = i * delta_t
-            open("wake_profil.csv", "a") do io
-                for j in eachindex(probe_ys)
-                    y_phys = (probe_ys[j] - 1) * delta_x # account for 1-based offset
-                    println(io, "$t_phys, $y_phys, $(cumulativ_u[j]), $(cumulativ_v[j]), $(cumulativ_w[j])")
-                end
-            end
-        end
+                u_val = u[probe_x, y, probe_z]
+                v_val = v[probe_x, y, probe_z]
+                w_val = w[probe_x, y, probe_z]
 
+                sample_buf_u[j, buf_ptr] = u_val
+                sample_buf_v[j, buf_ptr] = v_val
+                sample_buf_w[j, buf_ptr] = w_val
+
+                du = u_val - cumulativ_mean_u[j];
+                cumulativ_mean_u[j] += du / cumulativ_count
+                cumulativ_M2_u[j] += du * (u_val - cumulativ_mean_u[j])
+                
+                dv = v_val - cumulativ_mean_v[j];
+                cumulativ_mean_v[j] += dv / cumulativ_count
+                cumulativ_M2_v[j] += dv * (v_val - cumulativ_mean_v[j])
+
+                dw = w_val - cumulativ_mean_w[j];
+                cumulativ_mean_w[j] += dw / cumulativ_count
+                cumulativ_M2_w[j] += dw * (w_val - cumulativ_mean_w[j])
+
+                sample_buf_mean_u[j, buf_ptr] = cumulativ_mean_u[j]
+                sample_buf_mean_v[j, buf_ptr] = cumulativ_mean_v[j]
+                sample_buf_mean_w[j, buf_ptr] = cumulativ_mean_w[j]
+                sample_buf_std_u[j, buf_ptr] = sqrt(cumulativ_M2_u[j] * fac)
+                sample_buf_std_v[j, buf_ptr] = sqrt(cumulativ_M2_v[j] * fac)
+                sample_buf_std_w[j, buf_ptr] = sqrt(cumulativ_M2_w[j] * fac)
+            end
+
+            if buf_ptr ==  samples_per_flush
+                open("wake_profil.csv", "a") do io
+                    for s in 1:samples_per_flush-1
+                        for j in eachindex(probe_ys)
+                            y_phys = (probe_ys[j] - 1) * delta_x
+                            println(io, "$(sample_times[s]), $y_phys, 
+                                    $(sample_buf_u[j,s]), $(sample_buf_v[j,s]), $(sample_buf_w[j,s]),
+                                    $(sample_buf_mean_u[j,s]), $(sample_buf_mean_v[j,s]), $(sample_buf_mean_w[j,s]), 
+                                    $(sample_buf_std_u[j,s]), $(sample_buf_std_v[j,s]), $(sample_buf_std_w[j,s])")
+                        end
+                    end
+                end
+                
+                for buf in (sample_buf_u, sample_buf_v, sample_buf_w,
+                            sample_buf_mean_u, sample_buf_mean_v, sample_buf_mean_w,
+                            sample_buf_std_u, sample_buf_std_v, sample_buf_std_w)
+                    buf[:,1] .= buf[:, samples_per_flush]
+                end
+                sample_times[1] = sample_times[samples_per_flush]
+                buf_ptr = 1
+            end
+
+        end
 
 
         if (i % 100 == 0) || (i == simulationTime)
@@ -599,6 +652,15 @@ function run_JuLattice()
         end#any((Plotvx, Plotdebug, Plotmag)) && ((i % 200 == 0) || (i == simulationTime))
 
     end#i in 1:simulationTime
+
+    ##-------- Log final step --------##
+    t_phys = simulationTime * delta_t
+    open("wake_profil.csv", "a") do  io
+        for j in eachindex(probe_ys)
+            y_phys = (probe_ys[j] - 1) * delta_x
+            println(io, "$t_phys, $y_phys,  $(cumulativ_u[j]), $(cumulativ_v[j]), $(cumulativ_w[j])")    
+        end
+    end
 
     Log_Simulation_Tail()
 
