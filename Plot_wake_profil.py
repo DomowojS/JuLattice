@@ -20,7 +20,7 @@ last = df[df["t_phys"] == t_last].copy()
 
 # ---- compute non-dimensional coordinates ----
 last["y_D"] = (last["y_phys"] - length_Y / 2) / D
-last["U_norm"] = last["cumulativ_mean_u"] / U_inf
+last["U_norm"] = last["mean_u"] / U_inf
 
 # ---- Plot ----
 fig, ax = plt.subplots(figsize=(5, 8))
@@ -33,7 +33,7 @@ ax.axhline(0, color="gray", linewidth=0.5, linestyle="--")   # Zylindermitte
 ax.axhline( 0.5, color="lightgray", linewidth=0.5, linestyle=":")  # Zylinderrand
 ax.axhline(-0.5, color="lightgray", linewidth=0.5, linestyle=":")
 ax.grid(True, linestyle="--", alpha=0.4)
-ax.set_xlim(0.5, 1.05)
+#ax.set_xlim(0.5, 1.05)
 
 plt.tight_layout()
 #plt.savefig("wake_profil.png", dpi=150)

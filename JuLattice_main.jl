@@ -416,8 +416,15 @@ function run_JuLattice()
         end #end elapsed
 
         # debug timecheck for mainloop with elapsed
-        if i <= 10
+        if i >= 5 && <= 15
             println("Step $i mainloop: $(round(t_debug * 1000, digits=1))ms")
+        end
+        
+        if i == 15
+            est_total_s = t_debug * simulationTime
+            est_hours = floor(Int, est_total_s / 3600)
+            est_minutes = floor(Int, (est_total_s % 3600) / 60)
+            println("---> Estimated total simulation time: ~$(est_hours)h $(est_minutes)min ($simulationTime) steps x $(round(t_debug*1000, digits=1)ms)")    
         end
 
         # bounce-back walls
