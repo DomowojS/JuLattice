@@ -27,4 +27,4 @@ Manifest.toml
 *.code-workspace
 
 #Simulation Output (MA_Sören_Blumberg)
-*.csv
+#*.csv

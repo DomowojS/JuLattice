@@ -28,7 +28,7 @@ function run_JuLattice()
 
     # Fluid Settings 
     Kinematic_Viscosity = 1e-6 #0.0004; #0.001;                       # m^2/s 
-    reynoldsNumber = 2760 #280 #200 #500                        # Target Reynolds number
+    reynoldsNumber = 390 #2760 #280 #200 #500                        # Target Reynolds number
     Mach_Number = 0.05 #0.03 #0.01;                                   # Target Mach number (Ma = U_lattice/c_s)
                                                                 # Keep Ma < 0.1 for incompressible flow!
 
