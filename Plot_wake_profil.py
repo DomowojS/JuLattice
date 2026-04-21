@@ -1,10 +1,14 @@
 import pandas as pd
 import matplotlib.pyplot as plt
+import math
 
 # ---- Parameter (have to be same as JuLattice!!!) ----
-Radius      = 0.08
+Mach_Number = 0.05
+# U_lat = Ma * cs
+lattice_U_inf = Mach_Number / math.sqrt(3)
+Radius      = 0.0115
 D           = 2 * Radius
-length_Y    = 5.0 * D
+length_Y    = 0.6
 nu          = 1e-6
 Re          = 2760
 U_inf       = Re * nu / D
@@ -20,7 +24,7 @@ last = df[df["t_phys"] == t_last].copy()
 
 # ---- compute non-dimensional coordinates ----
 last["y_D"] = (last["y_phys"] - length_Y / 2) / D
-last["U_norm"] = last["mean_u"] / U_inf
+last["U_norm"] = last["mean_u"] / lattice_U_inf
 
 # ---- Plot ----
 fig, ax = plt.subplots(figsize=(5, 8))
