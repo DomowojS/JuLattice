@@ -32,7 +32,7 @@ ax2.plot(t, Cl, "r-", linewidth=0.8)
 ax2.axhline(0, color="gray", linewidth=0.5, linestyle="--")
 ax2.set_ylabel("Cl [-]")
 ax2.set_xlabel("t [s]")
-ax2.legend([f"Cl (rm = {Cl_rms:.4f})"], fontsize=9)
+ax2.legend([f"Cl (rms = {Cl_rms:.4f})"], fontsize=9)
 ax2.grid(True, linestyle="--", alpha=0.4)
 
 fig.suptitle(f"Drag & Lift | Cd_mean = {Cd_mean:.4f} | Cl_rms = {Cl_rms:.4f}", fontsize=11)

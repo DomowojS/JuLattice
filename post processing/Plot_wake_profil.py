@@ -10,8 +10,10 @@ Radius      = 0.0115
 D           = 2 * Radius
 length_Y    = 0.6
 nu          = 1e-6
-Re          = 390
-U_inf       = Re * nu / D
+
+# not needed beacause calculation is in lattice units
+# Re          = 2760
+# U_inf       = Re * nu / D
 
 # ---- read .CSV ----
 df = pd.read_csv("simulation_data//wake_profil.csv", skipinitialspace=True)
