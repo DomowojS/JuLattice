@@ -20,24 +20,29 @@ function run_JuLattice()
     Radius   = 0.0115 #0.08 #0.1        # m (D = 0.023m)
     D = 2 * Radius
     
-    #Simulation Domain Settings
-    length_X = 20.5 * D                 # m
-    length_Y = 0.6                      # m
-    length_Z = 0.6                      # m
+    # #Simulation Domain Settings
+    # lateral 13D (both sides y&z)v| outflow 15.5D: (experimental setup) NO-SLIP DOMAIN
+    # length_X = 20.5 * D                 # m
+    # length_Y = 0.6                      # m
+    # length_Z = 0.6                      # m
 
+    # lateral 5D (both sides y&z) | outflow 10D: FREE-SLIP DOMAIN
+    length_X = 15.5 * D
+    length_Y = 10 * D
+    length_Z = 10 * D
 
     # Fluid Settings 
-    Kinematic_Viscosity = 1e-6 #0.0004; #0.001;                       # m^2/s 
-    reynoldsNumber = 390 #2760 #280 #200 #500                        # Target Reynolds number
-    Mach_Number = 0.05 #0.03 #0.01;                                   # Target Mach number (Ma = U_lattice/c_s)
-                                                                # Keep Ma < 0.1 for incompressible flow!
+    Kinematic_Viscosity = 1e-6 #0.0004; #0.001;                     # m^2/s 
+    reynoldsNumber = 2760 #2760 #280 #200 #500                      # Target Reynolds number
+    Mach_Number = 0.1 # 0.05                                       # Target Mach number (Ma = U_lattice/c_s)
+                                                                    # Keep Ma < 0.1 for incompressible flow!
 
     # Simulation Settings
     Simulation_Time = 60;                                       # s
     # 0.0023 => 10 = D/Δx || 0.00115 => 20 = D/Δx
-    delta_x         = 0.0023  #0.02 #0.01  0.00115 zu viel ram benötigt     Grid spacing (physical units per lattice unit)
+    delta_x         = 0.0023   #0.00115 zu viel ram benötigt     Grid spacing (physical units per lattice unit)
     # Smagorinsky constant CS
-    CS              = 0.1 #0.17 #1/3 #0.1   #0.333 1/3          # CS ↑ = eddy viscosity ↑
+    CS              = 0.1 #0.17 #1/3    #0.333 1/3          # CS ↑ = eddy viscosity ↑
 
     # Plot Requests (Flags)
     Plotvx = false;
@@ -352,12 +357,12 @@ function run_JuLattice()
 
     ##-------- Logging into .CSV --------##
     # velocities, mean and std
-    open("wake_profil.csv", "w") do io
+    open("simulation_data/wake_profil.csv", "w") do io
         println(io, "t_phys, y_phys, u, v, w, mean_u, mean_v, mean_w, std_u, std_v, std_w")
     end
 
     # forces
-    forces_io = open("forces.csv", "w")
+    forces_io = open("simulation_data/forces.csv", "w")
     println(forces_io, "t_phys, Cd, Cl")
 
 
@@ -426,77 +431,130 @@ function run_JuLattice()
             println("---> Estimated total simulation time: ~$(est_hours)h $(est_minutes)min ($simulationTime) steps x $(round(t_debug*1000, digits=1))ms")    
         end
 
-        # bounce-back walls
+        ##-------- free slip walls --------##
         @inbounds for wall in wall_indices
             x, y, z = Tuple(wall)
-            # +x 
-            if x+1 <= gridlengthX && !is_solid[x+1, y, z]
-                fp00S[x+1, y, z] = fm00S[x, y, z]
-            end
-            # -x 
-            if x-1 >= 1 && !is_solid[x-1, y, z]
-                fm00S[x-1, y, z] = fp00S[x, y, z]
-            end
-            # +y 
-            if y+1 <= gridlengthY && !is_solid[x, y+1, z]
-                f0p0S[x, y+1, z] = f0m0S[x, y, z]
-            end
-            # -y 
-            if y-1 >= 1 && !is_solid[x, y-1, z]
-                f0m0S[x, y-1, z] = f0p0S[x, y, z]
-            end
-            # +z 
-            if z+1 <= gridlengthZ && !is_solid[x, y, z+1]
-                f00pS[x, y, z+1] = f00mS[x, y, z]
-            end
-            # -z 
-            if z-1 >= 1 && !is_solid[x, y, z-1]
-                f00mS[x, y, z-1] = f00pS[x, y, z]
-            end
 
-            # XY
-            if x+1 <= gridlengthX && y+1 <= gridlengthY && !is_solid[x+1, y+1, z]
-                fpp0S[x+1, y+1, z] = fmm0S[x, y, z]
-            end
-            if x-1 >= 1 && y-1 >= 1 && !is_solid[x-1, y-1, z]
-                fmm0S[x-1, y-1, z] = fpp0S[x, y, z]
-            end
-            if x+1 <= gridlengthX && y-1 >= 1 && !is_solid[x+1, y-1, z]
-                fpm0S[x+1, y-1, z] = fmp0S[x, y, z]
-            end
-            if x-1 >= 1 && y+1 <= gridlengthY && !is_solid[x-1, y+1, z]
-                fmp0S[x-1, y+1, z] = fpm0S[x, y, z]
-            end
+            # Front wall (y=1) cy=-1 -> +1
+            if y==1
+                if !is_solid[x,2,z]
+                    f0p0S[x, 2, z] = f0m0S[x, 1, z]
+                    fmp0S[x, 2, z] = fmm0S[x, 1, z]
+                    fpp0S[x, 2, z] = fpm0S[x, 1, z]
+                    f0pmS[x, 2, z] = f0mmS[x, 1, z]
+                    f0ppS[x, 2, z] = f0mpS[x, 1, z]
+                end
+            # Back wall (y=gridlengthY) cy=+1 -> -1
+            elseif  y==gridlengthY
+                if !is_solid[x, gridlengthY-1, z]
+                    f0m0S[x, gridlengthY-1, z] = f0p0S[x, gridlengthY, z]
+                    fmm0S[x, gridlengthY-1, z] = fmp0S[x, gridlengthY, z]
+                    fpm0S[x, gridlengthY-1, z] = fpp0S[x, gridlengthY, z]
+                    f0mmS[x, gridlengthY-1, z] = f0pmS[x, gridlengthY, z]
+                    f0mpS[x, gridlengthY-1, z] = f0ppS[x, gridlengthY, z]
+                end
+            # Bottom wall (z=1) cz=-1 -> +1
+             elseif z == 1
+                if !is_solid[x, y, 2]
+                    f00pS[x, y, 2] = f00mS[x, y, 1]
+                    fp0pS[x, y, 2] = fp0mS[x, y, 1]
+                    fm0pS[x, y, 2] = fm0mS[x, y, 1]
+                    f0ppS[x, y, 2] = f0pmS[x, y, 1]
+                    f0mpS[x, y, 2] = f0mmS[x, y, 1]
+                end
+            # Top wall (z=gridlengthZ) cz=+1 -> -1
+            elseif z == gridlengthZ
+                if !is_solid[x, y, gridlengthZ-1]
+                    f00mS[x, y, gridlengthZ-1] = f00pS[x, y, gridlengthZ]
+                    fp0mS[x, y, gridlengthZ-1] = fp0pS[x, y, gridlengthZ]
+                    fm0mS[x, y, gridlengthZ-1] = fm0pS[x, y, gridlengthZ]
+                    f0pmS[x, y, gridlengthZ-1] = f0ppS[x, y, gridlengthZ]
+                    f0mmS[x, y, gridlengthZ-1] = f0mpS[x, y, gridlengthZ]
+                end
+            end#if
+        end#wall in  wall_indices
 
-            # XZ
-            if x+1 <= gridlengthX && z+1 <= gridlengthZ && !is_solid[x+1, y, z+1]
-                fp0pS[x+1, y, z+1] = fm0mS[x, y, z]
-            end
-            if x-1 >= 1 && z-1 >= 1 && !is_solid[x-1, y, z-1]
-                fm0mS[x-1, y, z-1] = fp0pS[x, y, z]
-            end
-            if x+1 <= gridlengthX && z-1 >= 1 && !is_solid[x+1, y, z-1]
-                fp0mS[x+1, y, z-1] = fm0pS[x, y, z]
-            end
-            if x-1 >= 1 && z+1 <= gridlengthZ && !is_solid[x-1, y, z+1]
-                fm0pS[x-1, y, z+1] = fp0mS[x, y, z]
-            end
 
-            # YZ
-            if y+1 <= gridlengthY && z+1 <= gridlengthZ && !is_solid[x, y+1, z+1]
-                f0ppS[x, y+1, z+1] = f0mmS[x, y, z]
-            end
-            if y-1 >= 1 && z-1 >= 1 && !is_solid[x, y-1, z-1]
-                f0mmS[x, y-1, z-1] = f0ppS[x, y, z]
-            end
-            if y+1 <= gridlengthY && z-1 >= 1 && !is_solid[x, y+1, z-1]
-                f0pmS[x, y+1, z-1] = f0mpS[x, y, z]
-            end
-            if y-1 >= 1 && z+1 <= gridlengthZ && !is_solid[x, y-1, z+1]
-                f0mpS[x, y-1, z+1] = f0pmS[x, y, z]
-            end
+
+
+
+
+
+
+        # # bounce-back walls
+        # @inbounds for wall in wall_indices
+        #     x, y, z = Tuple(wall)
             
-        end#for wall in wall_indices
+        #     # +x 
+        #     if x+1 <= gridlengthX && !is_solid[x+1, y, z]
+        #         fp00S[x+1, y, z] = fm00S[x, y, z]
+        #     end
+        #     # -x 
+        #     if x-1 >= 1 && !is_solid[x-1, y, z]
+        #         fm00S[x-1, y, z] = fp00S[x, y, z]
+        #     end
+        #     # +y 
+        #     if y+1 <= gridlengthY && !is_solid[x, y+1, z]
+        #         f0p0S[x, y+1, z] = f0m0S[x, y, z]
+        #     end
+        #     # -y 
+        #     if y-1 >= 1 && !is_solid[x, y-1, z]
+        #         f0m0S[x, y-1, z] = f0p0S[x, y, z]
+        #     end
+        #     # +z 
+        #     if z+1 <= gridlengthZ && !is_solid[x, y, z+1]
+        #         f00pS[x, y, z+1] = f00mS[x, y, z]
+        #     end
+        #     # -z 
+        #     if z-1 >= 1 && !is_solid[x, y, z-1]
+        #         f00mS[x, y, z-1] = f00pS[x, y, z]
+        #     end
+
+        #     # XY
+        #     if x+1 <= gridlengthX && y+1 <= gridlengthY && !is_solid[x+1, y+1, z]
+        #         fpp0S[x+1, y+1, z] = fmm0S[x, y, z]
+        #     end
+        #     if x-1 >= 1 && y-1 >= 1 && !is_solid[x-1, y-1, z]
+        #         fmm0S[x-1, y-1, z] = fpp0S[x, y, z]
+        #     end
+        #     if x+1 <= gridlengthX && y-1 >= 1 && !is_solid[x+1, y-1, z]
+        #         fpm0S[x+1, y-1, z] = fmp0S[x, y, z]
+        #     end
+        #     if x-1 >= 1 && y+1 <= gridlengthY && !is_solid[x-1, y+1, z]
+        #         fmp0S[x-1, y+1, z] = fpm0S[x, y, z]
+        #     end
+
+        #     # XZ
+        #     if x+1 <= gridlengthX && z+1 <= gridlengthZ && !is_solid[x+1, y, z+1]
+        #         fp0pS[x+1, y, z+1] = fm0mS[x, y, z]
+        #     end
+        #     if x-1 >= 1 && z-1 >= 1 && !is_solid[x-1, y, z-1]
+        #         fm0mS[x-1, y, z-1] = fp0pS[x, y, z]
+        #     end
+        #     if x+1 <= gridlengthX && z-1 >= 1 && !is_solid[x+1, y, z-1]
+        #         fp0mS[x+1, y, z-1] = fm0pS[x, y, z]
+        #     end
+        #     if x-1 >= 1 && z+1 <= gridlengthZ && !is_solid[x-1, y, z+1]
+        #         fm0pS[x-1, y, z+1] = fp0mS[x, y, z]
+        #     end
+
+        #     # YZ
+        #     if y+1 <= gridlengthY && z+1 <= gridlengthZ && !is_solid[x, y+1, z+1]
+        #         f0ppS[x, y+1, z+1] = f0mmS[x, y, z]
+        #     end
+        #     if y-1 >= 1 && z-1 >= 1 && !is_solid[x, y-1, z-1]
+        #         f0mmS[x, y-1, z-1] = f0ppS[x, y, z]
+        #     end
+        #     if y+1 <= gridlengthY && z-1 >= 1 && !is_solid[x, y+1, z-1]
+        #         f0pmS[x, y+1, z-1] = f0mpS[x, y, z]
+        #     end
+        #     if y-1 >= 1 && z+1 <= gridlengthZ && !is_solid[x, y-1, z+1]
+        #         f0mpS[x, y-1, z+1] = f0pmS[x, y, z]
+        #     end
+            
+        # end#for wall in wall_indices
+
+
 
         # bounce-back object | Bouzidi bounceback (IBB)
         F_x_lat, F_y_lat = apply_bouzidi_bc_3d!(boundary_data,
@@ -593,7 +651,7 @@ function run_JuLattice()
             end
 
             if buf_ptr ==  samples_per_flush
-                open("wake_profil.csv", "a") do io
+                open("simulation_data/wake_profil.csv", "a") do io
                     for s in 1:samples_per_flush-1
                         for j in eachindex(probe_ys)
                             y_phys = (probe_ys[j] - 1) * delta_x
@@ -673,7 +731,7 @@ function run_JuLattice()
     end#i in 1:simulationTime
 
     ##-------- Log final step --------##
-    open("wake_profil.csv", "a") do io
+    open("simulation_data/wake_profil.csv", "a") do io
         for s in 1:buf_ptr
             for j in eachindex(probe_ys)
                 y_phys = (probe_ys[j] - 1) * delta_x
