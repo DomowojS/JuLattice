@@ -354,15 +354,20 @@ function run_JuLattice()
     Log_Grid_Dimensions(gridlengthX, gridlengthY, gridlengthZ, delta_x, delta_t)
     Log_Fluid_Parameters(τ, omega, Inflow_Velocity, lattice_inflow_velocity, Re_phys, Re_lattice)
     Log_Simulation_Start()
-
+    
     ##-------- Logging into .CSV --------##
+    D_over_dx = Int(round(D / delta_x))
+    run_tag = "Re$(reynoldsNumber)_Ma$(Mach_Number)_DdeltaX$(D_over_dx)"
+    wake_csv_path = "simulation_data/wake_profil_$(run_tag).csv"
+    forces_csv_path = "simulation_data/forces_$(run_tag).csv"
+
     # velocities, mean and std
-    open("wake_profil.csv", "w") do io
+    open(wake_csv_path, "w") do io
         println(io, "t_phys, y_phys, u, v, w, mean_u, mean_v, mean_w, std_u, std_v, std_w")
     end
 
     # forces
-    forces_io = open("forces.csv", "w")
+    forces_io = open(forces_csv_path, "w")
     println(forces_io, "t_phys, Cd, Cl")
 
 
@@ -651,7 +656,7 @@ function run_JuLattice()
             end
 
             if buf_ptr ==  samples_per_flush
-                open("wake_profil.csv", "a") do io
+                open(wake_csv_path, "a") do io
                     for s in 1:samples_per_flush-1
                         for j in eachindex(probe_ys)
                             y_phys = (probe_ys[j] - 1) * delta_x
@@ -731,7 +736,7 @@ function run_JuLattice()
     end#i in 1:simulationTime
 
     ##-------- Log final step --------##
-    open("wake_profil.csv", "a") do io
+    open(wake_csv_path, "a") do io
         for s in 1:buf_ptr
             for j in eachindex(probe_ys)
                 y_phys = (probe_ys[j] - 1) * delta_x
