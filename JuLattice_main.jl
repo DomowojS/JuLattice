@@ -38,9 +38,9 @@ function run_JuLattice()
                                                                     # Keep Ma < 0.1 for incompressible flow!
 
     # Simulation Settings
-    Simulation_Time = 60;                                       # s
-    # 0.0023 => 10 = D/Δx || 0.00115 => 20 = D/Δx
-    delta_x         = 0.0023   #0.00115 zu viel ram benötigt     Grid spacing (physical units per lattice unit)
+    Simulation_Time = 60;                                   # s
+    # 0.0023 => 10 = D/Δx || 0.00115 => 20 = D/Δx || 0.00153 => 15 = D/Δx
+    delta_x         = 0.00153                               # Grid spacing (physical units per lattice unit)
     # Smagorinsky constant CS
     CS              = 0.1 #0.17 #1/3    #0.333 1/3          # CS ↑ = eddy viscosity ↑
 
@@ -360,6 +360,7 @@ function run_JuLattice()
     run_tag = "Re$(reynoldsNumber)_Ma$(Mach_Number)_DdeltaX$(D_over_dx)"
     wake_csv_path = "simulation_data/wake_profil_$(run_tag).csv"
     forces_csv_path = "simulation_data/forces_$(run_tag).csv"
+    mkpath("simulation_data")
 
     # velocities, mean and std
     open(wake_csv_path, "w") do io
