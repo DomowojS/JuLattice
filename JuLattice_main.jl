@@ -535,7 +535,7 @@ function run_JuLattice()
 
             # back/top edge
             if !is_solid[x, gridlengthY-1, gridlengthZ-1]
-                fmmS[x, gridlengthY-1, gridlengthZ-1] = f0ppS[x, gridlengthY, gridlengthZ]
+                f0mmS[x, gridlengthY-1, gridlengthZ-1] = f0ppS[x, gridlengthY, gridlengthZ]
             end
         end
 
