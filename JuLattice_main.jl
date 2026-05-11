@@ -40,7 +40,7 @@ function run_JuLattice()
     # Simulation Settings
     Simulation_Time = 60;                                   # s
     # 0.0023 => 10 = D/Δx || 0.00115 => 20 = D/Δx || 0.00153 => 15 = D/Δx
-    delta_x         = 0.00115                               # Grid spacing (physical units per lattice unit)
+    delta_x         = 0.0023                               # Grid spacing (physical units per lattice unit)
     # Smagorinsky constant CS
     CS              = 0.1 #0.17 #1/3    #0.333 1/3          # CS ↑ = eddy viscosity ↑
 
@@ -275,10 +275,17 @@ function run_JuLattice()
     for x in 1:gridlengthX
         for y in 1:gridlengthY
             for z in 1:gridlengthZ
+                
+                # Equilibirum Initialisation 
+                # ux = is_solid[x, y, z] ? 0.0 : lattice_inflow_velocity
+                # uy = 0.0
+                # uz = 0.0
 
+                # disturbed Initialisation rand()-> random output[0,1] -0.5 -> shifts to [-0.5,0.5]
                 ux = is_solid[x, y, z] ? 0.0 : lattice_inflow_velocity
-                uy = 0.0
-                uz = 0.0
+                uy = is_solid[x, y, z] ? 0.0 : (rand() - 0.5) * 0.02 * lattice_inflow_velocity
+                uz = is_solid[x, y, z] ? 0.0 : (rand() - 0.5) * 0.02 * lattice_inflow_velocity
+
                 rho_init = fluiddensity
                 
                 # Pre-compute polynomial factors
@@ -355,7 +362,7 @@ function run_JuLattice()
     f0pmS .= f0pm
     f0ppS .= f0pp
 
-    # Force GARBAGE COLLECTION to free unused memory
+    # Force garbage collection to free unused memory
     GC.gc()
 
     ##--------  Logging  --------##
@@ -831,7 +838,7 @@ function run_JuLattice()
         for s in 1:buf_ptr
             for j in eachindex(probe_ys)
                 y_phys = (probe_ys[j] - 1) * delta_x
-                
+
                 println(io, join([sample_times[s], y_phys,
                 sample_buf_u_6D[j,s], sample_buf_v_6D[j,s], sample_buf_w_6D[j,s],
                 sample_buf_mean_u_6D[j,s], sample_buf_mean_v_6D[j,s], sample_buf_mean_w_6D[j,s],
