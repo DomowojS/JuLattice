@@ -1,12 +1,22 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
+import tkinter as tk
+from tkinter import filedialog
 
 # Parameter
 t_transient = 0.0
 
 # Read
-df = pd.read_csv("simulation_data//forces.csv", skipinitialspace=True)
+tk.Tk().withdraw()
+file_path = filedialog.askopenfilename(
+    title="Select forces csv",
+    filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
+)
+if not file_path:
+    raise SystemExit("No file selected.")
+
+df = pd.read_csv(file_path, skipinitialspace=True)
 df.columns = df.columns.str.strip()
 
 t   = df["t_phys"].values

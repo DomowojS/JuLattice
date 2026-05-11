@@ -26,21 +26,21 @@ function run_JuLattice()
     # length_Y = 0.6                      # m
     # length_Z = 0.6                      # m
 
-    # lateral 5D (both sides y&z) | outflow 10D: FREE-SLIP DOMAIN
+    # # lateral 5D (both sides y&z) | outflow 10D: FREE-SLIP DOMAIN
     length_X = 15.5 * D
     length_Y = 10 * D
     length_Z = 10 * D
 
     # Fluid Settings 
     Kinematic_Viscosity = 1e-6 #0.0004; #0.001;                     # m^2/s 
-    reynoldsNumber = 2760 #2760 #280 #200 #500                      # Target Reynolds number
-    Mach_Number = 0.1 # 0.05                                       # Target Mach number (Ma = U_lattice/c_s)
+    reynoldsNumber =   390 #2760                                    # Target Reynolds number
+    Mach_Number = 0.05 # 0.05                                       # Target Mach number (Ma = U_lattice/c_s)
                                                                     # Keep Ma < 0.1 for incompressible flow!
 
     # Simulation Settings
     Simulation_Time = 60;                                   # s
     # 0.0023 => 10 = D/Δx || 0.00115 => 20 = D/Δx || 0.00153 => 15 = D/Δx
-    delta_x         = 0.00153                               # Grid spacing (physical units per lattice unit)
+    delta_x         = 0.00115                               # Grid spacing (physical units per lattice unit)
     # Smagorinsky constant CS
     CS              = 0.1 #0.17 #1/3    #0.333 1/3          # CS ↑ = eddy viscosity ↑
 
@@ -80,8 +80,8 @@ function run_JuLattice()
     cylinder_radius = Radius/delta_x
 
     # Grid-idx for is_object (nodes inside of cylinder)
-    cylinder_start = 2 #2 + Int(floor(cylinder_z_bot / delta_x))
-    cylinder_end   = gridlengthZ-1 #2 + Int(ceil(cylinder_z_top / delta_x))  
+    cylinder_start = 2 #1 #2 + Int(floor(cylinder_z_bot / delta_x))
+    cylinder_end   = gridlengthZ - 1 #gridlengthZ #gridlengthZ-1 #2 + Int(ceil(cylinder_z_top / delta_x))  
     
     # Reynolds Check:
     # Re_lattice = U*R/v -> should match Re_phys since quantities are scaled
@@ -243,16 +243,6 @@ function run_JuLattice()
     u = zeros(gridlengthX, gridlengthY, gridlengthZ)    #ux
     v = zeros(gridlengthX, gridlengthY, gridlengthZ)    #uy
     w = zeros(gridlengthX, gridlengthY, gridlengthZ)    #uz
-
-    # debug not needed?
-    # # create grid
-    # gridX, gridY, gridZ = meshgrid(1:gridlengthX, 1:gridlengthY, 1:gridlengthZ);
-    # #Swap of Y and X axis: (Y,X,Z) -> (X,Y,Z)
-    # if size(gridX) == (gridlengthY, gridlengthX, gridlengthZ) #check for format of grids
-    #     gridX = permutedims(gridX, (2,1,3))
-    #     gridY = permutedims(gridY, (2,1,3))
-    #     gridZ = permutedims(gridZ, (2,1,3))
-    # end    
 
     # Initialise velocity arrays for plotting
     velocityX = zeros(gridlengthX, gridlengthY, gridlengthZ)
@@ -436,6 +426,19 @@ function run_JuLattice()
             est_minutes = floor(Int, (est_total_s % 3600) / 60)
             println("---> Estimated total simulation time: ~$(est_hours)h $(est_minutes)min ($simulationTime) steps x $(round(t_debug*1000, digits=1))ms")    
         end
+      
+        # # bounce-back object | Bouzidi bounceback (IBB)
+        # F_x_lat, F_y_lat = apply_bouzidi_bc_3d!(boundary_data,
+        #                      fm00S, fp00S, f0m0S, f0p0S, f00mS, f00pS,
+        #                      fmm0S, fmp0S, fpm0S, fpp0S,
+        #                      fm0mS, fm0pS, fp0mS, fp0pS,
+        #                      f0mmS, f0mpS, f0pmS, f0ppS)
+        
+        # Cd = 2.0 * F_x_lat / (fluiddensity * lattice_inflow_velocity^2 * A_lat)
+        # Cl = 2.0 * F_y_lat / (fluiddensity * lattice_inflow_velocity^2 * A_lat)
+
+
+
 
         ##-------- free slip walls --------##
         @inbounds for wall in wall_indices
@@ -448,7 +451,7 @@ function run_JuLattice()
                     fmp0S[x, 2, z] = fmm0S[x, 1, z]
                     fpp0S[x, 2, z] = fpm0S[x, 1, z]
                     f0pmS[x, 2, z] = f0mmS[x, 1, z]
-                    f0ppS[x, 2, z] = f0mpS[x, 1, z]
+                    f0ppS[x, 2, z] = f0mpS[x, 1, z]  
                 end
             # Back wall (y=gridlengthY) cy=+1 -> -1
             elseif  y==gridlengthY
@@ -457,7 +460,7 @@ function run_JuLattice()
                     fmm0S[x, gridlengthY-1, z] = fmp0S[x, gridlengthY, z]
                     fpm0S[x, gridlengthY-1, z] = fpp0S[x, gridlengthY, z]
                     f0mmS[x, gridlengthY-1, z] = f0pmS[x, gridlengthY, z]
-                    f0mpS[x, gridlengthY-1, z] = f0ppS[x, gridlengthY, z]
+                    f0mpS[x, gridlengthY-1, z] = f0ppS[x, gridlengthY, z]   
                 end
             # Bottom wall (z=1) cz=-1 -> +1
              elseif z == 1
@@ -466,7 +469,7 @@ function run_JuLattice()
                     fp0pS[x, y, 2] = fp0mS[x, y, 1]
                     fm0pS[x, y, 2] = fm0mS[x, y, 1]
                     f0ppS[x, y, 2] = f0pmS[x, y, 1]
-                    f0mpS[x, y, 2] = f0mmS[x, y, 1]
+                    f0mpS[x, y, 2] = f0mmS[x, y, 1] 
                 end
             # Top wall (z=gridlengthZ) cz=+1 -> -1
             elseif z == gridlengthZ
@@ -475,16 +478,10 @@ function run_JuLattice()
                     fp0mS[x, y, gridlengthZ-1] = fp0pS[x, y, gridlengthZ]
                     fm0mS[x, y, gridlengthZ-1] = fm0pS[x, y, gridlengthZ]
                     f0pmS[x, y, gridlengthZ-1] = f0ppS[x, y, gridlengthZ]
-                    f0mmS[x, y, gridlengthZ-1] = f0mpS[x, y, gridlengthZ]
+                    f0mmS[x, y, gridlengthZ-1] = f0mpS[x, y, gridlengthZ]   
                 end
             end#if
         end#wall in  wall_indices
-
-
-
-
-
-
 
 
         # # bounce-back walls
@@ -572,6 +569,7 @@ function run_JuLattice()
         Cd = 2.0 * F_x_lat / (fluiddensity * lattice_inflow_velocity^2 * A_lat)
         Cl = 2.0 * F_y_lat / (fluiddensity * lattice_inflow_velocity^2 * A_lat)
 
+
         # INLET: moving wall bounceback with momentum addition
         # # compute inflow populations fp00S, fpp0S, fpm0S, fp0pS, fp0mS
         # # momentum coefficients for D3Q19 weights
@@ -622,7 +620,7 @@ function run_JuLattice()
             sample_times[buf_ptr] = i * delta_t
 
             println(forces_io, "$(i * delta_t), $Cd, $Cl")
-
+            flush(forces_io)
 
             fac = cumulativ_count > 1 ? 1.0 / (cumulativ_count -1) : 0.0
             

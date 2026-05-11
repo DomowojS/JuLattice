@@ -1,6 +1,8 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 import math
+import tkinter as tk
+from tkinter import filedialog, simpledialog
 
 # ---- Parameter (have to be same as JuLattice!!!) ----
 Mach_Number = 0.05
@@ -10,11 +12,29 @@ Radius      = 0.0115
 D           = 2 * Radius
 length_Y    = 0.6
 nu          = 1e-6
-Re          = 390
-U_inf       = Re * nu / D
+#Re          = 390
+
 
 # ---- read .CSV ----
-df = pd.read_csv("simulation_data//wake_profil.csv", skipinitialspace=True)
+tk.Tk().withdraw()
+Re = simpledialog.askfloat(
+    "Reynolds Number",
+    "Enter Re: ",
+    initialvalue=390.0
+)
+if Re is None:
+    raise SystemExit("No Re number entered!:(")
+
+U_inf       = Re * nu / D
+
+file_path = filedialog.askopenfilename(
+    title="Select wake profile CSV",
+    filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
+)
+if not file_path:
+    raise SystemExit("No file selected.")
+
+df = pd.read_csv(file_path, skipinitialspace=True)
 # delete "space"
 df.columns = df.columns.str.strip()
 

@@ -183,11 +183,16 @@ function apply_bouzidi_bc_3d!(boundary_data,
 
         f_reflected[x, y, z] = f_new
         
-        # Force calculation
-        F_x += cx * (f_toward_solid[x, y, z] + f_new)
-        F_y += cy * (f_toward_solid[x, y, z] + f_new)
-    end
+        # # Force calculation
+        # F_x += cx * (f_toward_solid[x, y, z] + f_new)
+        # F_y += cy * (f_toward_solid[x, y, z] + f_new)
 
+        F_x += cx * (f_at_solid + f_new)
+        F_y += cy * (f_at_solid + f_new)
+
+
+
+    end
 
     return F_x,  F_y
 end
