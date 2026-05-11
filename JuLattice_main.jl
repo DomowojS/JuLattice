@@ -94,7 +94,8 @@ function run_JuLattice()
 
     ##-------- Probe Setup --------## 
     D_lat   = Int(round(D / delta_x))
-    probe_x = cylinder_x + 3 * D_lat
+    probe_x_3D = cylinder_x + 3 * D_lat
+    probe_x_6D = cylinder_x + 6 * D_lat
     probe_z = midZ
     probe_ys = collect(2:gridlengthY-1)
     n_probe = length(probe_ys) # Vector{Int64}
@@ -105,21 +106,39 @@ function run_JuLattice()
     samples_per_flush   = max(1, round(Int, log_dt_phys / sample_dt_phys))
 
     sample_times        = zeros(samples_per_flush)
-    sample_buf_u        = zeros(n_probe, samples_per_flush)
-    sample_buf_v        = zeros(n_probe, samples_per_flush)
-    sample_buf_w        = zeros(n_probe, samples_per_flush)
-    sample_buf_mean_u   = zeros(n_probe, samples_per_flush)
-    sample_buf_mean_v   = zeros(n_probe, samples_per_flush)
-    sample_buf_mean_w   = zeros(n_probe, samples_per_flush)
-    sample_buf_std_u    = zeros(n_probe, samples_per_flush)
-    sample_buf_std_v    = zeros(n_probe, samples_per_flush)
-    sample_buf_std_w    = zeros(n_probe, samples_per_flush)
+    cumulativ_count     = 0
     buf_ptr = 0
 
-    cumulativ_mean_u    = zeros(n_probe); cumulativ_M2_u = zeros(n_probe)
-    cumulativ_mean_v    = zeros(n_probe); cumulativ_M2_v = zeros(n_probe)
-    cumulativ_mean_w    = zeros(n_probe); cumulativ_M2_w = zeros(n_probe)
-    cumulativ_count     = 0
+    # 3D behind cylinider
+    sample_buf_u_3D        = zeros(n_probe, samples_per_flush)
+    sample_buf_v_3D        = zeros(n_probe, samples_per_flush)
+    sample_buf_w_3D        = zeros(n_probe, samples_per_flush)
+    sample_buf_mean_u_3D   = zeros(n_probe, samples_per_flush)
+    sample_buf_mean_v_3D   = zeros(n_probe, samples_per_flush)
+    sample_buf_mean_w_3D   = zeros(n_probe, samples_per_flush)
+    sample_buf_std_u_3D    = zeros(n_probe, samples_per_flush)
+    sample_buf_std_v_3D    = zeros(n_probe, samples_per_flush)
+    sample_buf_std_w_3D    = zeros(n_probe, samples_per_flush)
+
+    cumulativ_mean_u_3D    = zeros(n_probe); cumulativ_M2_u_3D = zeros(n_probe)
+    cumulativ_mean_v_3D    = zeros(n_probe); cumulativ_M2_v_3D = zeros(n_probe)
+    cumulativ_mean_w_3D    = zeros(n_probe); cumulativ_M2_w_3D = zeros(n_probe)
+
+    # 6D behind cylinder
+    sample_buf_u_6D        = zeros(n_probe, samples_per_flush)
+    sample_buf_v_6D        = zeros(n_probe, samples_per_flush)
+    sample_buf_w_6D        = zeros(n_probe, samples_per_flush)
+    sample_buf_mean_u_6D   = zeros(n_probe, samples_per_flush)
+    sample_buf_mean_v_6D   = zeros(n_probe, samples_per_flush)
+    sample_buf_mean_w_6D   = zeros(n_probe, samples_per_flush)
+    sample_buf_std_u_6D    = zeros(n_probe, samples_per_flush)
+    sample_buf_std_v_6D    = zeros(n_probe, samples_per_flush)
+    sample_buf_std_w_6D    = zeros(n_probe, samples_per_flush)
+
+    cumulativ_mean_u_6D    = zeros(n_probe); cumulativ_M2_u_6D = zeros(n_probe)
+    cumulativ_mean_v_6D    = zeros(n_probe); cumulativ_M2_v_6D = zeros(n_probe)
+    cumulativ_mean_w_6D    = zeros(n_probe); cumulativ_M2_w_6D = zeros(n_probe)
+
 
     # more slices for debugg plots
     frontY = 2
@@ -348,12 +367,18 @@ function run_JuLattice()
     ##-------- Logging into .CSV --------##
     D_over_dx = Int(round(D / delta_x))
     run_tag = "Re$(reynoldsNumber)_Ma$(Mach_Number)_DdeltaX$(D_over_dx)"
-    wake_csv_path = "simulation_data/wake_profil_$(run_tag).csv"
+
+    wake_csv_path_3D = "simulation_data/wake_profil_3D_$(run_tag).csv"
+    wake_csv_path_6D = "simulation_data/wake_profil_6D_$(run_tag).csv"
+
     forces_csv_path = "simulation_data/forces_$(run_tag).csv"
     mkpath("simulation_data")
 
-    # velocities, mean and std
-    open(wake_csv_path, "w") do io
+    # wakevelocities, mean and std
+    open(wake_csv_path_3D, "w") do io
+        println(io, "t_phys, y_phys, u, v, w, mean_u, mean_v, mean_w, std_u, std_v, std_w")
+    end
+    open(wake_csv_path_6D, "w") do io
         println(io, "t_phys, y_phys, u, v, w, mean_u, mean_v, mean_w, std_u, std_v, std_w")
     end
 
@@ -626,49 +651,100 @@ function run_JuLattice()
             
             @inbounds for j in eachindex(probe_ys)
                 y = probe_ys[j]
-                u_val = u[probe_x, y, probe_z]
-                v_val = v[probe_x, y, probe_z]
-                w_val = w[probe_x, y, probe_z]
 
-                sample_buf_u[j, buf_ptr] = u_val
-                sample_buf_v[j, buf_ptr] = v_val
-                sample_buf_w[j, buf_ptr] = w_val
+                # 3D probe
+                u3 = u[probe_x_3D, y, probe_z]
+                v3 = v[probe_x_3D, y, probe_z]
+                w3 = w[probe_x_3D, y, probe_z]
 
-                du = u_val - cumulativ_mean_u[j];
-                cumulativ_mean_u[j] += du / cumulativ_count
-                cumulativ_M2_u[j] += du * (u_val - cumulativ_mean_u[j])
+                sample_buf_u_3D[j, buf_ptr] = u3
+                sample_buf_v_3D[j, buf_ptr] = v3
+                sample_buf_w_3D[j, buf_ptr] = w3
+
+                du = u3 - cumulativ_mean_u_3D[j];
+                cumulativ_mean_u_3D[j] += du / cumulativ_count
+                cumulativ_M2_u_3D[j] += du * (u3 - cumulativ_mean_u_3D[j])
                 
-                dv = v_val - cumulativ_mean_v[j];
-                cumulativ_mean_v[j] += dv / cumulativ_count
-                cumulativ_M2_v[j] += dv * (v_val - cumulativ_mean_v[j])
+                dv = v3 - cumulativ_mean_v_3D[j];
+                cumulativ_mean_v_3D[j] += dv / cumulativ_count
+                cumulativ_M2_v_3D[j] += dv * (v3 - cumulativ_mean_v_3D[j])
 
-                dw = w_val - cumulativ_mean_w[j];
-                cumulativ_mean_w[j] += dw / cumulativ_count
-                cumulativ_M2_w[j] += dw * (w_val - cumulativ_mean_w[j])
+                dw = w3 - cumulativ_mean_w_3D[j];
+                cumulativ_mean_w_3D[j] += dw / cumulativ_count
+                cumulativ_M2_w_3D[j] += dw * (w3 - cumulativ_mean_w_3D[j])
 
-                sample_buf_mean_u[j, buf_ptr] = cumulativ_mean_u[j]
-                sample_buf_mean_v[j, buf_ptr] = cumulativ_mean_v[j]
-                sample_buf_mean_w[j, buf_ptr] = cumulativ_mean_w[j]
-                sample_buf_std_u[j, buf_ptr] = sqrt(cumulativ_M2_u[j] * fac)
-                sample_buf_std_v[j, buf_ptr] = sqrt(cumulativ_M2_v[j] * fac)
-                sample_buf_std_w[j, buf_ptr] = sqrt(cumulativ_M2_w[j] * fac)
+                sample_buf_mean_u_3D[j, buf_ptr] = cumulativ_mean_u_3D[j]
+                sample_buf_mean_v_3D[j, buf_ptr] = cumulativ_mean_v_3D[j]
+                sample_buf_mean_w_3D[j, buf_ptr] = cumulativ_mean_w_3D[j]
+                sample_buf_std_u_3D[j, buf_ptr] = sqrt(cumulativ_M2_u_3D[j] * fac)
+                sample_buf_std_v_3D[j, buf_ptr] = sqrt(cumulativ_M2_v_3D[j] * fac)
+                sample_buf_std_w_3D[j, buf_ptr] = sqrt(cumulativ_M2_w_3D[j] * fac)
+
+                # 6D probe
+                u6 = u[probe_x_6D, y, probe_z]                
+                v6 = v[probe_x_6D, y, probe_z]
+                w6 = w[probe_x_6D, y, probe_z]
+
+                sample_buf_u_6D[j, buf_ptr] = u6
+                sample_buf_v_6D[j, buf_ptr] = v6
+                sample_buf_w_6D[j, buf_ptr] = w6
+
+
+                du = u6 - cumulativ_mean_u_6D[j];
+                cumulativ_mean_u_6D[j] += du / cumulativ_count
+                cumulativ_M2_u_6D[j] += du * (u6 - cumulativ_mean_u_6D[j])
+                
+                dv = v6 - cumulativ_mean_v_6D[j];
+                cumulativ_mean_v_6D[j] += dv / cumulativ_count
+                cumulativ_M2_v_6D[j] += dv * (v6 - cumulativ_mean_v_6D[j])
+
+                dw = w6 - cumulativ_mean_w_6D[j];
+                cumulativ_mean_w_6D[j] += dw / cumulativ_count
+                cumulativ_M2_w_6D[j] += dw * (w6 - cumulativ_mean_w_6D[j])
+
+                sample_buf_mean_u_6D[j, buf_ptr] = cumulativ_mean_u_6D[j]
+                sample_buf_mean_v_6D[j, buf_ptr] = cumulativ_mean_v_6D[j]
+                sample_buf_mean_w_6D[j, buf_ptr] = cumulativ_mean_w_6D[j]
+                sample_buf_std_u_6D[j, buf_ptr] = sqrt(cumulativ_M2_u_6D[j] * fac)
+                sample_buf_std_v_6D[j, buf_ptr] = sqrt(cumulativ_M2_v_6D[j] * fac)
+                sample_buf_std_w_6D[j, buf_ptr] = sqrt(cumulativ_M2_w_6D[j] * fac)
+
             end
 
+
             if buf_ptr ==  samples_per_flush
-                open(wake_csv_path, "a") do io
+                # 3D flush
+                open(wake_csv_path_3D, "a") do io
                     for s in 1:samples_per_flush-1
                         for j in eachindex(probe_ys)
                             y_phys = (probe_ys[j] - 1) * delta_x
-                            println(io, "$(sample_times[s]), $y_phys, $(sample_buf_u[j,s]), $(sample_buf_v[j,s]), $(sample_buf_w[j,s]), $(sample_buf_mean_u[j,s]), $(sample_buf_mean_v[j,s]), $(sample_buf_mean_w[j,s]), $(sample_buf_std_u[j,s]), $(sample_buf_std_v[j,s]), $(sample_buf_std_w[j,s])")
+                            println(io, "$(sample_times[s]), $y_phys, $(sample_buf_u_3D[j,s]), $(sample_buf_v_3D[j,s]), $(sample_buf_w_3D[j,s]), $(sample_buf_mean_u_3D[j,s]), $(sample_buf_mean_v_3D[j,s]), $(sample_buf_mean_w_3D[j,s]), $(sample_buf_std_u_3D[j,s]), $(sample_buf_std_v_3D[j,s]), $(sample_buf_std_w_3D[j,s])")
                         end
                     end
                 end
                 
-                for buf in (sample_buf_u, sample_buf_v, sample_buf_w,
-                            sample_buf_mean_u, sample_buf_mean_v, sample_buf_mean_w,
-                            sample_buf_std_u, sample_buf_std_v, sample_buf_std_w)
+                for buf in (sample_buf_u_3D, sample_buf_v_3D, sample_buf_w_3D,
+                            sample_buf_mean_u_3D, sample_buf_mean_v_3D, sample_buf_mean_w_3D,
+                            sample_buf_std_u_3D, sample_buf_std_v_3D, sample_buf_std_w_3D)
                     buf[:,1] .= buf[:, samples_per_flush]
                 end
+
+                # 6D flush
+                open(wake_csv_path_6D, "a") do io
+                    for s in 1:samples_per_flush-1
+                        for j in eachindex(probe_ys)
+                            y_phys = (probe_ys[j] - 1) * delta_x
+                            println(io, "$(sample_times[s]), $y_phys, $(sample_buf_u_6D[j,s]), $(sample_buf_v_6D[j,s]), $(sample_buf_w_6D[j,s]), $(sample_buf_mean_u_6D[j,s]), $(sample_buf_mean_v_6D[j,s]), $(sample_buf_mean_w_6D[j,s]), $(sample_buf_std_u_6D[j,s]), $(sample_buf_std_v_6D[j,s]), $(sample_buf_std_w_6D[j,s])")
+                        end
+                    end
+                end
+
+                for buf in (sample_buf_u_6D, sample_buf_v_6D, sample_buf_w_6D,
+                            sample_buf_mean_u_6D, sample_buf_mean_v_6D, sample_buf_mean_w_6D,
+                            sample_buf_std_u_6D, sample_buf_std_v_6D, sample_buf_std_w_6D)
+                    buf[:,1] .= buf[:, samples_per_flush]
+                end
+
                 sample_times[1] = sample_times[samples_per_flush]
                 buf_ptr = 1
             end
@@ -735,18 +811,37 @@ function run_JuLattice()
     end#i in 1:simulationTime
 
     ##-------- Log final step --------##
-    open(wake_csv_path, "a") do io
+    # 3D
+    open(wake_csv_path_3D, "a") do io
         for s in 1:buf_ptr
             for j in eachindex(probe_ys)
                 y_phys = (probe_ys[j] - 1) * delta_x
+
                 println(io, join([sample_times[s], y_phys,
-                        sample_buf_u[j,s], sample_buf_v[j,s], sample_buf_w[j,s],
-                        sample_buf_mean_u[j,s], sample_buf_mean_v[j,s], sample_buf_mean_w[j,s],
-                        sample_buf_std_u[j,s], sample_buf_std_v[j,s], sample_buf_std_w[j,s]
+                        sample_buf_u_3D[j,s], sample_buf_v_3D[j,s], sample_buf_w_3D[j,s],
+                        sample_buf_mean_u_3D[j,s], sample_buf_mean_v_3D[j,s], sample_buf_mean_w_3D[j,s],
+                        sample_buf_std_u_3D[j,s], sample_buf_std_v_3D[j,s], sample_buf_std_w_3D[j,s]
                 ], ", "))
             end
         end
     end
+
+    # 6D
+    open(wake_csv_path_6D, "a") do io
+        for s in 1:buf_ptr
+            for j in eachindex(probe_ys)
+                y_phys = (probe_ys[j] - 1) * delta_x
+                
+                println(io, join([sample_times[s], y_phys,
+                sample_buf_u_6D[j,s], sample_buf_v_6D[j,s], sample_buf_w_6D[j,s],
+                sample_buf_mean_u_6D[j,s], sample_buf_mean_v_6D[j,s], sample_buf_mean_w_6D[j,s],
+                sample_buf_std_u_6D[j,s], sample_buf_std_v_6D[j,s], sample_buf_std_w_6D[j,s],
+                ], ", "))
+            end
+        end
+    end
+
+
     # close forces.csv
     close(forces_io)
 
