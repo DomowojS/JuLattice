@@ -515,6 +515,30 @@ function run_JuLattice()
             end#if
         end#wall in  wall_indices
 
+        # Corner handling: free slip corners get noslip bounceback values
+        # Corner handling after "normal" freeslip logic to rewrite corner populations
+        @inbounds for x in 1:gridlengthX
+            # front/bot edge
+            if !is_solid[x, 2, 2]
+                f0ppS[x, 2, 2] = f0mmS[x, 1, 1]
+            end
+
+            # front/top edge
+            if !is_solid[x, 2, gridlengthZ-1]
+                f0pmS[x, 2, gridlengthZ-1] = f0mpS[x, 1, gridlengthZ]
+            end
+
+            # back/bot edge
+            if !is_solid[x, gridlengthY-1, 2]
+                f0mpS[x, gridlengthY-1, 2] = f0pmS[x, gridlengthY, 1]
+            end
+
+            # back/top edge
+            if !is_solid[x, gridlengthY-1, gridlengthZ-1]
+                fmmS[x, gridlengthY-1, gridlengthZ-1] = f0ppS[x, gridlengthY, gridlengthZ]
+            end
+        end
+
 
         # # bounce-back walls
         # @inbounds for wall in wall_indices
