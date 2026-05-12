@@ -188,7 +188,8 @@ function run_JuLattice()
 
     # fluid mask
     is_fluid .&= .!is_object
-    # fluid_indices = findall(is_fluid)
+    n_fluid_nodes = sum(is_fluid)
+    
 
     ##-------- precompute BC --------##
     println("Computing Bouzidi boundary data...")
@@ -430,7 +431,10 @@ function run_JuLattice()
     # Run Simulation Loop
     for i in 1:simulationTime
 
-        t_debug = @elapsed begin
+        #t_estimation = @elapsed begin
+
+        # mnups tracking start + estimation start
+        t0 = time_ns()
     
             collision_stream!(
                 gridlengthX, gridlengthY, gridlengthZ, τ, CS, is_fluid,
@@ -445,18 +449,19 @@ function run_JuLattice()
                 f0mmS, f0mpS, f0pmS, f0ppS
             )
         
-        end #end elapsed
+        #end #end elapsed
 
+        t_estimation = (time_ns() - t0) * 1e-9
         # debug timecheck for mainloop with elapsed
         if i >= 5 && i<= 15
-            println("Step $i mainloop: $(round(t_debug * 1000, digits=1))ms")
+            println("Step $i mainloop: $(round(t_estimation * 1000, digits=1))ms")
         end
         
         if i == 15
-            est_total_s = t_debug * simulationTime
+            est_total_s = t_estimation * simulationTime
             est_hours = floor(Int, est_total_s / 3600)
             est_minutes = floor(Int, (est_total_s % 3600) / 60)
-            println("---> Estimated total simulation time: ~$(est_hours)h $(est_minutes)min ($simulationTime) steps x $(round(t_debug*1000, digits=1))ms")    
+            println("---> Estimated total simulation time: ~$(est_hours)h $(est_minutes)min ($simulationTime) steps x $(round(t_estimation*1000, digits=1))ms")    
         end
       
         # # bounce-back object | Bouzidi bounceback (IBB)
@@ -538,6 +543,7 @@ function run_JuLattice()
                 f0mmS[x, gridlengthY-1, gridlengthZ-1] = f0ppS[x, gridlengthY, gridlengthZ]
             end
         end
+        ##-------- free slip walls  end --------##
 
 
         # # bounce-back walls
@@ -636,17 +642,28 @@ function run_JuLattice()
         @views fp0pS[2, 2:gridlengthY-1, 2:gridlengthZ-1] .= fm0pS[1, 2:gridlengthY-1, 2:gridlengthZ-1] .+ inlet_add_edge
         @views fp0mS[2, 2:gridlengthY-1, 2:gridlengthZ-1] .= fm0mS[1, 2:gridlengthY-1, 2:gridlengthZ-1] .+ inlet_add_edge
         
-        # OUTLET: no-gradient bounceback 
-        # # all populations that stream in -x direction from previous neighbor
-        # # fm00S, fmm0S, fmp0S, fm0mS, fm0pS
+        # # OUTLET: no-gradient bounceback 
+        # # # all populations that stream in -x direction from previous neighbor
+        # # # fm00S, fmm0S, fmp0S, fm0mS, fm0pS
         
-        @views fm00S[gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= fm00S[gridlengthX-2, 2:gridlengthY-1, 2:gridlengthZ-1]
-        @views fmm0S[gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= fmm0S[gridlengthX-2, 2:gridlengthY-1, 2:gridlengthZ-1]
-        @views fmp0S[gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= fmp0S[gridlengthX-2, 2:gridlengthY-1, 2:gridlengthZ-1]
-        @views fm0mS[gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= fm0mS[gridlengthX-2, 2:gridlengthY-1, 2:gridlengthZ-1]
-        @views fm0pS[gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= fm0pS[gridlengthX-2, 2:gridlengthY-1, 2:gridlengthZ-1]
+        # @views fm00S[gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= fm00S[gridlengthX-2, 2:gridlengthY-1, 2:gridlengthZ-1]
+        # @views fmm0S[gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= fmm0S[gridlengthX-2, 2:gridlengthY-1, 2:gridlengthZ-1]
+        # @views fmp0S[gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= fmp0S[gridlengthX-2, 2:gridlengthY-1, 2:gridlengthZ-1]
+        # @views fm0mS[gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= fm0mS[gridlengthX-2, 2:gridlengthY-1, 2:gridlengthZ-1]
+        # @views fm0pS[gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= fm0pS[gridlengthX-2, 2:gridlengthY-1, 2:gridlengthZ-1]
         
-   
+        
+        # OUTLET: extrapolation (non-reflective)
+        @views fm00S[gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= 2 * fm00S[gridlengthX-2, 2:gridlengthY-1, 2:gridlengthZ-1] .- fm00S[gridlengthX-3, 2:gridlengthY-1, 2:gridlengthZ-1]
+        @views fmm0S[gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= 2 * fmm0S[gridlengthX-2, 2:gridlengthY-1, 2:gridlengthZ-1] .- fmm0S[gridlengthX-3, 2:gridlengthY-1, 2:gridlengthZ-1]
+        @views fmp0S[gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= 2 * fmp0S[gridlengthX-2, 2:gridlengthY-1, 2:gridlengthZ-1] .- fmp0S[gridlengthX-3, 2:gridlengthY-1, 2:gridlengthZ-1]
+        @views fm0mS[gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= 2 * fm0mS[gridlengthX-2, 2:gridlengthY-1, 2:gridlengthZ-1] .- fm0mS[gridlengthX-3, 2:gridlengthY-1, 2:gridlengthZ-1]
+        @views fm0pS[gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= 2 * fm0pS[gridlengthX-2, 2:gridlengthY-1, 2:gridlengthZ-1] .- fm0pS[gridlengthX-3, 2:gridlengthY-1, 2:gridlengthZ-1]
+
+        # mnups tracking end
+        t_mnups_s = (time_ns() - t0) * 1e-9
+        mnups = n_fluid_nodes / (t_mnups_s * 1e6)
+
 
         # Swap: SWAP POINTERS new distribution to "old"
         f000, f000S = f000S, f000
@@ -782,9 +799,10 @@ function run_JuLattice()
 
         end
 
-
+        # Logging timestep and mnups in console
         if (i % 100 == 0) || (i == simulationTime)
             Log_Simulation_Runtime(i, simulationTime)
+            println("MNUPS: $(round(mnups, digits=2))")
         end
 
         # Plot of the field

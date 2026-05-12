@@ -218,7 +218,7 @@ end
 
 function Create_Plot_Mag_XY(nx::Int, ny::Int, field2d::Array{<:Real, 2}; title="Vel. Magnitude slice XY", ax=nothing)
     vx_obs = Observable(field2d)          
-    colorrange = (-0.02, 0.02)
+    colorrange = (0.0, 0.06)
     hm = heatmap!(ax, 1:nx, 1:ny, vx_obs;
                     colormap = :RdBu,
                     nan_color = :black, colorrange = colorrange,
@@ -233,7 +233,7 @@ end
 
 function Create_Plot_Mag_XZ(nx::Int, nz::Int, field2d::Array{<:Real, 2}; title="Vel. Magnitude slice XZ", ax=nothing)
     vx_obs = Observable(field2d)
-    colorrange = (-0.03, 0.03)
+    colorrange = (0.0, 0.06)
     hm = heatmap!(ax, 1:nx, 1:nz, vx_obs; 
                 colormap = :RdBu, 
                 nan_color= :black, colorrange = colorrange,
