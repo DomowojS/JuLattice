@@ -42,7 +42,7 @@ function run_JuLattice()
     # 0.0023 => 10 = D/Δx || 0.00115 => 20 = D/Δx || 0.00153 => 15 = D/Δx
     delta_x         = 0.0023                               # Grid spacing (physical units per lattice unit)
     # Smagorinsky constant CS
-    CS              = 0.1 #0.17 #1/3    #0.333 1/3          # CS ↑ = eddy viscosity ↑
+    CS              = 1/3 #0.1 #0.17 #1/3                # CS ↑ = eddy viscosity ↑
 
     # Plot Requests (Flags)
     Plotvx = false;
@@ -100,7 +100,8 @@ function run_JuLattice()
     probe_ys = collect(2:gridlengthY-1)
     n_probe = length(probe_ys) # Vector{Int64}
 
-    sample_dt_phys      = 0.1   # sampling rate
+    # sample_dt_phys      = 0.1   # sampling rate = 10Hz
+    sample_dt_phys      = 0.01    # sampling rate = 100Hz
     log_dt_phys         = 1.0   # logging rate for csv-flush
     sample_interval     = max(1, round(Int, sample_dt_phys / delta_t))
     samples_per_flush   = max(1, round(Int, log_dt_phys / sample_dt_phys))
@@ -654,7 +655,28 @@ function run_JuLattice()
         
         
         # OUTLET: extrapolation (non-reflective)
-        @views fm00S[gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= 2 * fm00S[gridlengthX-2, 2:gridlengthY-1, 2:gridlengthZ-1] .- fm00S[gridlengthX-3, 2:gridlengthY-1, 2:gridlengthZ-1]
+        # @views fm00S[gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= 2 * fm00S[gridlengthX-2, 2:gridlengthY-1, 2:gridlengthZ-1] .- fm00S[gridlengthX-3, 2:gridlengthY-1, 2:gridlengthZ-1]
+        
+        # improved extrapolation outflow bc: 
+        # normal direction f(x, t+Δt) = F_i^eq(rho=1, u)(x, t) + f_i^neq*(x, t) (<-- fp00)
+        @inbounds for z in 2:gridlengthZ-1, y in 2:gridlengthY-1
+            u_out = u[gridlengthX-1, y, z]
+            v_out = v[gridlengthX-1, y, z]
+            w_out = w[gridlengthX-1, y, z]
+            rho_out = rho[gridlengthX-1, y, z]
+
+            feq_p00 = (1.0 / 18.0) * rho_out * (1.0 + 3.0 * u_out + 3.0 * u_out^2) *
+                        (1.0 - 1.5 * v_out^2) * (1.0 - 1.5*w_out^2)
+                        
+            fneq_p00 = fp00[gridlengthX-1, y, z] - feq_p00
+
+            feq_m00 = (1.0 / 18.0) * (1.0 - 3.0 * u_out + 3.0 * u_out^2) * 
+                        (1.0 - 1.5 * v_out^2) * (1.0 -1.5 * w_out^2)
+            
+            fm00S[gridlengthX-1, y, z] = feq_m00 + fneq_p00
+        end
+        
+        
         @views fmm0S[gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= 2 * fmm0S[gridlengthX-2, 2:gridlengthY-1, 2:gridlengthZ-1] .- fmm0S[gridlengthX-3, 2:gridlengthY-1, 2:gridlengthZ-1]
         @views fmp0S[gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= 2 * fmp0S[gridlengthX-2, 2:gridlengthY-1, 2:gridlengthZ-1] .- fmp0S[gridlengthX-3, 2:gridlengthY-1, 2:gridlengthZ-1]
         @views fm0mS[gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= 2 * fm0mS[gridlengthX-2, 2:gridlengthY-1, 2:gridlengthZ-1] .- fm0mS[gridlengthX-3, 2:gridlengthY-1, 2:gridlengthZ-1]

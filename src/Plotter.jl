@@ -220,7 +220,7 @@ function Create_Plot_Mag_XY(nx::Int, ny::Int, field2d::Array{<:Real, 2}; title="
     vx_obs = Observable(field2d)          
     colorrange = (0.0, 0.06)
     hm = heatmap!(ax, 1:nx, 1:ny, vx_obs;
-                    colormap = :RdBu,
+                    colormap = :Blues,
                     nan_color = :black, colorrange = colorrange,
                     interpolate = false)
     xlims!(ax, 1, nx); ylims!(ax, 1, ny)
@@ -235,7 +235,7 @@ function Create_Plot_Mag_XZ(nx::Int, nz::Int, field2d::Array{<:Real, 2}; title="
     vx_obs = Observable(field2d)
     colorrange = (0.0, 0.06)
     hm = heatmap!(ax, 1:nx, 1:nz, vx_obs; 
-                colormap = :RdBu, 
+                colormap = :Blues, 
                 nan_color= :black, colorrange = colorrange,
                 interpolate=false)
     xlims!(ax, 1, nx); ylims!(ax, 1, nz)
