@@ -7,6 +7,8 @@ include("src/BoundaryConditions.jl")
 include("src/TurbulenceModel.jl")
 include("src/Kernel.jl")
 
+
+using Serialization # for saving last plot
 using MeshGrid, GLMakie
 using .Plotter, .Logger
 using .BoundaryConditions
@@ -33,14 +35,14 @@ function run_JuLattice()
 
     # Fluid Settings 
     Kinematic_Viscosity = 1e-6 #0.0004; #0.001;                     # m^2/s 
-    reynoldsNumber =   390 #2760                                    # Target Reynolds number
-    Mach_Number = 0.05 # 0.05                                       # Target Mach number (Ma = U_lattice/c_s)
+    reynoldsNumber =   2760 #2760                                    # Target Reynolds number
+    Mach_Number = 0.1 # 0.05                                       # Target Mach number (Ma = U_lattice/c_s)
                                                                     # Keep Ma < 0.1 for incompressible flow!
 
     # Simulation Settings
-    Simulation_Time = 60;                                   # s
+    Simulation_Time = 0.5 #60;                                   # s
     # 0.0023 => 10 = D/Δx || 0.00115 => 20 = D/Δx || 0.00153 => 15 = D/Δx
-    delta_x         = 0.0023                               # Grid spacing (physical units per lattice unit)
+    delta_x         = 0.0023 #0.00115                               # Grid spacing (physical units per lattice unit)
     # Smagorinsky constant CS
     CS              = 1/3 #0.1 #0.17 #1/3                # CS ↑ = eddy viscosity ↑
 
@@ -382,6 +384,7 @@ function run_JuLattice()
 
     forces_csv_path = "simulation_data/forces_$(run_tag).csv"
     mkpath("simulation_data")
+    mkpath("visualization")
 
     # wakevelocities, mean and std
     open(wake_csv_path_3D, "w") do io
@@ -917,6 +920,23 @@ function run_JuLattice()
     close(forces_io)
 
     Log_Simulation_Tail()
+
+    # save last plot for post processing
+    snapshot_path = "visualization/snapshot_$(run_tag).jls"
+    serialize(snapshot_path, (
+        velocityMag     = copy(velocityMag),
+        velocityX       = copy(velocityX),
+        vortY           = copy(vortY),
+        vortZ           = copy(vortZ),
+        is_object       = copy(is_object),
+        gridlengthX     = gridlengthX,
+        gridlengthY     = gridlengthY,
+        gridlengthZ     = gridlengthZ,
+        midY            = midY,
+        midZ            = midZ,
+        delta_t         = delta_t,
+        run_tag         = run_tag
+    ))
 
 end#run_JuLattice()
 run_JuLattice()
