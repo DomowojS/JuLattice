@@ -10,7 +10,8 @@ include("src/Kernel.jl")
 
 using Serialization # for saving last plot
 # using MeshGrid, GLMakie
-# using .Plotter, .Logger
+# using .Plotter, 
+using .Logger
 using .BoundaryConditions
 using .TurbulenceModel 
 using .Kernel

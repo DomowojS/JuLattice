@@ -10,7 +10,8 @@ include("src/Kernel.jl")
 
 using Serialization # for saving last plot
 # using MeshGrid, GLMakie
-# using .Plotter, .Logger
+# using .Plotter,
+using .Logger
 using .BoundaryConditions
 using .TurbulenceModel 
 using .Kernel
@@ -42,7 +43,7 @@ function run_JuLattice()
     # Fluid Settings 
     Kinematic_Viscosity = 1e-6                                       # m^2/s 
     reynoldsNumber =   2760 #2760                                    # Target Reynolds number
-    Mach_Number = 0.1 # 0.05                                         # Target Mach number (Ma = U_lattice/c_s)
+    Mach_Number = 0.05 # 0.05                                         # Target Mach number (Ma = U_lattice/c_s)
                                                                      # Keep Ma < 0.1 for incompressible flow!
 
     # Simulation Settings
