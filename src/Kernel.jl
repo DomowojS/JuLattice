@@ -2,22 +2,41 @@ module Kernel
 
 using ..TurbulenceModel: compute_pi_norm, smagorinsky_omega
 
-export  collision_stream!
+export collision_stream!
+export Q000, QM00, QP00, Q0M0, Q0P0, Q00M, Q00P
+export QMM0, QMP0, QPM0, QPP0
+export QM0M, QM0P, QP0M, QP0P
+export Q0MM, Q0MP, Q0PM, Q0PP
+export NQ
+
+# D3Q19 direction indices — first index of f[q, x, y, z]
+const Q000 = 1   # rest         ( 0, 0, 0)
+const QM00 = 2   # (-1, 0, 0)
+const QP00 = 3   # (+1, 0, 0)
+const Q0M0 = 4   # ( 0,-1, 0)
+const Q0P0 = 5   # ( 0,+1, 0)
+const Q00M = 6   # ( 0, 0,-1)
+const Q00P = 7   # ( 0, 0,+1)
+const QMM0 = 8   # (-1,-1, 0)
+const QMP0 = 9   # (-1,+1, 0)
+const QPM0 = 10  # (+1,-1, 0)
+const QPP0 = 11  # (+1,+1, 0)
+const QM0M = 12  # (-1, 0,-1)
+const QM0P = 13  # (-1, 0,+1)
+const QP0M = 14  # (+1, 0,-1)
+const QP0P = 15  # (+1, 0,+1)
+const Q0MM = 16  # ( 0,-1,-1)
+const Q0MP = 17  # ( 0,-1,+1)
+const Q0PM = 18  # ( 0,+1,-1)
+const Q0PP = 19  # ( 0,+1,+1)
+const NQ   = 19
 
 function collision_stream!(
     gridlengthX::Int, gridlengthY::Int, gridlengthZ::Int,
     τ::Float64, CS::Float64, is_fluid,
     rho, u, v, w,
-    f000,  fm00,  fp00,  f0m0,  f0p0,  f00m,  f00p,
-    fmm0,  fmp0,  fpm0,  fpp0,
-    fm0m,  fm0p,  fp0m,  fp0p,
-    f0mm,  f0mp,  f0pm,  f0pp,
-    f000S, fm00S, fp00S, f0m0S, f0p0S, f00mS, f00pS,
-    fmm0S, fmp0S, fpm0S, fpp0S,
-    fm0mS, fm0pS, fp0mS, fp0pS,
-    f0mmS, f0mpS, f0pmS, f0ppS    
+    f, fS
 )
-    
 
 
     # Iterate over all cells except boundary cells
@@ -29,47 +48,67 @@ function collision_stream!(
                     continue
                 end
 
+                # Load all 19 populations from local node
+                f000 = f[Q000, x, y, z]
+                fm00 = f[QM00, x, y, z]
+                fp00 = f[QP00, x, y, z]
+                f0m0 = f[Q0M0, x, y, z]
+                f0p0 = f[Q0P0, x, y, z]
+                f00m = f[Q00M, x, y, z]
+                f00p = f[Q00P, x, y, z]
+                fmm0 = f[QMM0, x, y, z]
+                fmp0 = f[QMP0, x, y, z]
+                fpm0 = f[QPM0, x, y, z]
+                fpp0 = f[QPP0, x, y, z]
+                fm0m = f[QM0M, x, y, z]
+                fm0p = f[QM0P, x, y, z]
+                fp0m = f[QP0M, x, y, z]
+                fp0p = f[QP0P, x, y, z]
+                f0mm = f[Q0MM, x, y, z]
+                f0mp = f[Q0MP, x, y, z]
+                f0pm = f[Q0PM, x, y, z]
+                f0pp = f[Q0PP, x, y, z]
 
                 # Compute macroscopic quantities
-                rho_loc = f000[x,y,z] + 
-                            (fm00[x,y,z] + fp00[x,y,z] + f0m0[x,y,z] + f0p0[x,y,z] + f00m[x,y,z] + f00p[x,y,z]) +
-                            (fmm0[x,y,z] + fmp0[x,y,z] + fpm0[x,y,z] + fpp0[x,y,z] + 
-                            fm0m[x,y,z] + fm0p[x,y,z] + fp0m[x,y,z] + fp0p[x,y,z] +
-                            f0mm[x,y,z] + f0mp[x,y,z] + f0pm[x,y,z] + f0pp[x,y,z])
+                rho_loc = f000 +
+                            (fm00 + fp00 + f0m0 + f0p0 + f00m + f00p) +
+                            (fmm0 + fmp0 + fpm0 + fpp0 +
+                            fm0m + fm0p + fp0m + fp0p +
+                            f0mm + f0mp + f0pm + f0pp)
 
                 rho[x,y,z] = rho_loc
                 inv_rho = 1.0 / rho_loc
-                
-                u_loc = ((-fm00[x,y,z] + fp00[x,y,z]) +
-                            (-fmm0[x,y,z] - fmp0[x,y,z] + fpm0[x,y,z] + fpp0[x,y,z]) +
-                            (-fm0m[x,y,z] - fm0p[x,y,z] + fp0m[x,y,z] + fp0p[x,y,z])) * inv_rho
-                
-                v_loc = ((-f0m0[x,y,z] + f0p0[x,y,z]) +
-                            (-fmm0[x,y,z] + fmp0[x,y,z] - fpm0[x,y,z] + fpp0[x,y,z]) +
-                            (-f0mm[x,y,z] - f0mp[x,y,z] + f0pm[x,y,z] + f0pp[x,y,z])) * inv_rho
-                
-                w_loc = ((-f00m[x,y,z] + f00p[x,y,z]) +
-                            (-fm0m[x,y,z] + fm0p[x,y,z] - fp0m[x,y,z] + fp0p[x,y,z]) +
-                            (-f0mm[x,y,z] + f0mp[x,y,z] - f0pm[x,y,z] + f0pp[x,y,z])) * inv_rho
+
+                u_loc = ((-fm00 + fp00) +
+                            (-fmm0 - fmp0 + fpm0 + fpp0) +
+                            (-fm0m - fm0p + fp0m + fp0p)) * inv_rho
+
+                v_loc = ((-f0m0 + f0p0) +
+                            (-fmm0 + fmp0 - fpm0 + fpp0) +
+                            (-f0mm - f0mp + f0pm + f0pp)) * inv_rho
+
+                w_loc = ((-f00m + f00p) +
+                            (-fm0m + fm0p - fp0m + fp0p) +
+                            (-f0mm + f0mp - f0pm + f0pp)) * inv_rho
 
                 u[x,y,z] = u_loc
                 v[x,y,z] = v_loc
                 w[x,y,z] = w_loc
-                
+
                 # Compute equilibrium
                 # Pre-compute polynomial factors
                 u2 = u_loc * u_loc
                 v2 = v_loc * v_loc
                 w2 = w_loc * w_loc
-                
+
                 Pm_u = 1 - 3 * u_loc + 3*u2
                 P0_u = 1 - 1.5*u2
                 Pp_u = 1 + 3 * u_loc + 3*u2
-                
+
                 Pm_v = 1 - 3 * v_loc + 3*v2
                 P0_v = 1 - 1.5*v2
                 Pp_v = 1 + 3*v_loc + 3*v2
-                
+
                 Pm_w = 1 - 3*w_loc + 3*w2
                 P0_w = 1 - 1.5*w2
                 Pp_w = 1 + 3*w_loc + 3*w2
@@ -106,30 +145,30 @@ function collision_stream!(
                 feq0pp = P0_u * Pp_v * Pp_w * rho_inv36
 
                 # Compute Non-equilibrium distribution parts
-                
-                # not needed
-                # fneq000 = f000[x,y,z] - feq000
-                
-                fneqm00 = fm00[x,y,z] - feqm00
-                fneqp00 = fp00[x,y,z] - feqp00
-                fneq0m0 = f0m0[x,y,z] - feq0m0
-                fneq0p0 = f0p0[x,y,z] - feq0p0
-                fneq00m = f00m[x,y,z] - feq00m
-                fneq00p = f00p[x,y,z] - feq00p
-                fneqmm0 = fmm0[x,y,z] - feqmm0
-                fneqmp0 = fmp0[x,y,z] - feqmp0
-                fneqpm0 = fpm0[x,y,z] - feqpm0
-                fneqpp0 = fpp0[x,y,z] - feqpp0
-                fneqm0m = fm0m[x,y,z] - feqm0m
-                fneqm0p = fm0p[x,y,z] - feqm0p
-                fneqp0m = fp0m[x,y,z] - feqp0m
-                fneqp0p = fp0p[x,y,z] - feqp0p
-                fneq0mm = f0mm[x,y,z] - feq0mm
-                fneq0mp = f0mp[x,y,z] - feq0mp
-                fneq0pm = f0pm[x,y,z] - feq0pm
-                fneq0pp = f0pp[x,y,z] - feq0pp
 
-                # compute Smagorinsky variables 
+                # not needed
+                # fneq000 = f000 - feq000
+
+                fneqm00 = fm00 - feqm00
+                fneqp00 = fp00 - feqp00
+                fneq0m0 = f0m0 - feq0m0
+                fneq0p0 = f0p0 - feq0p0
+                fneq00m = f00m - feq00m
+                fneq00p = f00p - feq00p
+                fneqmm0 = fmm0 - feqmm0
+                fneqmp0 = fmp0 - feqmp0
+                fneqpm0 = fpm0 - feqpm0
+                fneqpp0 = fpp0 - feqpp0
+                fneqm0m = fm0m - feqm0m
+                fneqm0p = fm0p - feqm0p
+                fneqp0m = fp0m - feqp0m
+                fneqp0p = fp0p - feqp0p
+                fneq0mm = f0mm - feq0mm
+                fneq0mp = f0mp - feq0mp
+                fneq0pm = f0pm - feq0pm
+                fneq0pp = f0pp - feq0pp
+
+                # compute Smagorinsky variables
                 pi_neq_norm = compute_pi_norm(
                     fneqm00, fneqp00, fneq0m0, fneq0p0, fneq00m, fneq00p,
                     fneqmm0, fneqmp0, fneqpm0, fneqpp0,
@@ -141,29 +180,29 @@ function collision_stream!(
 
                 # Push scheme: Stream+Collision
                 # Rest particle
-                f000S[x,y,z] = f000[x,y,z] + omega_local * (feq000 - f000[x,y,z])
+                fS[Q000, x,   y,   z  ] = f000 + omega_local * (feq000 - f000)
                 # Face neighbors
-                fm00S[x-1,y,z] = fm00[x,y,z] + omega_local * (feqm00 - fm00[x,y,z])
-                fp00S[x+1,y,z] = fp00[x,y,z] + omega_local * (feqp00 - fp00[x,y,z])
-                f0m0S[x,y-1,z] = f0m0[x,y,z] + omega_local * (feq0m0 - f0m0[x,y,z])
-                f0p0S[x,y+1,z] = f0p0[x,y,z] + omega_local * (feq0p0 - f0p0[x,y,z])
-                f00mS[x,y,z-1] = f00m[x,y,z] + omega_local * (feq00m - f00m[x,y,z])
-                f00pS[x,y,z+1] = f00p[x,y,z] + omega_local * (feq00p - f00p[x,y,z])
+                fS[QM00, x-1, y,   z  ] = fm00 + omega_local * (feqm00 - fm00)
+                fS[QP00, x+1, y,   z  ] = fp00 + omega_local * (feqp00 - fp00)
+                fS[Q0M0, x,   y-1, z  ] = f0m0 + omega_local * (feq0m0 - f0m0)
+                fS[Q0P0, x,   y+1, z  ] = f0p0 + omega_local * (feq0p0 - f0p0)
+                fS[Q00M, x,   y,   z-1] = f00m + omega_local * (feq00m - f00m)
+                fS[Q00P, x,   y,   z+1] = f00p + omega_local * (feq00p - f00p)
                 # XY-plane edges
-                fmm0S[x-1,y-1,z] = fmm0[x,y,z] + omega_local * (feqmm0 - fmm0[x,y,z])
-                fmp0S[x-1,y+1,z] = fmp0[x,y,z] + omega_local * (feqmp0 - fmp0[x,y,z])
-                fpm0S[x+1,y-1,z] = fpm0[x,y,z] + omega_local * (feqpm0 - fpm0[x,y,z])
-                fpp0S[x+1,y+1,z] = fpp0[x,y,z] + omega_local * (feqpp0 - fpp0[x,y,z])
+                fS[QMM0, x-1, y-1, z  ] = fmm0 + omega_local * (feqmm0 - fmm0)
+                fS[QMP0, x-1, y+1, z  ] = fmp0 + omega_local * (feqmp0 - fmp0)
+                fS[QPM0, x+1, y-1, z  ] = fpm0 + omega_local * (feqpm0 - fpm0)
+                fS[QPP0, x+1, y+1, z  ] = fpp0 + omega_local * (feqpp0 - fpp0)
                 # XZ-plane edges
-                fm0mS[x-1,y,z-1] = fm0m[x,y,z] + omega_local * (feqm0m - fm0m[x,y,z])
-                fm0pS[x-1,y,z+1] = fm0p[x,y,z] + omega_local * (feqm0p - fm0p[x,y,z])
-                fp0mS[x+1,y,z-1] = fp0m[x,y,z] + omega_local * (feqp0m - fp0m[x,y,z])
-                fp0pS[x+1,y,z+1] = fp0p[x,y,z] + omega_local * (feqp0p - fp0p[x,y,z])
+                fS[QM0M, x-1, y,   z-1] = fm0m + omega_local * (feqm0m - fm0m)
+                fS[QM0P, x-1, y,   z+1] = fm0p + omega_local * (feqm0p - fm0p)
+                fS[QP0M, x+1, y,   z-1] = fp0m + omega_local * (feqp0m - fp0m)
+                fS[QP0P, x+1, y,   z+1] = fp0p + omega_local * (feqp0p - fp0p)
                 # YZ-plane edges
-                f0mmS[x,y-1,z-1] = f0mm[x,y,z] + omega_local * (feq0mm - f0mm[x,y,z])
-                f0mpS[x,y-1,z+1] = f0mp[x,y,z] + omega_local * (feq0mp - f0mp[x,y,z])
-                f0pmS[x,y+1,z-1] = f0pm[x,y,z] + omega_local * (feq0pm - f0pm[x,y,z])
-                f0ppS[x,y+1,z+1] = f0pp[x,y,z] + omega_local * (feq0pp - f0pp[x,y,z])
+                fS[Q0MM, x,   y-1, z-1] = f0mm + omega_local * (feq0mm - f0mm)
+                fS[Q0MP, x,   y-1, z+1] = f0mp + omega_local * (feq0mp - f0mp)
+                fS[Q0PM, x,   y+1, z-1] = f0pm + omega_local * (feq0pm - f0pm)
+                fS[Q0PP, x,   y+1, z+1] = f0pp + omega_local * (feq0pp - f0pp)
 
             end #end x
         end #end y
