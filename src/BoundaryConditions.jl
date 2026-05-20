@@ -150,42 +150,32 @@ end
 
 
 # FAST VERSION?
-function apply_bouzidi_bc_3d!(boundary_data,
-                              fm00S, fp00S, f0m0S, f0p0S, f00mS, f00pS,
-                              fmm0S, fmp0S, fpm0S, fpp0S,
-                              fm0mS, fm0pS, fp0mS, fp0pS,
-                              f0mmS, f0mpS, f0pmS, f0ppS)
-
-    # 18 directions without f000S
-    f_arrays = (fm00S, fp00S, f0m0S, f0p0S, f00mS, f00pS,
-                fmm0S, fmp0S, fpm0S, fpp0S,
-                fm0mS, fm0pS, fp0mS, fp0pS,
-                f0mmS, f0mpS, f0pmS, f0ppS)
+function apply_bouzidi_bc_3d!(boundary_data, fS)
 
     F_x = 0.0
     F_y = 0.0
 
       @inbounds for (x, y, z, idx_toward, idx_reflect, cx, cy, cz, q) in boundary_data
-        f_toward_solid = f_arrays[idx_toward]
-        f_reflected    = f_arrays[idx_reflect]
+        q_toward_solid = idx_toward  + 1   # 1-based non-rest index -> Q index in fS
+        q_reflected    = idx_reflect + 1
 
         q2 = 2.0 * q
-        f_at_solid = f_toward_solid[x + cx, y + cy, z + cz]
+        f_at_solid = fS[q_toward_solid, x + cx, y + cy, z + cz]
 
         if q < 0.5
-            f_new = q2 * f_at_solid + (1.0 - q2) * f_toward_solid[x, y, z]
+            f_new = q2 * f_at_solid + (1.0 - q2) * fS[q_toward_solid, x, y, z]
         else
             iq2 = 1.0 / q2
             r = (q2 - 1.0) * iq2
-            f_opposite = f_reflected[x - cx, y - cy, z - cz]
+            f_opposite = fS[q_reflected, x - cx, y - cy, z - cz]
             f_new = iq2 * f_at_solid + r * f_opposite
         end
 
-        f_reflected[x, y, z] = f_new
-        
+        fS[q_reflected, x, y, z] = f_new
+
         # # Force calculation
-        # F_x += cx * (f_toward_solid[x, y, z] + f_new)
-        # F_y += cy * (f_toward_solid[x, y, z] + f_new)
+        # F_x += cx * (fS[q_toward_solid, x, y, z] + f_new)
+        # F_y += cy * (fS[q_toward_solid, x, y, z] + f_new)
 
         F_x += cx * (f_at_solid + f_new)
         F_y += cy * (f_at_solid + f_new)
