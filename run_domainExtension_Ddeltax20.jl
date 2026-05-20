@@ -9,8 +9,8 @@ include("src/Kernel.jl")
 
 
 using Serialization # for saving last plot
-using MeshGrid, GLMakie
-using .Plotter, .Logger
+# using MeshGrid, GLMakie
+# using .Plotter, .Logger
 using .BoundaryConditions
 using .TurbulenceModel 
 using .Kernel
@@ -29,19 +29,14 @@ function run_JuLattice()
     # length_Z = 0.6                      # m
 
     # # # lateral 5D (both sides y&z) | outflow 10D: FREE-SLIP DOMAIN
-    # length_X = 15.5 * D
-    # length_Y = 10 * D
-    # length_Z = 10 * D
-
-    # # lateral 10D (both sides y&z) | outflow 15D: FREE-SLIP DOMAIN
-    # length_X = 20.5 * D   # extended: 20.5D 
-    # length_Y = 15 * D     # extended: 15D  
-    # length_Z = 15 * D     # extended: 15D  
-
-    # lateral 5D (both sides y&z) | outflow 10D: D/Δx=15 test
     length_X = 15.5 * D
     length_Y = 10 * D
     length_Z = 10 * D
+
+    # # # lateral 10D (both sides y&z) | outflow 15D: FREE-SLIP DOMAIN
+    # length_X = 20.5 * D   # extended: 20.5D 
+    # length_Y = 15 * D     # extended: 15D  
+    # length_Z = 15 * D     # extended: 15D  
 
     # Fluid Settings 
     Kinematic_Viscosity = 1e-6                                       # m^2/s 
@@ -53,15 +48,15 @@ function run_JuLattice()
     Simulation_Time = 60 #0.5;                                   # s
     
     # Grid spacing (physical units per lattice unit)
-    # 0.0023 => 10 = D/Δx || 0.00115 => 20 = D/Δx || 0.00153 => 15 = D/Δx
-    delta_x         = 0.00153                                
+    # 0.0023 => 10 = D/Δx || 0.00115 => 20 = D/Δx || 0.00153 => 15 = D/Δx || 0.00092 => D/Δx = 25
+    delta_x         = 0.00092                                
    
     # Smagorinsky constant CS
     CS              = 1/3 #0.1 #0.17                 # CS ↑ = eddy viscosity ↑
 
     # Plot Requests (Flags)
     Plotvx = false;
-    Plotmag = true;
+    Plotmag = false;
     Plotdebug = false;
     Plotvorticity = false;
     vorticity_mode = :component # :component (ω_z / ω_y)   or   :magnitude (|ω|)
