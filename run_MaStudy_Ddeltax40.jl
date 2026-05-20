@@ -1,7 +1,7 @@
 ############################
 ## Main file for JuLattice #
 ############################
-include("src/Plotter.jl")
+# include("src/Plotter.jl")
 include("src/Logger.jl")
 include("src/BoundaryConditions.jl")
 include("src/TurbulenceModel.jl")
@@ -9,8 +9,8 @@ include("src/Kernel.jl")
 
 
 using Serialization # for saving last plot
-using MeshGrid, GLMakie
-using .Plotter, .Logger
+# using MeshGrid, GLMakie
+# using .Plotter, .Logger
 using .BoundaryConditions
 using .TurbulenceModel 
 using .Kernel
@@ -28,20 +28,16 @@ function run_JuLattice()
     # length_Y = 0.6                      # m
     # length_Z = 0.6                      # m
 
-    # # # lateral 5D (both sides y&z) | outflow 10D: FREE-SLIP DOMAIN
-    # length_X = 15.5 * D
-    # length_Y = 10 * D
-    # length_Z = 10 * D
+    # # lateral 5D (both sides y&z) | outflow 10D: FREE-SLIP DOMAIN
+    length_X = 15.5 * D
+    length_Y = 10 * D
+    length_Z = 10 * D
 
     # # lateral 10D (both sides y&z) | outflow 15D: FREE-SLIP DOMAIN
     # length_X = 20.5 * D   # extended: 20.5D 
     # length_Y = 15 * D     # extended: 15D  
     # length_Z = 15 * D     # extended: 15D  
 
-    # lateral 5D (both sides y&z) | outflow 10D: D/Δx=15 test
-    length_X = 15.5 * D
-    length_Y = 10 * D
-    length_Z = 10 * D
 
     # Fluid Settings 
     Kinematic_Viscosity = 1e-6                                       # m^2/s 
@@ -54,14 +50,14 @@ function run_JuLattice()
     
     # Grid spacing (physical units per lattice unit)
     # 0.0023 => 10 = D/Δx || 0.00115 => 20 = D/Δx || 0.00153 => 15 = D/Δx
-    delta_x         = 0.00153                                
+    delta_x         = 0.000575	                             
    
     # Smagorinsky constant CS
     CS              = 1/3 #0.1 #0.17                 # CS ↑ = eddy viscosity ↑
 
     # Plot Requests (Flags)
     Plotvx = false;
-    Plotmag = true;
+    Plotmag = false;
     Plotdebug = false;
     Plotvorticity = false;
     vorticity_mode = :component # :component (ω_z / ω_y)   or   :magnitude (|ω|)
@@ -225,56 +221,19 @@ function run_JuLattice()
 
     ##-------- Array Allocation --------##
     #Q = 19; #D3Q19
-    # D3Q19
-    # f000 = rest (0,0,0)
-    # fm00, fp00 = x-axis (±1,0,0)
-    # f0m0, f0p0 = y-axis (0,±1,0)
-    # f00m, f00p = z-axis (0,0,±1)
-    # fmm0, fmp0, fpm0, fpp0 = xy-plane edges
-    # fm0m, fm0p, fp0m, fp0p = xz-plane edges
-    # f0mm, f0mp, f0pm, f0pp = yz-plane edges
+    # D3Q19 — f and fS are 4D arrays: f[q, x, y, z]
+    # first dimension q is indexed with direction constants Q000..Q0PP (exported by Kernel):
+    # f[Q000] = rest (0,0,0)
+    # f[QM00], f[QP00] = x-axis (±1,0,0)
+    # f[Q0M0], f[Q0P0] = y-axis (0,±1,0)
+    # f[Q00M], f[Q00P] = z-axis (0,0,±1)
+    # f[QMM0], f[QMP0], f[QPM0], f[QPP0] = xy-plane edges
+    # f[QM0M], f[QM0P], f[QP0M], f[QP0P] = xz-plane edges
+    # f[Q0MM], f[Q0MP], f[Q0PM], f[Q0PP] = yz-plane edges
 
-    # Define arrays for each direction D3Q9
-    f000 = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    fm00 = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    fp00 = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    f0m0 = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    f0p0 = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    f00m = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    f00p = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    fmm0 = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    fmp0 = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    fpm0 = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    fpp0 = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    fm0m = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    fm0p = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    fp0m = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    fp0p = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    f0mm = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    f0mp = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    f0pm = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    f0pp = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    
-    # Define array for each direction after stream (and after Collision) (S)
-    f000S = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    fm00S = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    fp00S = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    f0m0S = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    f0p0S = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    f00mS = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    f00pS = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    fmm0S = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    fmp0S = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    fpm0S = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    fpp0S = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    fm0mS = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    fm0pS = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    fp0mS = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    fp0pS = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    f0mmS = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    f0mpS = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    f0pmS = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    f0ppS = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    # f  = pre-collision populations; fS = post-collision push target
+    f  = zeros(NQ, gridlengthX, gridlengthY, gridlengthZ)
+    fS = zeros(NQ, gridlengthX, gridlengthY, gridlengthZ)
 
     # Initialise macroscopic variables
     rho = ones(gridlengthX, gridlengthY, gridlengthZ) .* fluiddensity
@@ -291,11 +250,11 @@ function run_JuLattice()
     vortY = zeros(gridlengthX, gridlengthY, gridlengthZ)
 
     ##--------  Initialize distribution functions FLUID NODES and SOLID NODES  --------##
-    for x in 1:gridlengthX
+    for z in 1:gridlengthZ
         for y in 1:gridlengthY
-            for z in 1:gridlengthZ
-                
-                # Equilibirum Initialisation 
+            for x in 1:gridlengthX
+
+                # Equilibirum Initialisation
                 # ux = is_solid[x, y, z] ? 0.0 : lattice_inflow_velocity
                 # uy = 0.0
                 # uz = 0.0
@@ -306,80 +265,62 @@ function run_JuLattice()
                 uz = is_solid[x, y, z] ? 0.0 : (rand() - 0.5) * 0.02 * lattice_inflow_velocity
 
                 rho_init = fluiddensity
-                
+
                 # Pre-compute polynomial factors
                 ux2 = ux * ux
                 uy2 = uy * uy
                 uz2 = uz * uz
-                
+
                 Pm_u = 1 - 3*ux + 3*ux2
                 P0_u = 1 - 1.5*ux2
                 Pp_u = 1 + 3*ux + 3*ux2
-                
+
                 Pm_v = 1 - 3*uy + 3*uy2
                 P0_v = 1 - 1.5*uy2
                 Pp_v = 1 + 3*uy + 3*uy2
-                
+
                 Pm_w = 1 - 3*uz + 3*uz2
                 P0_w = 1 - 1.5*uz2
                 Pp_w = 1 + 3*uz + 3*uz2
-        
+
                 # Push scheme: Rest particle (0,0,0) - weight 1/3
-                f000[x,y,z] = rho_init * P0_u * P0_v * P0_w / 3.0
-                
+                f[Q000,x,y,z] = rho_init * P0_u * P0_v * P0_w / 3.0
+
                 # Push scheme: Face neighbors - weight 1/18
-                fm00[x,y,z] = rho_init * Pm_u * P0_v * P0_w / 18.0 
-                fp00[x,y,z] = rho_init * Pp_u * P0_v * P0_w / 18.0 
-                
-                f0m0[x,y,z] = rho_init * P0_u * Pm_v * P0_w / 18.0 
-                f0p0[x,y,z] = rho_init * P0_u * Pp_v * P0_w / 18.0
-                
-                f00m[x,y,z] = rho_init * P0_u * P0_v * Pm_w / 18.0 
-                f00p[x,y,z] = rho_init * P0_u * P0_v * Pp_w / 18.0 
-                
+                f[QM00,x,y,z] = rho_init * Pm_u * P0_v * P0_w / 18.0
+                f[QP00,x,y,z] = rho_init * Pp_u * P0_v * P0_w / 18.0
+
+                f[Q0M0,x,y,z] = rho_init * P0_u * Pm_v * P0_w / 18.0
+                f[Q0P0,x,y,z] = rho_init * P0_u * Pp_v * P0_w / 18.0
+
+                f[Q00M,x,y,z] = rho_init * P0_u * P0_v * Pm_w / 18.0
+                f[Q00P,x,y,z] = rho_init * P0_u * P0_v * Pp_w / 18.0
+
                 # Push scheme: Edge neighbors - weight 1/36
                 # XY-plane edges
-                fmm0[x,y,z] = rho_init * Pm_u * Pm_v * P0_w / 36.0 
-                fmp0[x,y,z] = rho_init * Pm_u * Pp_v * P0_w / 36.0 
-                fpm0[x,y,z] = rho_init * Pp_u * Pm_v * P0_w / 36.0 
-                fpp0[x,y,z] = rho_init * Pp_u * Pp_v * P0_w / 36.0 
-                
+                f[QMM0,x,y,z] = rho_init * Pm_u * Pm_v * P0_w / 36.0
+                f[QMP0,x,y,z] = rho_init * Pm_u * Pp_v * P0_w / 36.0
+                f[QPM0,x,y,z] = rho_init * Pp_u * Pm_v * P0_w / 36.0
+                f[QPP0,x,y,z] = rho_init * Pp_u * Pp_v * P0_w / 36.0
+
                 # XZ-plane edges
-                fm0m[x,y,z] = rho_init * Pm_u * P0_v * Pm_w / 36.0 
-                fm0p[x,y,z] = rho_init * Pm_u * P0_v * Pp_w / 36.0
-                fp0m[x,y,z] = rho_init * Pp_u * P0_v * Pm_w / 36.0 
-                fp0p[x,y,z] = rho_init * Pp_u * P0_v * Pp_w / 36.0 
-                
+                f[QM0M,x,y,z] = rho_init * Pm_u * P0_v * Pm_w / 36.0
+                f[QM0P,x,y,z] = rho_init * Pm_u * P0_v * Pp_w / 36.0
+                f[QP0M,x,y,z] = rho_init * Pp_u * P0_v * Pm_w / 36.0
+                f[QP0P,x,y,z] = rho_init * Pp_u * P0_v * Pp_w / 36.0
+
                 # YZ-plane edges
-                f0mm[x,y,z] = rho_init * P0_u * Pm_v * Pm_w / 36.0 
-                f0mp[x,y,z] = rho_init * P0_u * Pm_v * Pp_w / 36.0 
-                f0pm[x,y,z] = rho_init * P0_u * Pp_v * Pm_w / 36.0 
-                f0pp[x,y,z] = rho_init * P0_u * Pp_v * Pp_w / 36.0
-            
-            end#z
+                f[Q0MM,x,y,z] = rho_init * P0_u * Pm_v * Pm_w / 36.0
+                f[Q0MP,x,y,z] = rho_init * P0_u * Pm_v * Pp_w / 36.0
+                f[Q0PM,x,y,z] = rho_init * P0_u * Pp_v * Pm_w / 36.0
+                f[Q0PP,x,y,z] = rho_init * P0_u * Pp_v * Pp_w / 36.0
+
+            end#x
         end#y
-    end#x
+    end#z
    
     ##-------- Initialise fS's --------##
-    f000S .= f000 
-    fm00S .= fm00
-    fp00S .= fp00
-    f0m0S .= f0m0 
-    f0p0S .= f0p0 
-    f00mS .= f00m 
-    f00pS .= f00p 
-    fmm0S .= fmm0 
-    fmp0S .= fmp0 
-    fpm0S .= fpm0 
-    fpp0S .= fpp0 
-    fm0mS .= fm0m 
-    fm0pS .= fm0p 
-    fp0mS .= fp0m 
-    fp0pS .= fp0p 
-    f0mmS .= f0mm 
-    f0mpS .= f0mp 
-    f0pmS .= f0pm
-    f0ppS .= f0pp
+    fS .= f
 
     # Force garbage collection to free unused memory
     GC.gc()
@@ -458,14 +399,7 @@ function run_JuLattice()
             collision_stream!(
                 gridlengthX, gridlengthY, gridlengthZ, τ, CS, is_fluid,
                 rho, u, v, w,
-                f000,  fm00,  fp00,  f0m0,  f0p0,  f00m,  f00p,
-                fmm0,  fmp0,  fpm0,  fpp0,
-                fm0m,  fm0p,  fp0m,  fp0p,
-                f0mm,  f0mp,  f0pm,  f0pp,
-                f000S, fm00S, fp00S, f0m0S, f0p0S, f00mS, f00pS,
-                fmm0S, fmp0S, fpm0S, fpp0S,
-                fm0mS, fm0pS, fp0mS, fp0pS,
-                f0mmS, f0mpS, f0pmS, f0ppS
+                f, fS
             )
         
         #end #end elapsed
@@ -503,38 +437,38 @@ function run_JuLattice()
             # Front wall (y=1) cy=-1 -> +1
             if y==1
                 if !is_solid[x,2,z]
-                    f0p0S[x, 2, z] = f0m0S[x, 1, z]
-                    fmp0S[x, 2, z] = fmm0S[x, 1, z]
-                    fpp0S[x, 2, z] = fpm0S[x, 1, z]
-                    f0pmS[x, 2, z] = f0mmS[x, 1, z]
-                    f0ppS[x, 2, z] = f0mpS[x, 1, z]  
+                    fS[Q0P0, x, 2, z] = fS[Q0M0, x, 1, z]
+                    fS[QMP0, x, 2, z] = fS[QMM0, x, 1, z]
+                    fS[QPP0, x, 2, z] = fS[QPM0, x, 1, z]
+                    fS[Q0PM, x, 2, z] = fS[Q0MM, x, 1, z]
+                    fS[Q0PP, x, 2, z] = fS[Q0MP, x, 1, z]
                 end
             # Back wall (y=gridlengthY) cy=+1 -> -1
             elseif  y==gridlengthY
                 if !is_solid[x, gridlengthY-1, z]
-                    f0m0S[x, gridlengthY-1, z] = f0p0S[x, gridlengthY, z]
-                    fmm0S[x, gridlengthY-1, z] = fmp0S[x, gridlengthY, z]
-                    fpm0S[x, gridlengthY-1, z] = fpp0S[x, gridlengthY, z]
-                    f0mmS[x, gridlengthY-1, z] = f0pmS[x, gridlengthY, z]
-                    f0mpS[x, gridlengthY-1, z] = f0ppS[x, gridlengthY, z]   
+                    fS[Q0M0, x, gridlengthY-1, z] = fS[Q0P0, x, gridlengthY, z]
+                    fS[QMM0, x, gridlengthY-1, z] = fS[QMP0, x, gridlengthY, z]
+                    fS[QPM0, x, gridlengthY-1, z] = fS[QPP0, x, gridlengthY, z]
+                    fS[Q0MM, x, gridlengthY-1, z] = fS[Q0PM, x, gridlengthY, z]
+                    fS[Q0MP, x, gridlengthY-1, z] = fS[Q0PP, x, gridlengthY, z]
                 end
             # Bottom wall (z=1) cz=-1 -> +1
              elseif z == 1
                 if !is_solid[x, y, 2]
-                    f00pS[x, y, 2] = f00mS[x, y, 1]
-                    fp0pS[x, y, 2] = fp0mS[x, y, 1]
-                    fm0pS[x, y, 2] = fm0mS[x, y, 1]
-                    f0ppS[x, y, 2] = f0pmS[x, y, 1]
-                    f0mpS[x, y, 2] = f0mmS[x, y, 1] 
+                    fS[Q00P, x, y, 2] = fS[Q00M, x, y, 1]
+                    fS[QP0P, x, y, 2] = fS[QP0M, x, y, 1]
+                    fS[QM0P, x, y, 2] = fS[QM0M, x, y, 1]
+                    fS[Q0PP, x, y, 2] = fS[Q0PM, x, y, 1]
+                    fS[Q0MP, x, y, 2] = fS[Q0MM, x, y, 1]
                 end
             # Top wall (z=gridlengthZ) cz=+1 -> -1
             elseif z == gridlengthZ
                 if !is_solid[x, y, gridlengthZ-1]
-                    f00mS[x, y, gridlengthZ-1] = f00pS[x, y, gridlengthZ]
-                    fp0mS[x, y, gridlengthZ-1] = fp0pS[x, y, gridlengthZ]
-                    fm0mS[x, y, gridlengthZ-1] = fm0pS[x, y, gridlengthZ]
-                    f0pmS[x, y, gridlengthZ-1] = f0ppS[x, y, gridlengthZ]
-                    f0mmS[x, y, gridlengthZ-1] = f0mpS[x, y, gridlengthZ]   
+                    fS[Q00M, x, y, gridlengthZ-1] = fS[Q00P, x, y, gridlengthZ]
+                    fS[QP0M, x, y, gridlengthZ-1] = fS[QP0P, x, y, gridlengthZ]
+                    fS[QM0M, x, y, gridlengthZ-1] = fS[QM0P, x, y, gridlengthZ]
+                    fS[Q0PM, x, y, gridlengthZ-1] = fS[Q0PP, x, y, gridlengthZ]
+                    fS[Q0MM, x, y, gridlengthZ-1] = fS[Q0MP, x, y, gridlengthZ]
                 end
             end#if
         end#wall in  wall_indices
@@ -544,22 +478,22 @@ function run_JuLattice()
         @inbounds for x in 1:gridlengthX
             # front/bot edge
             if !is_solid[x, 2, 2]
-                f0ppS[x, 2, 2] = f0mmS[x, 1, 1]
+                fS[Q0PP, x, 2, 2] = fS[Q0MM, x, 1, 1]
             end
 
             # front/top edge
             if !is_solid[x, 2, gridlengthZ-1]
-                f0pmS[x, 2, gridlengthZ-1] = f0mpS[x, 1, gridlengthZ]
+                fS[Q0PM, x, 2, gridlengthZ-1] = fS[Q0MP, x, 1, gridlengthZ]
             end
 
             # back/bot edge
             if !is_solid[x, gridlengthY-1, 2]
-                f0mpS[x, gridlengthY-1, 2] = f0pmS[x, gridlengthY, 1]
+                fS[Q0MP, x, gridlengthY-1, 2] = fS[Q0PM, x, gridlengthY, 1]
             end
 
             # back/top edge
             if !is_solid[x, gridlengthY-1, gridlengthZ-1]
-                f0mmS[x, gridlengthY-1, gridlengthZ-1] = f0ppS[x, gridlengthY, gridlengthZ]
+                fS[Q0MM, x, gridlengthY-1, gridlengthZ-1] = fS[Q0PP, x, gridlengthY, gridlengthZ]
             end
         end
         ##-------- free slip walls  end --------##
@@ -641,11 +575,7 @@ function run_JuLattice()
 
 
         # bounce-back object | Bouzidi bounceback (IBB)
-        F_x_lat, F_y_lat = apply_bouzidi_bc_3d!(boundary_data,
-                             fm00S, fp00S, f0m0S, f0p0S, f00mS, f00pS,
-                             fmm0S, fmp0S, fpm0S, fpp0S,
-                             fm0mS, fm0pS, fp0mS, fp0pS,
-                             f0mmS, f0mpS, f0pmS, f0ppS)
+        F_x_lat, F_y_lat = apply_bouzidi_bc_3d!(boundary_data, fS)
         
         Cd = 2.0 * F_x_lat / (fluiddensity * lattice_inflow_velocity^2 * A_lat)
         Cl = 2.0 * F_y_lat / (fluiddensity * lattice_inflow_velocity^2 * A_lat)
@@ -655,11 +585,11 @@ function run_JuLattice()
         # # compute inflow populations fp00S, fpp0S, fpm0S, fp0pS, fp0mS
         # # momentum coefficients for D3Q19 weights
         # # Compute new populations
-        @views fp00S[2, 2:gridlengthY-1, 2:gridlengthZ-1] .= fm00S[1, 2:gridlengthY-1, 2:gridlengthZ-1] .+ inlet_add_face
-        @views fpp0S[2, 2:gridlengthY-1, 2:gridlengthZ-1] .= fmp0S[1, 2:gridlengthY-1, 2:gridlengthZ-1] .+ inlet_add_edge
-        @views fpm0S[2, 2:gridlengthY-1, 2:gridlengthZ-1] .= fmm0S[1, 2:gridlengthY-1, 2:gridlengthZ-1] .+ inlet_add_edge
-        @views fp0pS[2, 2:gridlengthY-1, 2:gridlengthZ-1] .= fm0pS[1, 2:gridlengthY-1, 2:gridlengthZ-1] .+ inlet_add_edge
-        @views fp0mS[2, 2:gridlengthY-1, 2:gridlengthZ-1] .= fm0mS[1, 2:gridlengthY-1, 2:gridlengthZ-1] .+ inlet_add_edge
+        @views fS[QP00, 2, 2:gridlengthY-1, 2:gridlengthZ-1] .= fS[QM00, 1, 2:gridlengthY-1, 2:gridlengthZ-1] .+ inlet_add_face
+        @views fS[QPP0, 2, 2:gridlengthY-1, 2:gridlengthZ-1] .= fS[QMP0, 1, 2:gridlengthY-1, 2:gridlengthZ-1] .+ inlet_add_edge
+        @views fS[QPM0, 2, 2:gridlengthY-1, 2:gridlengthZ-1] .= fS[QMM0, 1, 2:gridlengthY-1, 2:gridlengthZ-1] .+ inlet_add_edge
+        @views fS[QP0P, 2, 2:gridlengthY-1, 2:gridlengthZ-1] .= fS[QM0P, 1, 2:gridlengthY-1, 2:gridlengthZ-1] .+ inlet_add_edge
+        @views fS[QP0M, 2, 2:gridlengthY-1, 2:gridlengthZ-1] .= fS[QM0M, 1, 2:gridlengthY-1, 2:gridlengthZ-1] .+ inlet_add_edge
         
         # # OUTLET: no-gradient bounceback 
         # # # all populations that stream in -x direction from previous neighbor
@@ -686,19 +616,19 @@ function run_JuLattice()
             feq_p00 = (1.0 / 18.0) * rho_out * (1.0 + 3.0 * u_out + 3.0 * u_out^2) *
                         (1.0 - 1.5 * v_out^2) * (1.0 - 1.5*w_out^2)
                         
-            fneq_p00 = fp00[gridlengthX-1, y, z] - feq_p00
+            fneq_p00 = f[QP00, gridlengthX-1, y, z] - feq_p00
 
-            feq_m00 = (1.0 / 18.0) * (1.0 - 3.0 * u_out + 3.0 * u_out^2) * 
+            feq_m00 = (1.0 / 18.0) * (1.0 - 3.0 * u_out + 3.0 * u_out^2) *
                         (1.0 - 1.5 * v_out^2) * (1.0 -1.5 * w_out^2)
-            
-            fm00S[gridlengthX-1, y, z] = feq_m00 + fneq_p00
+
+            fS[QM00, gridlengthX-1, y, z] = feq_m00 + fneq_p00
         end
         
         
-        @views fmm0S[gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= 2 * fmm0S[gridlengthX-2, 2:gridlengthY-1, 2:gridlengthZ-1] .- fmm0S[gridlengthX-3, 2:gridlengthY-1, 2:gridlengthZ-1]
-        @views fmp0S[gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= 2 * fmp0S[gridlengthX-2, 2:gridlengthY-1, 2:gridlengthZ-1] .- fmp0S[gridlengthX-3, 2:gridlengthY-1, 2:gridlengthZ-1]
-        @views fm0mS[gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= 2 * fm0mS[gridlengthX-2, 2:gridlengthY-1, 2:gridlengthZ-1] .- fm0mS[gridlengthX-3, 2:gridlengthY-1, 2:gridlengthZ-1]
-        @views fm0pS[gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= 2 * fm0pS[gridlengthX-2, 2:gridlengthY-1, 2:gridlengthZ-1] .- fm0pS[gridlengthX-3, 2:gridlengthY-1, 2:gridlengthZ-1]
+        @views fS[QMM0, gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= 2 * fS[QMM0, gridlengthX-2, 2:gridlengthY-1, 2:gridlengthZ-1] .- fS[QMM0, gridlengthX-3, 2:gridlengthY-1, 2:gridlengthZ-1]
+        @views fS[QMP0, gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= 2 * fS[QMP0, gridlengthX-2, 2:gridlengthY-1, 2:gridlengthZ-1] .- fS[QMP0, gridlengthX-3, 2:gridlengthY-1, 2:gridlengthZ-1]
+        @views fS[QM0M, gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= 2 * fS[QM0M, gridlengthX-2, 2:gridlengthY-1, 2:gridlengthZ-1] .- fS[QM0M, gridlengthX-3, 2:gridlengthY-1, 2:gridlengthZ-1]
+        @views fS[QM0P, gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= 2 * fS[QM0P, gridlengthX-2, 2:gridlengthY-1, 2:gridlengthZ-1] .- fS[QM0P, gridlengthX-3, 2:gridlengthY-1, 2:gridlengthZ-1]
 
         # mnups tracking end
         t_mnups_s = (time_ns() - t0) * 1e-9
@@ -706,25 +636,7 @@ function run_JuLattice()
 
 
         # Swap: SWAP POINTERS new distribution to "old"
-        f000, f000S = f000S, f000
-        fm00, fm00S = fm00S, fm00
-        fp00, fp00S = fp00S, fp00
-        f0m0, f0m0S = f0m0S, f0m0
-        f0p0, f0p0S = f0p0S, f0p0
-        f00m, f00mS = f00mS, f00m
-        f00p, f00pS = f00pS, f00p
-        fmm0, fmm0S = fmm0S, fmm0
-        fmp0, fmp0S = fmp0S, fmp0
-        fpm0, fpm0S = fpm0S, fpm0
-        fpp0, fpp0S = fpp0S, fpp0
-        fm0m, fm0mS = fm0mS, fm0m
-        fm0p, fm0pS = fm0pS, fm0p
-        fp0m, fp0mS = fp0mS, fp0m
-        fp0p, fp0pS = fp0pS, fp0p
-        f0mm, f0mmS = f0mmS, f0mm
-        f0mp, f0mpS = f0mpS, f0mp
-        f0pm, f0pmS = f0pmS, f0pm
-        f0pp, f0ppS = f0ppS, f0pp     
+        f, fS = fS, f     
 
         ##-------- Probe Sampling (cumulativ mean) --------##
         if i % sample_interval == 0
