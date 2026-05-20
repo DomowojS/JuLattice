@@ -28,23 +28,31 @@ function run_JuLattice()
     # length_Y = 0.6                      # m
     # length_Z = 0.6                      # m
 
-    # # lateral 5D (both sides y&z) | outflow 10D: FREE-SLIP DOMAIN
-    length_X = 15.5 * D
-    length_Y = 10 * D
-    length_Z = 10 * D
+    # # # lateral 5D (both sides y&z) | outflow 10D: FREE-SLIP DOMAIN
+    # length_X = 15.5 * D
+    # length_Y = 10 * D
+    # length_Z = 10 * D
+
+    # # lateral 10D (both sides y&z) | outflow 15D: FREE-SLIP DOMAIN
+    length_X = 20.5 * D   # extended: 20.5D 
+    length_Y = 15 * D     # extended: 15D  
+    length_Z = 15 * D     # extended: 15D  
 
     # Fluid Settings 
-    Kinematic_Viscosity = 1e-6 #0.0004; #0.001;                     # m^2/s 
+    Kinematic_Viscosity = 1e-6                                       # m^2/s 
     reynoldsNumber =   2760 #2760                                    # Target Reynolds number
-    Mach_Number = 0.1 # 0.05                                       # Target Mach number (Ma = U_lattice/c_s)
-                                                                    # Keep Ma < 0.1 for incompressible flow!
+    Mach_Number = 0.1 # 0.05                                         # Target Mach number (Ma = U_lattice/c_s)
+                                                                     # Keep Ma < 0.1 for incompressible flow!
 
     # Simulation Settings
-    Simulation_Time = 0.5 #60;                                   # s
+    Simulation_Time = 60 #0.5;                                   # s
+    
+    # Grid spacing (physical units per lattice unit)
     # 0.0023 => 10 = D/Δx || 0.00115 => 20 = D/Δx || 0.00153 => 15 = D/Δx
-    delta_x         = 0.0023 #0.00115                               # Grid spacing (physical units per lattice unit)
+    delta_x         = 0.00115                                
+   
     # Smagorinsky constant CS
-    CS              = 1/3 #0.1 #0.17 #1/3                # CS ↑ = eddy viscosity ↑
+    CS              = 1/3 #0.1 #0.17                 # CS ↑ = eddy viscosity ↑
 
     # Plot Requests (Flags)
     Plotvx = false;
@@ -192,6 +200,8 @@ function run_JuLattice()
     # fluid mask
     is_fluid .&= .!is_object
     n_fluid_nodes = sum(is_fluid)
+    n_cylinder_nodes = sum(is_object)
+    n_mnups_nodes = n_fluid_nodes + n_cylinder_nodes
     
 
     ##-------- precompute BC --------##
@@ -687,7 +697,7 @@ function run_JuLattice()
 
         # mnups tracking end
         t_mnups_s = (time_ns() - t0) * 1e-9
-        mnups = n_fluid_nodes / (t_mnups_s * 1e6)
+        mnups = n_mnups_nodes / (t_mnups_s * 1e6)
 
 
         # Swap: SWAP POINTERS new distribution to "old"

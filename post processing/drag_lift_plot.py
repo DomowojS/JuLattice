@@ -7,7 +7,7 @@ from tkinter import filedialog, simpledialog
 # Parameter
 tk.Tk().withdraw()
 
-t_transient = 0.0
+t_transient = 20.0
 Re = simpledialog.askfloat("Reynolds Number", "Enter Re:", initialvalue=2760.0)
 if Re is None:
     raise SystemExit("no Re entered!!!")
@@ -81,7 +81,7 @@ ax3.axvline(St_peak, color="r", linestyle="--",
 ax3.set_xlabel("St = f·D/U [-]")
 ax3.set_ylabel("spectral amplitude of Cl[-]")
 ax3.set_title("FFT of Cl (Strouhal)")
-#ax3.set_xlim(0, 1.0)
+ax3.set_xlim(left=0)
 #ax3.set_ylim(0, 100)
 ax3.legend(fontsize=9)
 ax3.grid(True, linestyle="--", alpha=0.4)
@@ -94,6 +94,7 @@ ax4.axvline(f_peak, color="r", linestyle="--",
 ax4.set_xlabel("f [Hz]")
 ax4.set_ylabel("spectral amplitude of Cl [-]")
 ax4.set_title("FFT of Cl (Frequency)")
+ax4.set_xlim(left=0)
 ax4.legend(fontsize=9)
 ax4.grid(True, linestyle="--", alpha=0.4)
 
