@@ -10,7 +10,7 @@ include("src/Kernel.jl")
 
 using Serialization # for saving last plot
 # using MeshGrid, GLMakie
-# using .Plotter, 
+# using .Plotter,
 using .Logger
 using .BoundaryConditions
 using .TurbulenceModel 
@@ -29,21 +29,21 @@ function run_JuLattice()
     # length_Y = 0.6                      # m
     # length_Z = 0.6                      # m
 
-    # # # lateral 5D (both sides y&z) | outflow 10D: FREE-SLIP DOMAIN
-    # length_X = 15.5 * D
-    # length_Y = 10 * D
-    # length_Z = 10 * D
+    # # lateral 5D (both sides y&z) | outflow 10D: FREE-SLIP DOMAIN
+    length_X = 20.5 * D
+    length_Y = 10 * D
+    length_Z = 10 * D
 
-    # lateral 10D (both sides y&z) | outflow 15D: FREE-SLIP DOMAIN
-    length_X = 20.5 * D   # extended: 20.5D 
-    length_Y = 15 * D     # extended: 15D  
-    length_Z = 15 * D     # extended: 15D  
+    # # lateral 10D (both sides y&z) | outflow 15D: FREE-SLIP DOMAIN
+    # length_X = 20.5 * D   # extended: 20.5D 
+    # length_Y = 15 * D     # extended: 15D  
+    # length_Z = 15 * D     # extended: 15D  
 
 
     # Fluid Settings 
     Kinematic_Viscosity = 1e-6                                       # m^2/s 
     reynoldsNumber =   2760 #2760                                    # Target Reynolds number
-    Mach_Number = 0.1 # 0.05                                         # Target Mach number (Ma = U_lattice/c_s)
+    Mach_Number = 0.05 # 0.05                                         # Target Mach number (Ma = U_lattice/c_s)
                                                                      # Keep Ma < 0.1 for incompressible flow!
 
     # Simulation Settings
@@ -51,7 +51,7 @@ function run_JuLattice()
     
     # Grid spacing (physical units per lattice unit)
     # 0.0023 => 10 = D/Δx || 0.00115 => 20 = D/Δx || 0.00153 => 15 = D/Δx
-    delta_x         = 0.00115                               
+    delta_x         = 0.000575	                             
    
     # Smagorinsky constant CS
     CS              = 1/3 #0.1 #0.17                 # CS ↑ = eddy viscosity ↑

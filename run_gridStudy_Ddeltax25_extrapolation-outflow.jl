@@ -30,7 +30,7 @@ function run_JuLattice()
     # length_Z = 0.6                      # m
 
     # # lateral 5D (both sides y&z) | outflow 10D: FREE-SLIP DOMAIN
-    length_X = 15.5 * D
+    length_X = 20.5 * D
     length_Y = 10 * D
     length_Z = 10 * D
 
