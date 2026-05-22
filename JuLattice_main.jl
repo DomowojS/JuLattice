@@ -606,33 +606,13 @@ function run_JuLattice()
         # @views fm0pS[gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= fm0pS[gridlengthX-2, 2:gridlengthY-1, 2:gridlengthZ-1]
         
         
-        # OUTLET: extrapolation (non-reflective)
-        # @views fm00S[gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= 2 * fm00S[gridlengthX-2, 2:gridlengthY-1, 2:gridlengthZ-1] .- fm00S[gridlengthX-3, 2:gridlengthY-1, 2:gridlengthZ-1]
-        
-        # improved extrapolation outflow bc: 
-        # normal direction f(x, t+Δt) = F_i^eq(rho=1, u)(x, t) + f_i^neq*(x, t) (<-- fp00)
-        @inbounds for z in 2:gridlengthZ-1, y in 2:gridlengthY-1
-            u_out = u[gridlengthX-1, y, z]
-            v_out = v[gridlengthX-1, y, z]
-            w_out = w[gridlengthX-1, y, z]
-            rho_out = rho[gridlengthX-1, y, z]
-
-            feq_p00 = (1.0 / 18.0) * rho_out * (1.0 + 3.0 * u_out + 3.0 * u_out^2) *
-                        (1.0 - 1.5 * v_out^2) * (1.0 - 1.5*w_out^2)
-                        
-            fneq_p00 = f[QP00, gridlengthX-1, y, z] - feq_p00
-
-            feq_m00 = (1.0 / 18.0) * (1.0 - 3.0 * u_out + 3.0 * u_out^2) *
-                        (1.0 - 1.5 * v_out^2) * (1.0 -1.5 * w_out^2)
-
-            fS[QM00, gridlengthX-1, y, z] = feq_m00 + fneq_p00
-        end
-        
-        
-        @views fS[QMM0, gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= 2 * fS[QMM0, gridlengthX-2, 2:gridlengthY-1, 2:gridlengthZ-1] .- fS[QMM0, gridlengthX-3, 2:gridlengthY-1, 2:gridlengthZ-1]
-        @views fS[QMP0, gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= 2 * fS[QMP0, gridlengthX-2, 2:gridlengthY-1, 2:gridlengthZ-1] .- fS[QMP0, gridlengthX-3, 2:gridlengthY-1, 2:gridlengthZ-1]
-        @views fS[QM0M, gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= 2 * fS[QM0M, gridlengthX-2, 2:gridlengthY-1, 2:gridlengthZ-1] .- fS[QM0M, gridlengthX-3, 2:gridlengthY-1, 2:gridlengthZ-1]
-        @views fS[QM0P, gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= 2 * fS[QM0P, gridlengthX-2, 2:gridlengthY-1, 2:gridlengthZ-1] .- fS[QM0P, gridlengthX-3, 2:gridlengthY-1, 2:gridlengthZ-1]
+        # OUTLET: interpolation (Non reflective Geier et al. 2015)
+        # f_new(x_b, t) = cs * f(x_{b-1}, t-dt) + (1 - cs) * f(x_b, t-dt)
+        @views fS[QM00, gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= lattice_speedOfSound * f[QM00, gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .+ (1 - lattice_speedOfSound) * f[QM00, gridlengthX-2, 2:gridlengthY-1, 2:gridlengthZ-1]
+        @views fS[QMM0, gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= lattice_speedOfSound * f[QMM0, gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .+ (1 - lattice_speedOfSound) * f[QMM0, gridlengthX-2, 2:gridlengthY-1, 2:gridlengthZ-1]
+        @views fS[QMP0, gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= lattice_speedOfSound * f[QMP0, gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .+ (1 - lattice_speedOfSound) * f[QMP0, gridlengthX-2, 2:gridlengthY-1, 2:gridlengthZ-1]
+        @views fS[QM0M, gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= lattice_speedOfSound * f[QM0M, gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .+ (1 - lattice_speedOfSound) * f[QM0M, gridlengthX-2, 2:gridlengthY-1, 2:gridlengthZ-1]
+        @views fS[QM0P, gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= lattice_speedOfSound * f[QM0P, gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .+ (1 - lattice_speedOfSound) * f[QM0P, gridlengthX-2, 2:gridlengthY-1, 2:gridlengthZ-1]
 
         # mnups tracking end
         t_mnups_s = (time_ns() - t0) * 1e-9
