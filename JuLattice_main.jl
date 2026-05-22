@@ -167,7 +167,7 @@ function run_JuLattice()
 
     ##--------  classify nodes --------##
     ## create solid node mask
-    # Array{Bool} instead of BitArray: single byte load in hot kernel loop vs bit-unpack
+    # Array{Bool} instead of BitArray: single byte load in kernel loop vs bit-unpack
     is_solid  = fill(false, gridlengthX, gridlengthY, gridlengthZ)
     is_object = fill(false, gridlengthX, gridlengthY, gridlengthZ)
     is_fluid  = fill(false, gridlengthX, gridlengthY, gridlengthZ)
@@ -487,8 +487,6 @@ function run_JuLattice()
 
         ##-------- free slip walls --------##
         # y-faces (front+back) in one barrier, z-faces (bot+top) in another.
-        # :static gives each thread a contiguous chunk — nearly all front or all back,
-        # so the one distinguishing branch is correctly predicted for 63/64 threads.
         # y-faces and z-faces stay sequential to avoid corner node conflicts.
         let nf = length(wall_front_x), nb = length(wall_back_x)
             @inbounds Threads.@threads :static for i in 1:(nf + nb)
