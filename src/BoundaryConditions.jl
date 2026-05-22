@@ -150,7 +150,7 @@ end
 
 # FAST VERSION?
 function apply_bouzidi_bc_3d!(boundary_data, fS)
-    nt = Threads.nthreads()
+    nt = Threads.maxthreadid()
     local_Fx = zeros(nt * 8)
     local_Fy = zeros(nt * 8)
 
@@ -177,8 +177,8 @@ function apply_bouzidi_bc_3d!(boundary_data, fS)
         local_Fy[(tid - 1) * 8 + 1] += cy * (f_at_solid + f_new)
     end
 
-    F_x = sum(i -> local_Fx[(i-1)*8+1], 1:nt)
-    F_y = sum(i -> local_Fy[(i-1)*8+1], 1:nt)
+    F_x = sum(i -> local_Fx[(i-1)*8+1], 1:Threads.maxthreadid())
+    F_y = sum(i -> local_Fy[(i-1)*8+1], 1:Threads.maxthreadid())
     return F_x, F_y
 end
 
