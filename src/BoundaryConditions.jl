@@ -148,43 +148,38 @@ function compute_object_boundary_data(gridlengthX, gridlengthY, gridlengthZ,
     return boundary_data
 end
 
-
 # FAST VERSION?
 function apply_bouzidi_bc_3d!(boundary_data, fS)
+    nt = Threads.nthreads()
+    local_Fx = zeros(nt * 8)
+    local_Fy = zeros(nt * 8)
 
-    F_x = 0.0
-    F_y = 0.0
-
-      @inbounds for (x, y, z, idx_toward, idx_reflect, cx, cy, cz, q) in boundary_data
-        q_toward_solid = idx_toward  + 1   # 1-based non-rest index -> Q index in fS
+    @inbounds Threads.@threads :static for i in eachindex(boundary_data)
+        (x, y, z, idx_toward, idx_reflect, cx, cy, cz, q) = boundary_data[i]
+        q_toward_solid = idx_toward  + 1
         q_reflected    = idx_reflect + 1
 
-        q2 = 2.0 * q
+        q2         = 2.0 * q
         f_at_solid = fS[q_toward_solid, x + cx, y + cy, z + cz]
 
         if q < 0.5
             f_new = q2 * f_at_solid + (1.0 - q2) * fS[q_toward_solid, x, y, z]
         else
-            iq2 = 1.0 / q2
-            r = (q2 - 1.0) * iq2
-            f_opposite = fS[q_reflected, x - cx, y - cy, z - cz]
-            f_new = iq2 * f_at_solid + r * f_opposite
+            iq2   = 1.0 / q2
+            r     = (q2 - 1.0) * iq2
+            f_new = iq2 * f_at_solid + r * fS[q_reflected, x - cx, y - cy, z - cz]
         end
 
         fS[q_reflected, x, y, z] = f_new
 
-        # # Force calculation
-        # F_x += cx * (fS[q_toward_solid, x, y, z] + f_new)
-        # F_y += cy * (fS[q_toward_solid, x, y, z] + f_new)
-
-        F_x += cx * (f_at_solid + f_new)
-        F_y += cy * (f_at_solid + f_new)
-
-
-
+        tid = Threads.threadid()
+        local_Fx[(tid - 1) * 8 + 1] += cx * (f_at_solid + f_new)
+        local_Fy[(tid - 1) * 8 + 1] += cy * (f_at_solid + f_new)
     end
 
-    return F_x,  F_y
+    F_x = sum(i -> local_Fx[(i-1)*8+1], 1:nt)
+    F_y = sum(i -> local_Fy[(i-1)*8+1], 1:nt)
+    return F_x, F_y
 end
 
 
