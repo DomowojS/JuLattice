@@ -7,7 +7,7 @@ from tkinter import filedialog, simpledialog
 # Parameter
 tk.Tk().withdraw()
 
-t_transient = 20.0
+t_transient = 40.0
 Re = simpledialog.askfloat("Reynolds Number", "Enter Re:", initialvalue=2760.0)
 if Re is None:
     raise SystemExit("no Re entered!!!")

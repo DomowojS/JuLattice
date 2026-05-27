@@ -9,7 +9,9 @@ from tkinter import filedialog, simpledialog
 Radius      = 0.0115
 D           = 2 * Radius
 # length_Y    = 0.6 <-- large Domain
-length_Y    = 10 * D
+# length_Y    = 10 * D
+length_Y    = 15 * D
+
 
 # ---- read .CSV ----
 tk.Tk().withdraw()
