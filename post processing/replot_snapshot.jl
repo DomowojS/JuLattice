@@ -9,8 +9,8 @@ function replot()
     snapshot_file = pick_file(; filterlist="jls")
     isempty(snapshot_file) && error("no file selected!!!")
     # :mag, :vx, :vorticity
-    # plot_mode = :mag       
-    plot_mode = :vorticity
+    plot_mode = :mag       
+    # plot_mode = :vorticity
     # :component, :magnitude
     vorticity_mode = :magnitude
 

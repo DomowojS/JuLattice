@@ -3,7 +3,6 @@
 ############################
 include("src/Plotter.jl")
 include("src/Logger.jl")
-include("src/BoundaryConditions.jl")
 include("src/TurbulenceModel.jl")
 include("src/Kernel.jl")
 
@@ -11,32 +10,25 @@ include("src/Kernel.jl")
 using Serialization # for saving last plot
 using MeshGrid, GLMakie
 using .Plotter, .Logger
-using .BoundaryConditions
 using .TurbulenceModel 
 using .Kernel
 
 function run_JuLattice()
     ####################################  Initialize  ####################################
     ##-------- User Settings --------##
-    # Cylinder Definition
-    Radius   = 0.0115 #0.08 #0.1        # m (D = 0.023m)
-    D = 2 * Radius
-    
-    # #Simulation Domain Settings
-    # lateral 13D (both sides y&z)v| outflow 15.5D: (experimental setup) NO-SLIP DOMAIN
-    # length_X = 20.5 * D                 # m
-    # length_Y = 0.6                      # m
-    # length_Z = 0.6                      # m
+    # Disc parameters
+    D = 0.05        # diameter
+    C_T = 1.0       # thrust coefficient
 
-    # # # lateral 5D (both sides y&z) | outflow 10D: FREE-SLIP DOMAIN
-    # length_X = 15.5 * D
-    # length_Y = 10 * D
-    # length_Z = 10 * D
 
-    # # lateral 10D (both sides y&z) | outflow 15D: FREE-SLIP DOMAIN
-    length_X = 20.5 * D   # extended: 20.5D 
-    length_Y = 15 * D     # extended: 15D  
-    length_Z = 15 * D     # extended: 15D  
+     # Domainsize from cylinder validation
+    length_X = 20.5 * 0.023   
+    length_Y = 10 * 0.023       
+    length_Z = 10 * 0.023       
+
+    # Grid spacing (physical units per lattice unit)
+    # value from grid independence study
+    delta_x         = 0.00092 #0.0023  
 
     # Fluid Settings 
     Kinematic_Viscosity = 1e-6                                       # m^2/s 
@@ -45,14 +37,12 @@ function run_JuLattice()
                                                                      # Keep Ma < 0.1 for incompressible flow!
 
     # Simulation Settings
-    Simulation_Time = 60 #0.5;                                   # s
+    Simulation_Time = 60                                             # s
     
-    # Grid spacing (physical units per lattice unit)
-    # 0.0023 => 10 = D/Δx || 0.00115 => 20 = D/Δx || 0.00153 => 15 = D/Δx
-    delta_x         = 0.00092                                
+                              
    
     # Smagorinsky constant CS
-    CS              = 1/3 #0.1 #0.17                 # CS ↑ = eddy viscosity ↑
+    CS              = 1/3                  # CS ↑ = eddy viscosity ↑
 
     # Plot Requests (Flags)
     Plotvx = false;
@@ -63,7 +53,7 @@ function run_JuLattice()
 
     ##-------- Compute LBM Parameters from Mach Number --------##
     lattice_speedOfSound    = 1.0 / sqrt(3)
-    Inflow_Velocity         = reynoldsNumber * Kinematic_Viscosity / (2 * Radius)
+    Inflow_Velocity         = reynoldsNumber * Kinematic_Viscosity / D
     speedOfSound            = Inflow_Velocity / Mach_Number
     delta_t                 = delta_x * lattice_speedOfSound / speedOfSound
     lattice_viscosity       = Kinematic_Viscosity * delta_t / (delta_x)^2
@@ -72,6 +62,9 @@ function run_JuLattice()
     # nu_lattice = c_s² * (tau - 0.5) => tau = nu_lattice / c_s² + 0.5
     τ       = lattice_viscosity / (lattice_speedOfSound * lattice_speedOfSound) + 0.5
     omega   = 1.0 / τ
+
+    # force Fx in stream direction
+    F_x_lat = -0.5 * C_T * (lattice_inflow_velocity^2)
 
     fluiddensity = 1.0 # lattice units
     simulationTime = ceil(Int, Simulation_Time / delta_t);  #lattice units
@@ -82,30 +75,31 @@ function run_JuLattice()
     gridlengthY = ceil(Int, length_Y / delta_x);
     gridlengthZ = ceil(Int, length_Z / delta_x);
 
-    # Cylinder Position
-    cylinder_x      = Int(round((5.5 * D) / delta_x)) + 1
-    cylinder_y      = Int(round((length_Y/ 2 ) / delta_x)) + 1
-    cylinder_z_top  = length_Z  #length_Z * 0.75 #
-    cylinder_z_bot  = 0.0 #length_Z * 0.25 #
-    cylinder_radius = Radius/delta_x
+    # Disc
+    disc_radius = (D / 2) / delta_x
+    disc_x = Int(round((5.5 * 0.023) / delta_x)) + 1
+    disc_y = Int(round((length_Y / 2) / delta_x)) + 1
+    disc_z = Int(round((length_Z / 2) / delta_x)) + 1
+    # disc thickness in x-direction
+    disc_thickness = 1
 
-    # Grid-idx for is_object (nodes inside of cylinder)
-    cylinder_start = 2 #1 #2 + Int(floor(cylinder_z_bot / delta_x))
-    cylinder_end   = gridlengthZ - 1 #gridlengthZ #gridlengthZ-1 #2 + Int(ceil(cylinder_z_top / delta_x))  
-    
+
     # Reynolds Check:
     # Re_lattice = U*R/v -> should match Re_phys since quantities are scaled
-    Re_lattice = floor(Int, ((lattice_inflow_velocity .* 2 .* cylinder_radius)/lattice_viscosity)) 
-    Re_phys = Inflow_Velocity * 2 * Radius / Kinematic_Viscosity
+    Re_lattice = floor(Int, ((lattice_inflow_velocity .* 2 .* disc_radius)/lattice_viscosity)) 
+    Re_phys = Inflow_Velocity * D / Kinematic_Viscosity
 
     # Define Slice indices for plotting
     midY = 2 + Int(round((gridlengthY-2)/2))
     midZ = 2 + Int(round((gridlengthZ-2)/2))
 
+    frontY = 2
+    backY = gridlengthY-1
+
     ##-------- Probe Setup --------## 
     D_lat   = Int(round(D / delta_x))
-    probe_x_3D = cylinder_x + 3 * D_lat
-    probe_x_6D = cylinder_x + 6 * D_lat
+    probe_x_3D = disc_x + 3 * D_lat
+    probe_x_6D = disc_x + 6 * D_lat
     probe_z = midZ
     probe_ys = collect(2:gridlengthY-1)
     n_probe = length(probe_ys) # Vector{Int64}
@@ -150,16 +144,9 @@ function run_JuLattice()
     cumulativ_mean_v_6D    = zeros(n_probe); cumulativ_M2_v_6D = zeros(n_probe)
     cumulativ_mean_w_6D    = zeros(n_probe); cumulativ_M2_w_6D = zeros(n_probe)
 
+    # time estimation
+    time_samples = zeros(11)
 
-    # more slices for debugg plots
-    frontY = 2
-    backY = gridlengthY-1
-    botZ = 2
-    topZ = gridlengthZ-1
-    nearFrontY = 10
-    nearBackY = gridlengthY-10
-    nearBotZ = 10
-    nearTopZ = gridlengthZ-10
 
     # Inlet momentum coefficients for D3Q19 weights (velocity bounceback)
     inlet_add_face = (2.0 / (18.0 * lattice_speedOfSound^2)) * lattice_inflow_velocity
@@ -169,35 +156,33 @@ function run_JuLattice()
     ## create solid node mask
     # Array{Bool} instead of BitArray: single byte load in kernel loop vs bit-unpack
     is_solid  = fill(false, gridlengthX, gridlengthY, gridlengthZ)
-    is_object = fill(false, gridlengthX, gridlengthY, gridlengthZ)
     is_fluid  = fill(false, gridlengthX, gridlengthY, gridlengthZ)
-
-    # pre compute fluid range
-    is_fluid[2:gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= true
-
-    # Solid and object mask
+    is_disc   = fill(false, gridlengthX, gridlengthY, gridlengthZ)
+    
+    # Create masks
     for x in 1:gridlengthX, y in 1:gridlengthY, z in 1:gridlengthZ
         # walls
-        if y==1 || y==gridlengthY || z==1 || z==gridlengthZ
-            is_solid[x, y, z] = true
+        if y == 1 || y == gridlengthY || z == 1 || z == gridlengthZ
+            is_solid[x,y,z] = true
             continue
         end
 
-        # cylinder vertically (y-axis)
-        dx = x - cylinder_x
-        dy = y - cylinder_y
-        if (z >= cylinder_start) && (z <= cylinder_end) && (sqrt(dx^2 + dy^2) <= cylinder_radius)
-            is_object[x, y, z] = true
-            is_solid[x, y, z] = true
+        # disc at disc_x, circular in y,z-plane with disc_radius
+        dx = x - disc_x
+        dy = y - disc_y
+        dz = z - disc_z
+        if abs(dx) < disc_thickness && sqrt(dy^2 + dz^2) <= disc_radius
+            is_disc[x,y,z] = true
         end
     end
-    # object_indices = findall(is_object)
+    # pre compute fluid range
+    is_fluid[2:gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= true
+
+    disc_nodes = findall(is_disc)
 
     # fluid mask
-    is_fluid .&= .!is_object
     n_fluid_nodes = sum(is_fluid)
-    n_cylinder_nodes = sum(is_object)
-    n_mnups_nodes = n_fluid_nodes + n_cylinder_nodes
+    n_mnups_nodes = n_fluid_nodes
 
     ##-------- precompute wall BC index lists --------##
     # Per-face filtered (x,z) or (x,y) lists
@@ -235,21 +220,6 @@ function run_JuLattice()
         end
     end
     
-
-    ##-------- precompute BC --------##
-    println("Computing Bouzidi boundary data...")
-
-    boundary_data = compute_object_boundary_data(
-        gridlengthX, gridlengthY, gridlengthZ,
-        (cylinder_x -2) * delta_x,  (cylinder_y -2) * delta_x,
-        cylinder_radius * delta_x,
-        cylinder_z_bot, cylinder_z_top,
-        is_object, delta_x
-    )
-    A_lat = (2.0 * cylinder_radius) * Float64(cylinder_end - cylinder_start + 1)
-    Cd = 0.0
-    Cl = 0.0
-
     ##-------- Array Allocation --------##
     #Q = 19; #D3Q19
     # D3Q19 — f and fS are 4D arrays: f[q, x, y, z]
@@ -393,7 +363,6 @@ function run_JuLattice()
     wake_csv_path_3D = "simulation_data/wake_profil_3D_$(run_tag).csv"
     wake_csv_path_6D = "simulation_data/wake_profil_6D_$(run_tag).csv"
 
-    forces_csv_path = "simulation_data/forces_$(run_tag).csv"
     mkpath("simulation_data")
     mkpath("visualization")
 
@@ -404,10 +373,6 @@ function run_JuLattice()
     open(wake_csv_path_6D, "w") do io
         println(io, "t_phys, y_phys, u, v, w, mean_u, mean_v, mean_w, std_u, std_v, std_w")
     end
-
-    # forces
-    forces_io = open(forces_csv_path, "w")
-    println(forces_io, "t_phys, Cd, Cl")
 
 
     ##--------  Plot calls  --------## 
@@ -446,45 +411,22 @@ function run_JuLattice()
     # Run Simulation Loop
     for i in 1:simulationTime
 
-        #t_estimation = @elapsed begin
 
         # mnups tracking start + estimation start
         t0 = time_ns()
     
+            # collision_stream!(
+            #     gridlengthX, gridlengthY, gridlengthZ, τ, CS, is_fluid,
+            #     rho, u, v, w,
+            #     f, fS
+            # )
+    
             collision_stream!(
                 gridlengthX, gridlengthY, gridlengthZ, τ, CS, is_fluid,
                 rho, u, v, w,
-                f, fS
-            )
-        
-        #end #end elapsed
-
-        t_estimation = (time_ns() - t0) * 1e-9
-        # debug timecheck for mainloop with elapsed
-        if i >= 5 && i<= 15
-            println("Step $i mainloop: $(round(t_estimation * 1000, digits=1))ms")
-        end
-        
-        if i == 15
-            est_total_s = t_estimation * simulationTime
-            est_hours = floor(Int, est_total_s / 3600)
-            est_minutes = floor(Int, (est_total_s % 3600) / 60)
-            println("---> Estimated total simulation time: ~$(est_hours)h $(est_minutes)min ($simulationTime) steps x $(round(t_estimation*1000, digits=1))ms")    
-        end
-      
-        # # bounce-back object | Bouzidi bounceback (IBB)
-        # F_x_lat, F_y_lat = apply_bouzidi_bc_3d!(boundary_data,
-        #                      fm00S, fp00S, f0m0S, f0p0S, f00mS, f00pS,
-        #                      fmm0S, fmp0S, fpm0S, fpp0S,
-        #                      fm0mS, fm0pS, fp0mS, fp0pS,
-        #                      f0mmS, f0mpS, f0pmS, f0ppS)
-        
-        # Cd = 2.0 * F_x_lat / (fluiddensity * lattice_inflow_velocity^2 * A_lat)
-        # Cl = 2.0 * F_y_lat / (fluiddensity * lattice_inflow_velocity^2 * A_lat)
-
-
-
-
+                f, fS, disc_nodes, F_x_lat
+            )        
+    
         ##-------- free slip walls --------##
         # y-faces (front+back) in one barrier, z-faces (bot+top) in another.
         # y-faces and z-faces stay sequential to avoid corner node conflicts.
@@ -555,88 +497,6 @@ function run_JuLattice()
         ##-------- free slip walls  end --------##
 
 
-        # # bounce-back walls
-        # @inbounds for wall in wall_indices
-        #     x, y, z = Tuple(wall)
-            
-        #     # +x 
-        #     if x+1 <= gridlengthX && !is_solid[x+1, y, z]
-        #         fp00S[x+1, y, z] = fm00S[x, y, z]
-        #     end
-        #     # -x 
-        #     if x-1 >= 1 && !is_solid[x-1, y, z]
-        #         fm00S[x-1, y, z] = fp00S[x, y, z]
-        #     end
-        #     # +y 
-        #     if y+1 <= gridlengthY && !is_solid[x, y+1, z]
-        #         f0p0S[x, y+1, z] = f0m0S[x, y, z]
-        #     end
-        #     # -y 
-        #     if y-1 >= 1 && !is_solid[x, y-1, z]
-        #         f0m0S[x, y-1, z] = f0p0S[x, y, z]
-        #     end
-        #     # +z 
-        #     if z+1 <= gridlengthZ && !is_solid[x, y, z+1]
-        #         f00pS[x, y, z+1] = f00mS[x, y, z]
-        #     end
-        #     # -z 
-        #     if z-1 >= 1 && !is_solid[x, y, z-1]
-        #         f00mS[x, y, z-1] = f00pS[x, y, z]
-        #     end
-
-        #     # XY
-        #     if x+1 <= gridlengthX && y+1 <= gridlengthY && !is_solid[x+1, y+1, z]
-        #         fpp0S[x+1, y+1, z] = fmm0S[x, y, z]
-        #     end
-        #     if x-1 >= 1 && y-1 >= 1 && !is_solid[x-1, y-1, z]
-        #         fmm0S[x-1, y-1, z] = fpp0S[x, y, z]
-        #     end
-        #     if x+1 <= gridlengthX && y-1 >= 1 && !is_solid[x+1, y-1, z]
-        #         fpm0S[x+1, y-1, z] = fmp0S[x, y, z]
-        #     end
-        #     if x-1 >= 1 && y+1 <= gridlengthY && !is_solid[x-1, y+1, z]
-        #         fmp0S[x-1, y+1, z] = fpm0S[x, y, z]
-        #     end
-
-        #     # XZ
-        #     if x+1 <= gridlengthX && z+1 <= gridlengthZ && !is_solid[x+1, y, z+1]
-        #         fp0pS[x+1, y, z+1] = fm0mS[x, y, z]
-        #     end
-        #     if x-1 >= 1 && z-1 >= 1 && !is_solid[x-1, y, z-1]
-        #         fm0mS[x-1, y, z-1] = fp0pS[x, y, z]
-        #     end
-        #     if x+1 <= gridlengthX && z-1 >= 1 && !is_solid[x+1, y, z-1]
-        #         fp0mS[x+1, y, z-1] = fm0pS[x, y, z]
-        #     end
-        #     if x-1 >= 1 && z+1 <= gridlengthZ && !is_solid[x-1, y, z+1]
-        #         fm0pS[x-1, y, z+1] = fp0mS[x, y, z]
-        #     end
-
-        #     # YZ
-        #     if y+1 <= gridlengthY && z+1 <= gridlengthZ && !is_solid[x, y+1, z+1]
-        #         f0ppS[x, y+1, z+1] = f0mmS[x, y, z]
-        #     end
-        #     if y-1 >= 1 && z-1 >= 1 && !is_solid[x, y-1, z-1]
-        #         f0mmS[x, y-1, z-1] = f0ppS[x, y, z]
-        #     end
-        #     if y+1 <= gridlengthY && z-1 >= 1 && !is_solid[x, y+1, z-1]
-        #         f0pmS[x, y+1, z-1] = f0mpS[x, y, z]
-        #     end
-        #     if y-1 >= 1 && z+1 <= gridlengthZ && !is_solid[x, y-1, z+1]
-        #         f0mpS[x, y-1, z+1] = f0pmS[x, y, z]
-        #     end
-            
-        # end#for wall in wall_indices
-
-
-
-        # bounce-back object | Bouzidi bounceback (IBB)
-        F_x_lat, F_y_lat = apply_bouzidi_bc_3d!(boundary_data, fS)
-        
-        Cd = 2.0 * F_x_lat / (fluiddensity * lattice_inflow_velocity^2 * A_lat)
-        Cl = 2.0 * F_y_lat / (fluiddensity * lattice_inflow_velocity^2 * A_lat)
-
-
         # INLET: moving wall bounceback with momentum addition
         # # compute inflow populations fp00S, fpp0S, fpm0S, fp0pS, fp0mS
         # # momentum coefficients for D3Q19 weights
@@ -647,17 +507,6 @@ function run_JuLattice()
         @views fS[QP0P, 2, 2:gridlengthY-1, 2:gridlengthZ-1] .= fS[QM0P, 1, 2:gridlengthY-1, 2:gridlengthZ-1] .+ inlet_add_edge
         @views fS[QP0M, 2, 2:gridlengthY-1, 2:gridlengthZ-1] .= fS[QM0M, 1, 2:gridlengthY-1, 2:gridlengthZ-1] .+ inlet_add_edge
         
-        # # OUTLET: no-gradient bounceback 
-        # # # all populations that stream in -x direction from previous neighbor
-        # # # fm00S, fmm0S, fmp0S, fm0mS, fm0pS
-        
-        # @views fm00S[gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= fm00S[gridlengthX-2, 2:gridlengthY-1, 2:gridlengthZ-1]
-        # @views fmm0S[gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= fmm0S[gridlengthX-2, 2:gridlengthY-1, 2:gridlengthZ-1]
-        # @views fmp0S[gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= fmp0S[gridlengthX-2, 2:gridlengthY-1, 2:gridlengthZ-1]
-        # @views fm0mS[gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= fm0mS[gridlengthX-2, 2:gridlengthY-1, 2:gridlengthZ-1]
-        # @views fm0pS[gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= fm0pS[gridlengthX-2, 2:gridlengthY-1, 2:gridlengthZ-1]
-        
-        
         # OUTLET: interpolation (Non reflective Geier et al. 2015)
         # f_new(x_b, t) = cs * f(x_{b-1}, t-dt) + (1 - cs) * f(x_b, t-dt)
         @views fS[QM00, gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= lattice_speedOfSound * f[QM00, gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .+ (1 - lattice_speedOfSound) * f[QM00, gridlengthX-2, 2:gridlengthY-1, 2:gridlengthZ-1]
@@ -666,13 +515,30 @@ function run_JuLattice()
         @views fS[QM0M, gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= lattice_speedOfSound * f[QM0M, gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .+ (1 - lattice_speedOfSound) * f[QM0M, gridlengthX-2, 2:gridlengthY-1, 2:gridlengthZ-1]
         @views fS[QM0P, gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= lattice_speedOfSound * f[QM0P, gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .+ (1 - lattice_speedOfSound) * f[QM0P, gridlengthX-2, 2:gridlengthY-1, 2:gridlengthZ-1]
 
-        # mnups tracking end
-        t_mnups_s = (time_ns() - t0) * 1e-9
-        mnups = n_mnups_nodes / (t_mnups_s * 1e6)
+
 
 
         # Swap: SWAP POINTERS new distribution to "old"
         f, fS = fS, f     
+
+        # mnups tracking end
+        t_mnups_s = (time_ns() - t0) * 1e-9
+        mnups = n_mnups_nodes / (t_mnups_s * 1e6)
+
+        # simulation time estimation
+        if i >= 5 && i<= 15
+            time_samples[i-4] = t_mnups_s
+            println("Step $i mainloop: $(round(t_mnups_s * 1000, digits=1))ms")
+        end
+        
+        if i == 15
+            avg_time = sum(time_samples) / 11
+            est_total_s = avg_time * simulationTime
+            est_hours = floor(Int, est_total_s / 3600)
+            est_minutes = floor(Int, (est_total_s % 3600) / 60)
+            println("---> Estimated total simulation time: ~$(est_hours)h $(est_minutes)min ($simulationTime) steps x $(round(avg_time*1000, digits=1))ms")    
+        end
+
 
         ##-------- Probe Sampling (cumulativ mean) --------##
         if i % sample_interval == 0
@@ -680,8 +546,6 @@ function run_JuLattice()
             cumulativ_count += 1
             sample_times[buf_ptr] = i * delta_t
 
-            println(forces_io, "$(i * delta_t), $Cd, $Cl")
-            flush(forces_io)
 
             fac = cumulativ_count > 1 ? 1.0 / (cumulativ_count -1) : 0.0
             
@@ -800,8 +664,11 @@ function run_JuLattice()
             # velocityY .= v
             # velocityZ .= w
             @. velocityMag = sqrt(u^2 + v^2 + w^2)
-            velocityX[is_object] .= NaN
-            velocityMag[is_object] .= NaN
+
+            @inbounds for idx in disc_nodes
+                velocityMag[idx] = NaN
+                velocityX[idx] = NaN
+            end
 
             # Vorticity calculation
             if Plotvorticity
@@ -878,10 +745,6 @@ function run_JuLattice()
         end
     end
 
-
-    # close forces.csv
-    close(forces_io)
-
     Log_Simulation_Tail()
 
     # save last plot for post processing
@@ -891,7 +754,6 @@ function run_JuLattice()
         velocityX       = copy(velocityX),
         vortY           = copy(vortY),
         vortZ           = copy(vortZ),
-        is_object       = copy(is_object),
         gridlengthX     = gridlengthX,
         gridlengthY     = gridlengthY,
         gridlengthZ     = gridlengthZ,
@@ -902,4 +764,5 @@ function run_JuLattice()
     ))
 
 end#run_JuLattice()
-# run_JuLattice()
+
+run_JuLattice()
