@@ -339,12 +339,13 @@ function collision_stream!(
         )
 
         omega_local = smagorinsky_omega(τ, CS, pi_neq_norm, rho_loc)
-        tau_local = 1.0 / omega_local
-        tau_dash = tau_local + 0.5
-        omega_dash = 1.0 / tau_dash
+        # tau_local = 1.0 / omega_local          # τ_eff (already = τ̄ = τ_raw + 0.5)
+        # tau_dash = tau_local + 0.5             # WRONG: adds 0.5 again — τ̄ already includes it
+        # omega_dash = 1.0 / tau_dash            # WRONG
 
         # Overwrite collision for disc nodes
-        force_factor = (1.0 - 1.0/ (2.0 * tau_dash)) 
+        # force_factor = (1.0 - 1.0/ (2.0 * tau_dash))   # WRONG: used tau_dash instead of tau_local
+        force_factor = 1.0 - 0.5 * omega_local            # correct: (1 - Δt/(2τ̄)) = (1 - ω/2)
         w_edge = 1.0 / 36.0
         w_face = 1.0 / 18.0
         # Fi calculation Krüger (6.14) S.236
@@ -363,25 +364,25 @@ function collision_stream!(
         F_m0p = w_edge * (3.0 * (-1.0 - u_loc) + 9.0 * (-1.0) * (-u_loc + w_loc)) * F_x_lat
         F_m0m = w_edge * (3.0 * (-1.0 - u_loc) + 9.0 * (-1.0) * (-u_loc - w_loc)) * F_x_lat
 
-        fS[Q000, x,   y,   z  ] = f000 - omega_dash * (-feq000 + f000)
-        fS[QP00, x+1, y,   z  ] = fp00 - omega_dash * (-feqp00 + fp00) + force_factor * F_p00
-        fS[QM00, x-1, y,   z  ] = fm00 - omega_dash * (-feqm00 + fm00) + force_factor * F_m00
-        fS[Q0M0, x,   y-1, z  ] = f0m0 - omega_dash * (-feq0m0 + f0m0) 
-        fS[Q0P0, x,   y+1, z  ] = f0p0 - omega_dash * (-feq0p0 + f0p0)
-        fS[Q00M, x,   y,   z-1] = f00m - omega_dash * (-feq00m + f00m)
-        fS[Q00P, x,   y,   z+1] = f00p - omega_dash * (-feq00p + f00p)
-        fS[QPP0, x+1, y+1, z  ] = fpp0 - omega_dash * (-feqpp0 + fpp0) + force_factor * F_pp0
-        fS[QMP0, x-1, y+1, z  ] = fmp0 - omega_dash * (-feqmp0 + fmp0) + force_factor * F_mp0
-        fS[QPM0, x+1, y-1, z  ] = fpm0 - omega_dash * (-feqpm0 + fpm0) + force_factor * F_pm0
-        fS[QMM0, x-1, y-1, z  ] = fmm0 - omega_dash * (-feqmm0 + fmm0) + force_factor * F_mm0
-        fS[QP0P, x+1, y,   z+1] = fp0p - omega_dash * (-feqp0p + fp0p) + force_factor * F_p0p
-        fS[QM0P, x-1, y,   z+1] = fm0p - omega_dash * (-feqm0p + fm0p) + force_factor * F_m0p
-        fS[QP0M, x+1, y,   z-1] = fp0m - omega_dash * (-feqp0m + fp0m) + force_factor * F_p0m
-        fS[QM0M, x-1, y,   z-1] = fm0m - omega_dash * (-feqm0m + fm0m) + force_factor * F_m0m
-        fS[Q0MM, x,   y-1, z-1] = f0mm - omega_dash * (-feq0mm + f0mm)
-        fS[Q0MP, x,   y-1, z+1] = f0mp - omega_dash * (-feq0mp + f0mp)
-        fS[Q0PM, x,   y+1, z-1] = f0pm - omega_dash * (-feq0pm + f0pm)
-        fS[Q0PP, x,   y+1, z+1] = f0pp - omega_dash * (-feq0pp + f0pp)
+        fS[Q000, x,   y,   z  ] = f000 - omega_local * (-feq000 + f000)
+        fS[QP00, x+1, y,   z  ] = fp00 - omega_local * (-feqp00 + fp00) + force_factor * F_p00
+        fS[QM00, x-1, y,   z  ] = fm00 - omega_local * (-feqm00 + fm00) + force_factor * F_m00
+        fS[Q0M0, x,   y-1, z  ] = f0m0 - omega_local * (-feq0m0 + f0m0)
+        fS[Q0P0, x,   y+1, z  ] = f0p0 - omega_local * (-feq0p0 + f0p0)
+        fS[Q00M, x,   y,   z-1] = f00m - omega_local * (-feq00m + f00m)
+        fS[Q00P, x,   y,   z+1] = f00p - omega_local * (-feq00p + f00p)
+        fS[QPP0, x+1, y+1, z  ] = fpp0 - omega_local * (-feqpp0 + fpp0) + force_factor * F_pp0
+        fS[QMP0, x-1, y+1, z  ] = fmp0 - omega_local * (-feqmp0 + fmp0) + force_factor * F_mp0
+        fS[QPM0, x+1, y-1, z  ] = fpm0 - omega_local * (-feqpm0 + fpm0) + force_factor * F_pm0
+        fS[QMM0, x-1, y-1, z  ] = fmm0 - omega_local * (-feqmm0 + fmm0) + force_factor * F_mm0
+        fS[QP0P, x+1, y,   z+1] = fp0p - omega_local * (-feqp0p + fp0p) + force_factor * F_p0p
+        fS[QM0P, x-1, y,   z+1] = fm0p - omega_local * (-feqm0p + fm0p) + force_factor * F_m0p
+        fS[QP0M, x+1, y,   z-1] = fp0m - omega_local * (-feqp0m + fp0m) + force_factor * F_p0m
+        fS[QM0M, x-1, y,   z-1] = fm0m - omega_local * (-feqm0m + fm0m) + force_factor * F_m0m
+        fS[Q0MM, x,   y-1, z-1] = f0mm - omega_local * (-feq0mm + f0mm)
+        fS[Q0MP, x,   y-1, z+1] = f0mp - omega_local * (-feq0mp + f0mp)
+        fS[Q0PM, x,   y+1, z-1] = f0pm - omega_local * (-feq0pm + f0pm)
+        fS[Q0PP, x,   y+1, z+1] = f0pp - omega_local * (-feq0pp + f0pp)
         
     end
 

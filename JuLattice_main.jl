@@ -22,13 +22,13 @@ function run_JuLattice()
 
 
      # Domainsize from cylinder validation
-    length_X = 20.5 * 0.023   
+    length_X = 17.5 * D   
     length_Y = 10 * 0.023       
     length_Z = 10 * 0.023       
 
     # Grid spacing (physical units per lattice unit)
     # value from grid independence study
-    delta_x         = 0.00092 #0.0023  
+    delta_x         = 0.0023  #0.00092 
 
     # Fluid Settings 
     Kinematic_Viscosity = 1e-6                                       # m^2/s 
@@ -77,7 +77,8 @@ function run_JuLattice()
 
     # Disc
     disc_radius = (D / 2) / delta_x
-    disc_x = Int(round((5.5 * 0.023) / delta_x)) + 1
+    # disc_x = Int(round((5.5 * 0.023) / delta_x)) + 1
+    disc_x = Int(round((5.5 * D) / delta_x)) + 1
     disc_y = Int(round((length_Y / 2) / delta_x)) + 1
     disc_z = Int(round((length_Z / 2) / delta_x)) + 1
     # disc thickness in x-direction
