@@ -11,9 +11,9 @@ echo "================================"
 echo "  JuLattice Simulation Queue"
 echo "================================"
 
-echo "[1/6] Starting: Grid Study D/dx=25 | VF-outflow"
-julia -t $THREADS run_gridStudy_Ddeltax25_VF-outflow.jl
-echo "[1/6] Done (exit code $?): $(date)"
+# echo "[1/6] Starting: Grid Study D/dx=25 | VF-outflow"
+# julia -t $THREADS run_gridStudy_Ddeltax25_VF-outflow.jl
+# echo "[1/6] Done (exit code $?): $(date)"
 
 echo "[2/6] Starting: Grid Study D/dx=30 | VF-outflow"
 julia -t $THREADS run_gridStudy_Ddeltax30_VF-outflow.jl
