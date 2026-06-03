@@ -18,29 +18,17 @@ echo "================================"
 echo "  JuLattice Simulation Queue"
 echo "================================"
 
-# echo "[1/6] Starting: Grid Study D/dx=25 | VF-outflow"
-# JULIA_EXCLUSIVE=1 stdbuf -oL julia --project=$PROJECT -t $THREADS run_gridStudy_Ddeltax25_VF-outflow.jl
-# echo "[1/6] Done (exit code $?): $(date)"
 
-echo "[2/6] Starting: Grid Study D/dx=30 | VF-outflow"
-JULIA_EXCLUSIVE=1 stdbuf -oL julia --project=$PROJECT -t $THREADS run_gridStudy_Ddeltax30_VF-outflow.jl
-echo "[2/6] Done (exit code $?): $(date)"
 
-echo "[3/6] Starting: Ma Study D/dx=40 Ma=0.05 | VF-outflow"
-JULIA_EXCLUSIVE=1 stdbuf -oL julia --project=$PROJECT -t $THREADS run_MaStudy_Ddeltax40_VF-outflow.jl
-echo "[3/6] Done (exit code $?): $(date)"
+echo "[1/2] Starting: Grid Study D/dx=50 | VF-outflow"
+JULIA_EXCLUSIVE=1 stdbuf -oL julia --project=$PROJECT -t $THREADS run_gridStudy_Ddeltax50_VF-outflow.jl
+echo "[1/2] Done (exit code $?): $(date)"
 
-echo "[4/6] Starting: Grid Study D/dx=25 | extrapolation-outflow"
-JULIA_EXCLUSIVE=1 stdbuf -oL julia --project=$PROJECT -t $THREADS run_gridStudy_Ddeltax25_extrapolation-outflow.jl
-echo "[4/6] Done (exit code $?): $(date)"
+echo "[2/2] Starting: Grid Study D/dx=40 | VF-outflow"
+JULIA_EXCLUSIVE=1 stdbuf -oL julia --project=$PROJECT -t $THREADS run_gridStudy_Ddeltax40_VF-outflow.jl
+echo "[2/2] Done (exit code $?): $(date)"
 
-echo "[5/6] Starting: Grid Study D/dx=30 | extrapolation-outflow"
-JULIA_EXCLUSIVE=1 stdbuf -oL julia --project=$PROJECT -t $THREADS run_gridStudy_Ddeltax30_extrapolation-outflow.jl
-echo "[5/6] Done (exit code $?): $(date)"
 
-echo "[6/6] Starting: Ma Study D/dx=40 Ma=0.05 | extrapolation-outflow"
-JULIA_EXCLUSIVE=1 stdbuf -oL julia --project=$PROJECT -t $THREADS run_MaStudy_Ddeltax40_extrapolation-outflow.jl
-echo "[6/6] Done (exit code $?): $(date)"
 
 echo "================================="
 echo "  All simulations complete"
