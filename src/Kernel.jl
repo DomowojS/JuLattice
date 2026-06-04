@@ -249,6 +249,8 @@ function collision_stream!(
                     (-fmm0 - fmp0 + fpm0 + fpp0) +
                     (-fm0m - fm0p + fp0m + fp0p)) * inv_rho
 
+        u_loc = u_loc + 0.5 * F_x_lat * inv_rho
+
         v_loc = ((-f0m0 + f0p0) +
                     (-fmm0 + fmp0 - fpm0 + fpp0) +
                     (-f0mm - f0mp + f0pm + f0pp)) * inv_rho
