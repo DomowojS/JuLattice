@@ -378,7 +378,9 @@ function run_JuLattice()
 
     if Plotmag
         mag_xy_obs, step_text_mag_xy, mag_xz_obs, step_text_mag_xz = 
-            setup_mag_plot(gridlengthX, gridlengthY, gridlengthZ, velocityMag, midY, midZ)
+            setup_mag_plot(gridlengthX, gridlengthY, gridlengthZ, velocityMag, midY, midZ;
+                   colorrange=(0.0, 1.2 * Inflow_Velocity),
+                   velocity_scale=delta_x / delta_t)
     end
 
     if Plotdebug
@@ -633,7 +635,8 @@ function run_JuLattice()
                           Plotvorticity=Plotvorticity,
                           vortZ=vortZ, vortY=vortY,
                           vort_xy_obs=vort_xy_obs, step_text_vort_xy=step_text_vort_xy,
-                          vort_xz_obs=vort_xz_obs, step_text_vort_xz=step_text_vort_xz)
+                          vort_xz_obs=vort_xz_obs, step_text_vort_xz=step_text_vort_xz,
+                          mag_velocity_scale=delta_x/delta_t)
 
             yield()
             sleep(0.01)

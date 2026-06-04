@@ -49,7 +49,7 @@ function setup_vx_plot(gridlengthX, gridlengthY, gridlengthZ, velocityX, midY, m
 end
 
 function setup_mag_plot(gridlengthX, gridlengthY, gridlengthZ, velocityMag, midY, midZ;
-                        colorrange=(0.0, 0.06), colormap=:Blues)
+                        colorrange=(0.0, 0.06), colormap=:Blues, velocity_scale=1.0)
     ny = gridlengthY - 2
     nz = gridlengthZ - 2
     base_height = 280
@@ -60,12 +60,13 @@ function setup_mag_plot(gridlengthX, gridlengthY, gridlengthZ, velocityMag, midY
         ax2_mag = Axis(fig_mag[2,1])
         mag_xy_obs, step_text_mag_xy, hm1_mag = Create_Plot_Mag_XY(gridlengthX-2, gridlengthY-2,
                                                                      velocityMag[2:gridlengthX-1, 2:gridlengthY-1, midZ];
-                                                                     title="|v| at z=$(midZ)", ax=ax1_mag, colorrange=colorrange, colormap=colormap)
+                                                                     title="|v| at z=$(midZ)", ax=ax1_mag, colorrange=colorrange, colormap=colormap, velocity_scale=velocity_scale)
         mag_xz_obs, step_text_mag_xz, hm2_mag = Create_Plot_Mag_XZ(gridlengthX-2, gridlengthZ-2,
                                                                      velocityMag[2:gridlengthX-1, midY, 2:gridlengthZ-1];
-                                                                     title="|v| at y=$(midY)", ax=ax2_mag, colorrange=colorrange, colormap=colormap)
-        Colorbar(fig_mag[1, 2], hm1_mag, label = "Lattice Velocity Magnitude")
-        Colorbar(fig_mag[2, 2], hm2_mag, label = "Lattice Velocity Magnitude")
+                                                                     title="|v| at y=$(midY)", ax=ax2_mag, colorrange=colorrange, colormap=colormap, velocity_scale=velocity_scale)
+        vel_label = velocity_scale == 1.0 ? "Lattice Velocity Magnitude" : "Velocity Magnitude [m/s]"
+        Colorbar(fig_mag[1, 2], hm1_mag, label = vel_label)
+        Colorbar(fig_mag[2, 2], hm2_mag, label = vel_label)
         Label(fig_mag[3,1:2], text=step_text_mag_xy)
         rowsize!(fig_mag.layout, 1, Fixed(base_height))
         rowsize!(fig_mag.layout, 2, Fixed(row2_height))
@@ -155,12 +156,13 @@ function update_plots!(Plotmag, Plotvx, Plotdebug,
                         Plotvorticity = false, 
                         vortZ=nothing, vortY=nothing,
                         vort_xy_obs=nothing, step_text_vort_xy=nothing,
-                        vort_xz_obs=nothing, step_text_vort_xz=nothing)
+                        vort_xz_obs=nothing, step_text_vort_xz=nothing,
+                        mag_velocity_scale=1.0)
 
     if Plotmag
-        mag_xy_obs[] = velocityMag[2:gridlengthX-1, 2:gridlengthY-1, midZ]
+        mag_xy_obs[] = velocityMag[2:gridlengthX-1, 2:gridlengthY-1, midZ] .* mag_velocity_scale
         step_text_mag_xy[] = "Time step: $i / $simulationTime \n $(floor(Int, i*delta_t))s"
-        mag_xz_obs[] = velocityMag[2:gridlengthX-1, midY, 2:gridlengthZ-1]
+        mag_xz_obs[] = velocityMag[2:gridlengthX-1, midY, 2:gridlengthZ-1] .* mag_velocity_scale
         step_text_mag_xz[] = "Time step: $i / $simulationTime \n $(floor(Int, i*delta_t))s"
     end
     if Plotvx
@@ -187,9 +189,9 @@ end
 
 ## Plotting functions
 ######################################################
-function Create_Plot_XY(nx::Int, ny::Int, field2d::Array{<:Real, 2}; title="vx slice XY", ax=nothing)
+function Create_Plot_XY(nx::Int, ny::Int, field2d::Array{<:Real, 2}; title="vx slice XY", ax=nothing, colorrange = (-0.02, 0.02))
     vx_obs = Observable(field2d)          
-    colorrange = (-0.02, 0.02)
+    # colorrange = (-0.02, 0.02)
     hm = heatmap!(ax, 1:nx, 1:ny, vx_obs;
                     colormap = :RdBu,
                     nan_color = :black, colorrange = colorrange,
@@ -202,9 +204,9 @@ function Create_Plot_XY(nx::Int, ny::Int, field2d::Array{<:Real, 2}; title="vx s
     return vx_obs, step_text, hm
 end
 
-function Create_Plot_XZ(nx::Int, nz::Int, field2d::Array{<:Real, 2}; title="vx slice XZ", ax=nothing)
+function Create_Plot_XZ(nx::Int, nz::Int, field2d::Array{<:Real, 2}; title="vx slice XZ", ax=nothing, colorrange = (-0.02, 0.02))
     vx_obs = Observable(field2d)
-    colorrange = (-0.02, 0.02)
+    # colorrange = (-0.02, 0.02)
     hm = heatmap!(ax, 1:nx, 1:nz, vx_obs; 
                 colormap = :RdBu, 
                 nan_color= :black, colorrange = colorrange,
@@ -219,9 +221,8 @@ end
 
 function Create_Plot_Mag_XY(nx::Int, ny::Int, field2d::Array{<:Real, 2}; 
                             title="Vel. Magnitude slice XY", ax=nothing,
-                            colorrange=(0.0, 0.06), colormap=:Blues)
-    vx_obs = Observable(field2d)          
-    #colorrange = (0.0, 0.06)
+                            colorrange=(0.0, 0.06), colormap=:Blues, velocity_scale=1.0)
+    vx_obs = Observable(field2d .* velocity_scale)
     hm = heatmap!(ax, 1:nx, 1:ny, vx_obs;
                     colormap = colormap,
                     nan_color = :black, colorrange = colorrange,
@@ -236,9 +237,8 @@ end
 
 function Create_Plot_Mag_XZ(nx::Int, nz::Int, field2d::Array{<:Real, 2}; 
                             title="Vel. Magnitude slice XZ", ax=nothing,
-                            colorrange=(0.0, 0.06), colormap=:Blues)
-    vx_obs = Observable(field2d)
-    #colorrange = (0.0, 0.06)
+                            colorrange=(0.0, 0.06), colormap=:Blues, velocity_scale=1.0)
+    vx_obs = Observable(field2d .* velocity_scale)
     hm = heatmap!(ax, 1:nx, 1:nz, vx_obs; 
                 colormap = colormap, 
                 nan_color= :black, colorrange = colorrange,
