@@ -7,7 +7,7 @@ include("src/TurbulenceModel.jl")
 include("src/Kernel.jl")
 
 
-using Serialization # for saving last plot
+using JLD2          # for saving last plot (cross-version compatible)
 using MeshGrid, GLMakie
 using .Plotter, .Logger
 using .TurbulenceModel 
@@ -663,20 +663,21 @@ function run_JuLattice()
     Log_Simulation_Tail()
 
     # save last plot for post processing
-    snapshot_path = "visualization/snapshot_$(run_tag).jls"
-    serialize(snapshot_path, (
-        velocityMag     = copy(velocityMag),
-        velocityX       = copy(velocityX),
-        vortY           = copy(vortY),
-        vortZ           = copy(vortZ),
-        gridlengthX     = gridlengthX,
-        gridlengthY     = gridlengthY,
-        gridlengthZ     = gridlengthZ,
-        midY            = midY,
-        midZ            = midZ,
-        delta_t         = delta_t,
-        run_tag         = run_tag
-    ))
+    snapshot_path = "visualization/snapshot_$(run_tag).jld2"
+    jldsave(snapshot_path;
+        velocityMag,
+        velocityX,
+        vortY,
+        vortZ,
+        gridlengthX,
+        gridlengthY,
+        gridlengthZ,
+        midY,
+        midZ,
+        delta_x,
+        delta_t,
+        run_tag
+    )
 
 end#run_JuLattice()
 
