@@ -148,12 +148,11 @@ function compute_object_boundary_data(gridlengthX, gridlengthY, gridlengthZ,
     return boundary_data
 end
 
-# FAST VERSION?
 function apply_bouzidi_bc_3d!(boundary_data, fS, local_Fx, local_Fy)
     fill!(local_Fx, 0.0)
     fill!(local_Fy, 0.0)
 
-    @inbounds Threads.@threads :static for i in eachindex(boundary_data)
+    @inbounds Threads.@threads for i in eachindex(boundary_data)
         (x, y, z, idx_toward, idx_reflect, cx, cy, cz, q) = boundary_data[i]
         q_toward_solid = idx_toward  + 1
         q_reflected    = idx_reflect + 1
@@ -176,8 +175,8 @@ function apply_bouzidi_bc_3d!(boundary_data, fS, local_Fx, local_Fy)
         local_Fy[(tid - 1) * 8 + 1] += cy * (f_at_solid + f_new)
     end
 
-    F_x = sum(i -> local_Fx[(i-1)*8+1], 1:Threads.maxthreadid())
-    F_y = sum(i -> local_Fy[(i-1)*8+1], 1:Threads.maxthreadid())
+    F_x = sum(i -> local_Fx[(i - 1) * 8 + 1], 1:Threads.maxthreadid())
+    F_y = sum(i -> local_Fy[(i - 1) * 8 + 1], 1:Threads.maxthreadid())
     return F_x, F_y
 end
 

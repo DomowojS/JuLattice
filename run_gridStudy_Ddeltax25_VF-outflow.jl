@@ -181,7 +181,7 @@ function run_JuLattice()
     is_fluid[2:gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= true
 
     # Solid and object mask
-    Threads.@threads :static for z in 1:gridlengthZ
+    Threads.@threads for z in 1:gridlengthZ
         for y in 1:gridlengthY, x in 1:gridlengthX
             # walls
             if y==1 || y==gridlengthY || z==1 || z==gridlengthZ
@@ -241,6 +241,12 @@ function run_JuLattice()
             push!(wall_top_x, x); push!(wall_top_y, y)
         end
     end
+
+    corner_frontbot_x = [x for x in 1:gridlengthX if !is_solid[x, 2, 2]]
+    corner_fronttop_x = [x for x in 1:gridlengthX if !is_solid[x, 2, gridlengthZ-1]]
+    corner_backbot_x  = [x for x in 1:gridlengthX if !is_solid[x, gridlengthY-1, 2]]
+    corner_backtop_x  = [x for x in 1:gridlengthX if !is_solid[x, gridlengthY-1, gridlengthZ-1]]
+
     
 
     ##-------- precompute BC --------##
@@ -269,38 +275,19 @@ function run_JuLattice()
     # f[QM0M], f[QM0P], f[QP0M], f[QP0P] = xz-plane edges
     # f[Q0MM], f[Q0MP], f[Q0PM], f[Q0PP] = yz-plane edges
 
-    # f  = pre-collision populations; fS = post-collision push target
-    # undef + parallel first-touch: each thread touches its own z-slice so Linux
-    # places those pages on the local NUMA node, matching the collision_stream! access pattern.
     f  = Array{Float64}(undef, NQ, gridlengthX, gridlengthY, gridlengthZ)
     fS = Array{Float64}(undef, NQ, gridlengthX, gridlengthY, gridlengthZ)
-    Threads.@threads :static for z in 1:gridlengthZ
-        for y in 1:gridlengthY, x in 1:gridlengthX
-            @inbounds for q in 1:NQ
-                f[q,x,y,z]  = 0.0
-                fS[q,x,y,z] = 0.0
-            end
-        end
-    end
 
-    # Initialise macroscopic variables — same first-touch pattern
+    local_Fx   = zeros(Threads.maxthreadid() * 8)
+    local_Fy   = zeros(Threads.maxthreadid() * 8)
+
     rho        = Array{Float64}(undef, gridlengthX, gridlengthY, gridlengthZ)
     u          = Array{Float64}(undef, gridlengthX, gridlengthY, gridlengthZ)
     v          = Array{Float64}(undef, gridlengthX, gridlengthY, gridlengthZ)
     w          = Array{Float64}(undef, gridlengthX, gridlengthY, gridlengthZ)
-    Threads.@threads :static for z in 1:gridlengthZ
-        for y in 1:gridlengthY, x in 1:gridlengthX
-            @inbounds begin
-                rho[x,y,z]        = 1.0
-                u[x,y,z]          = 0.0
-                v[x,y,z]          = 0.0
-                w[x,y,z]          = 0.0
-            end
-        end
-    end
 
     ##--------  Initialize distribution functions FLUID NODES and SOLID NODES  --------##
-    Threads.@threads :static for z in 1:gridlengthZ
+    Threads.@threads for z in 1:gridlengthZ
         for y in 1:gridlengthY
             for x in 1:gridlengthX
 
@@ -370,14 +357,13 @@ function run_JuLattice()
     end#z
    
     ##-------- Initialise fS's --------##
-    Threads.@threads :static for z in 1:gridlengthZ
+    Threads.@threads for z in 1:gridlengthZ
         @inbounds for y in 1:gridlengthY, x in 1:gridlengthX, q in 1:NQ
             fS[q,x,y,z] = f[q,x,y,z]
         end
     end
 
     # Force garbage collection to free unused memory
-    GC.gc()
 
     ##--------  Logging  --------##
     Log_Simulation_Header()
@@ -407,6 +393,7 @@ function run_JuLattice()
     # forces
     forces_io = open(forces_csv_path, "w")
     println(forces_io, "t_phys, Cd, Cl")
+    flush(forces_io)
 
 
     ##--------  Plot calls  --------## 
@@ -443,8 +430,6 @@ function run_JuLattice()
     
     ##--------  MAIN  LOOP --------## 
     # Run Simulation Loop
-    local_Fx = zeros(Threads.maxthreadid() * 8)
-    local_Fy = zeros(Threads.maxthreadid() * 8)
     for i in 1:simulationTime
 
         #t_estimation = @elapsed begin
@@ -487,71 +472,49 @@ function run_JuLattice()
 
 
         ##-------- free slip walls --------##
-        # y-faces (front+back) in one barrier, z-faces (bot+top) in another.
-        # y-faces and z-faces stay sequential to avoid corner node conflicts.
-        let nf = length(wall_front_x), nb = length(wall_back_x)
-            @inbounds Threads.@threads :static for i in 1:(nf + nb)
-                if i <= nf
-                    x = wall_front_x[i]; z = wall_front_z[i]
-                    fS[Q0P0, x, 2, z] = fS[Q0M0, x, 1, z]
-                    fS[QMP0, x, 2, z] = fS[QMM0, x, 1, z]
-                    fS[QPP0, x, 2, z] = fS[QPM0, x, 1, z]
-                    fS[Q0PM, x, 2, z] = fS[Q0MM, x, 1, z]
-                    fS[Q0PP, x, 2, z] = fS[Q0MP, x, 1, z]
-                else
-                    j = i - nf
-                    x = wall_back_x[j]; z = wall_back_z[j]
-                    fS[Q0M0, x, gridlengthY-1, z] = fS[Q0P0, x, gridlengthY, z]
-                    fS[QMM0, x, gridlengthY-1, z] = fS[QMP0, x, gridlengthY, z]
-                    fS[QPM0, x, gridlengthY-1, z] = fS[QPP0, x, gridlengthY, z]
-                    fS[Q0MM, x, gridlengthY-1, z] = fS[Q0PM, x, gridlengthY, z]
-                    fS[Q0MP, x, gridlengthY-1, z] = fS[Q0PP, x, gridlengthY, z]
-                end
-            end
+        @inbounds Threads.@threads for i in eachindex(wall_front_x)
+            x = wall_front_x[i]; z = wall_front_z[i]
+            fS[Q0P0, x, 2, z] = fS[Q0M0, x, 1, z]
+            fS[QMP0, x, 2, z] = fS[QMM0, x, 1, z]
+            fS[QPP0, x, 2, z] = fS[QPM0, x, 1, z]
+            fS[Q0PM, x, 2, z] = fS[Q0MM, x, 1, z]
+            fS[Q0PP, x, 2, z] = fS[Q0MP, x, 1, z]
         end
-        let nbot = length(wall_bot_x), ntop = length(wall_top_x)
-            @inbounds Threads.@threads :static for i in 1:(nbot + ntop)
-                if i <= nbot
-                    x = wall_bot_x[i]; y = wall_bot_y[i]
-                    fS[Q00P, x, y, 2] = fS[Q00M, x, y, 1]
-                    fS[QP0P, x, y, 2] = fS[QP0M, x, y, 1]
-                    fS[QM0P, x, y, 2] = fS[QM0M, x, y, 1]
-                    fS[Q0PP, x, y, 2] = fS[Q0PM, x, y, 1]
-                    fS[Q0MP, x, y, 2] = fS[Q0MM, x, y, 1]
-                else
-                    j = i - nbot
-                    x = wall_top_x[j]; y = wall_top_y[j]
-                    fS[Q00M, x, y, gridlengthZ-1] = fS[Q00P, x, y, gridlengthZ]
-                    fS[QP0M, x, y, gridlengthZ-1] = fS[QP0P, x, y, gridlengthZ]
-                    fS[QM0M, x, y, gridlengthZ-1] = fS[QM0P, x, y, gridlengthZ]
-                    fS[Q0PM, x, y, gridlengthZ-1] = fS[Q0PP, x, y, gridlengthZ]
-                    fS[Q0MM, x, y, gridlengthZ-1] = fS[Q0MP, x, y, gridlengthZ]
-                end
-            end
+        @inbounds Threads.@threads for i in eachindex(wall_back_x)
+            x = wall_back_x[i]; z = wall_back_z[i]
+            fS[Q0M0, x, gridlengthY-1, z] = fS[Q0P0, x, gridlengthY, z]
+            fS[QMM0, x, gridlengthY-1, z] = fS[QMP0, x, gridlengthY, z]
+            fS[QPM0, x, gridlengthY-1, z] = fS[QPP0, x, gridlengthY, z]
+            fS[Q0MM, x, gridlengthY-1, z] = fS[Q0PM, x, gridlengthY, z]
+            fS[Q0MP, x, gridlengthY-1, z] = fS[Q0PP, x, gridlengthY, z]
         end
-
-        # Corner handling: free slip corners get noslip bounceback values
-        # Corner handling after "normal" freeslip logic to rewrite corner populations
-        @inbounds for x in 1:gridlengthX
-            # front/bot edge
-            if !is_solid[x, 2, 2]
-                fS[Q0PP, x, 2, 2] = fS[Q0MM, x, 1, 1]
-            end
-
-            # front/top edge
-            if !is_solid[x, 2, gridlengthZ-1]
-                fS[Q0PM, x, 2, gridlengthZ-1] = fS[Q0MP, x, 1, gridlengthZ]
-            end
-
-            # back/bot edge
-            if !is_solid[x, gridlengthY-1, 2]
-                fS[Q0MP, x, gridlengthY-1, 2] = fS[Q0PM, x, gridlengthY, 1]
-            end
-
-            # back/top edge
-            if !is_solid[x, gridlengthY-1, gridlengthZ-1]
-                fS[Q0MM, x, gridlengthY-1, gridlengthZ-1] = fS[Q0PP, x, gridlengthY, gridlengthZ]
-            end
+        @inbounds Threads.@threads for i in eachindex(wall_bot_x)
+            x = wall_bot_x[i]; y = wall_bot_y[i]
+            fS[Q00P, x, y, 2] = fS[Q00M, x, y, 1]
+            fS[QP0P, x, y, 2] = fS[QP0M, x, y, 1]
+            fS[QM0P, x, y, 2] = fS[QM0M, x, y, 1]
+            fS[Q0PP, x, y, 2] = fS[Q0PM, x, y, 1]
+            fS[Q0MP, x, y, 2] = fS[Q0MM, x, y, 1]
+        end
+        @inbounds Threads.@threads for i in eachindex(wall_top_x)
+            x = wall_top_x[i]; y = wall_top_y[i]
+            fS[Q00M, x, y, gridlengthZ-1] = fS[Q00P, x, y, gridlengthZ]
+            fS[QP0M, x, y, gridlengthZ-1] = fS[QP0P, x, y, gridlengthZ]
+            fS[QM0M, x, y, gridlengthZ-1] = fS[QM0P, x, y, gridlengthZ]
+            fS[Q0PM, x, y, gridlengthZ-1] = fS[Q0PP, x, y, gridlengthZ]
+            fS[Q0MM, x, y, gridlengthZ-1] = fS[Q0MP, x, y, gridlengthZ]
+        end
+        @inbounds for x in corner_frontbot_x
+            fS[Q0PP, x, 2, 2] = fS[Q0MM, x, 1, 1]
+        end
+        @inbounds for x in corner_fronttop_x
+            fS[Q0PM, x, 2, gridlengthZ-1] = fS[Q0MP, x, 1, gridlengthZ]
+        end
+        @inbounds for x in corner_backbot_x
+            fS[Q0MP, x, gridlengthY-1, 2] = fS[Q0PM, x, gridlengthY, 1]
+        end
+        @inbounds for x in corner_backtop_x
+            fS[Q0MM, x, gridlengthY-1, gridlengthZ-1] = fS[Q0PP, x, gridlengthY, gridlengthZ]
         end
         ##-------- free slip walls  end --------##
 

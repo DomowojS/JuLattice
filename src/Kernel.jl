@@ -40,7 +40,7 @@ function collision_stream!(
 
 
     # Iterate over all cells except boundary cells
-    @inbounds Threads.@threads :static for z in 2:gridlengthZ-1
+    @inbounds Threads.@threads for z in 2:gridlengthZ-1
         for y in 2:gridlengthY-1
             for x in 2:gridlengthX-1
 
