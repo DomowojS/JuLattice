@@ -11,7 +11,7 @@ if ! flock -n 9; then
     exit 1
 fi
 
-THREADS=64
+THREADS=62
 PROJECT=/home/daniel/Software/JuLattice
 
 echo "================================"
@@ -21,11 +21,11 @@ echo "================================"
 
 
 echo "[1/2] Starting: Grid Study D/dx=50 | VF-outflow"
-JULIA_EXCLUSIVE=1 stdbuf -oL julia --project=$PROJECT -t $THREADS run_gridStudy_Ddeltax50_VF-outflow.jl
+numactl --interleave=all stdbuf -oL julia --project=$PROJECT -t $THREADS run_gridStudy_Ddeltax50_VF-outflow.jl
 echo "[1/2] Done (exit code $?): $(date)"
 
 echo "[2/2] Starting: Grid Study D/dx=40 | VF-outflow"
-JULIA_EXCLUSIVE=1 stdbuf -oL julia --project=$PROJECT -t $THREADS run_gridStudy_Ddeltax40_VF-outflow.jl
+numactl --interleave=all stdbuf -oL julia --project=$PROJECT -t $THREADS run_gridStudy_Ddeltax40_VF-outflow.jl
 echo "[2/2] Done (exit code $?): $(date)"
 
 

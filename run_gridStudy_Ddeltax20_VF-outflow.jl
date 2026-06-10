@@ -181,19 +181,21 @@ function run_JuLattice()
     is_fluid[2:gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= true
 
     # Solid and object mask
-    for x in 1:gridlengthX, y in 1:gridlengthY, z in 1:gridlengthZ
-        # walls
-        if y==1 || y==gridlengthY || z==1 || z==gridlengthZ
-            is_solid[x, y, z] = true
-            continue
-        end
+    Threads.@threads :static for z in 1:gridlengthZ
+        for y in 1:gridlengthY, x in 1:gridlengthX
+            # walls
+            if y==1 || y==gridlengthY || z==1 || z==gridlengthZ
+                is_solid[x, y, z] = true
+                continue
+            end
 
-        # cylinder vertically (y-axis)
-        dx = x - cylinder_x
-        dy = y - cylinder_y
-        if (z >= cylinder_start) && (z <= cylinder_end) && (sqrt(dx^2 + dy^2) <= cylinder_radius)
-            is_object[x, y, z] = true
-            is_solid[x, y, z] = true
+            # cylinder vertically (y-axis)
+            dx = x - cylinder_x
+            dy = y - cylinder_y
+            if (z >= cylinder_start) && (z <= cylinder_end) && (sqrt(dx^2 + dy^2) <= cylinder_radius)
+                is_object[x, y, z] = true
+                is_solid[x, y, z] = true
+            end
         end
     end
     # object_indices = findall(is_object)
@@ -272,7 +274,7 @@ function run_JuLattice()
     # places those pages on the local NUMA node, matching the collision_stream! access pattern.
     f  = Array{Float64}(undef, NQ, gridlengthX, gridlengthY, gridlengthZ)
     fS = Array{Float64}(undef, NQ, gridlengthX, gridlengthY, gridlengthZ)
-    Threads.@threads for z in 1:gridlengthZ
+    Threads.@threads :static for z in 1:gridlengthZ
         for y in 1:gridlengthY, x in 1:gridlengthX
             @inbounds for q in 1:NQ
                 f[q,x,y,z]  = 0.0
@@ -286,31 +288,19 @@ function run_JuLattice()
     u          = Array{Float64}(undef, gridlengthX, gridlengthY, gridlengthZ)
     v          = Array{Float64}(undef, gridlengthX, gridlengthY, gridlengthZ)
     w          = Array{Float64}(undef, gridlengthX, gridlengthY, gridlengthZ)
-    velocityX   = Array{Float64}(undef, gridlengthX, gridlengthY, gridlengthZ)
-    velocityY   = Array{Float64}(undef, gridlengthX, gridlengthY, gridlengthZ)
-    velocityZ   = Array{Float64}(undef, gridlengthX, gridlengthY, gridlengthZ)
-    velocityMag = Array{Float64}(undef, gridlengthX, gridlengthY, gridlengthZ)
-    vortZ       = Array{Float64}(undef, gridlengthX, gridlengthY, gridlengthZ)
-    vortY       = Array{Float64}(undef, gridlengthX, gridlengthY, gridlengthZ)
-    Threads.@threads for z in 1:gridlengthZ
+    Threads.@threads :static for z in 1:gridlengthZ
         for y in 1:gridlengthY, x in 1:gridlengthX
             @inbounds begin
                 rho[x,y,z]        = 1.0
                 u[x,y,z]          = 0.0
                 v[x,y,z]          = 0.0
                 w[x,y,z]          = 0.0
-                velocityX[x,y,z]  = 0.0
-                velocityY[x,y,z]  = 0.0
-                velocityZ[x,y,z]  = 0.0
-                velocityMag[x,y,z] = 0.0
-                vortZ[x,y,z]      = 0.0
-                vortY[x,y,z]      = 0.0
             end
         end
     end
 
     ##--------  Initialize distribution functions FLUID NODES and SOLID NODES  --------##
-    for z in 1:gridlengthZ
+    Threads.@threads :static for z in 1:gridlengthZ
         for y in 1:gridlengthY
             for x in 1:gridlengthX
 
@@ -380,7 +370,11 @@ function run_JuLattice()
     end#z
    
     ##-------- Initialise fS's --------##
-    fS .= f
+    Threads.@threads :static for z in 1:gridlengthZ
+        @inbounds for y in 1:gridlengthY, x in 1:gridlengthX, q in 1:NQ
+            fS[q,x,y,z] = f[q,x,y,z]
+        end
+    end
 
     # Force garbage collection to free unused memory
     GC.gc()
@@ -449,6 +443,8 @@ function run_JuLattice()
     
     ##--------  MAIN  LOOP --------## 
     # Run Simulation Loop
+    local_Fx = zeros(Threads.maxthreadid() * 8)
+    local_Fy = zeros(Threads.maxthreadid() * 8)
     for i in 1:simulationTime
 
         #t_estimation = @elapsed begin
@@ -636,7 +632,7 @@ function run_JuLattice()
 
 
         # bounce-back object | Bouzidi bounceback (IBB)
-        F_x_lat, F_y_lat = apply_bouzidi_bc_3d!(boundary_data, fS)
+        F_x_lat, F_y_lat = apply_bouzidi_bc_3d!(boundary_data, fS, local_Fx, local_Fy)
         
         Cd = 2.0 * F_x_lat / (fluiddensity * lattice_inflow_velocity^2 * A_lat)
         Cl = 2.0 * F_y_lat / (fluiddensity * lattice_inflow_velocity^2 * A_lat)
@@ -686,7 +682,6 @@ function run_JuLattice()
             sample_times[buf_ptr] = i * delta_t
 
             println(forces_io, "$(i * delta_t), $Cd, $Cl")
-            flush(forces_io)
 
             fac = cumulativ_count > 1 ? 1.0 / (cumulativ_count -1) : 0.0
             
@@ -754,6 +749,7 @@ function run_JuLattice()
 
 
             if buf_ptr ==  samples_per_flush
+                flush(forces_io)
                 # 3D flush
                 open(wake_csv_path_3D, "a") do io
                     for s in 1:samples_per_flush-1
@@ -889,13 +885,28 @@ function run_JuLattice()
 
     Log_Simulation_Tail()
 
+    # Compute visualization fields from final velocity state for snapshot
+    velocityX   = copy(u)
+    velocityMag = @. sqrt(u^2 + v^2 + w^2)
+    vortZ       = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    vortY       = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    @inbounds for sz in 2:gridlengthZ-1, sy in 2:gridlengthY-1, sx in 2:gridlengthX-1
+        if is_solid[sx,sy,sz]
+            velocityX[sx,sy,sz]   = NaN
+            velocityMag[sx,sy,sz] = NaN
+        else
+            vortZ[sx,sy,sz] = (v[sx+1,sy,sz]-v[sx-1,sy,sz])*0.5 - (u[sx,sy+1,sz]-u[sx,sy-1,sz])*0.5
+            vortY[sx,sy,sz] = (u[sx,sy,sz+1]-u[sx,sy,sz-1])*0.5 - (w[sx+1,sy,sz]-w[sx-1,sy,sz])*0.5
+        end
+    end
+
     # save last plot for post processing
     snapshot_path = "visualization/snapshot_$(run_tag).jls"
     serialize(snapshot_path, (
-        velocityMag     = copy(velocityMag),
-        velocityX       = copy(velocityX),
-        vortY           = copy(vortY),
-        vortZ           = copy(vortZ),
+        velocityMag     = velocityMag,
+        velocityX       = velocityX,
+        vortY           = vortY,
+        vortZ           = vortZ,
         is_object       = copy(is_object),
         gridlengthX     = gridlengthX,
         gridlengthY     = gridlengthY,
