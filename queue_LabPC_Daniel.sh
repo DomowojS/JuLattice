@@ -21,11 +21,11 @@ echo "================================"
 
 
 echo "[1/2] Starting: Grid Study D/dx=50 | VF-outflow"
-stdbuf -oL julia --project=$PROJECT -t $THREADS run_gridStudy_Ddeltax50_VF-outflow.jl
+JULIA_EXCLUSIVE=1 stdbuf -oL julia --project=$PROJECT -t $THREADS run_gridStudy_Ddeltax50_VF-outflow.jl
 echo "[1/2] Done (exit code $?): $(date)"
 
 echo "[2/2] Starting: Grid Study D/dx=40 | VF-outflow"
-stdbuf -oL julia --project=$PROJECT -t $THREADS run_gridStudy_Ddeltax40_VF-outflow.jl
+JULIA_EXCLUSIVE=1 stdbuf -oL julia --project=$PROJECT -t $THREADS run_gridStudy_Ddeltax40_VF-outflow.jl
 echo "[2/2] Done (exit code $?): $(date)"
 
 

@@ -9,7 +9,6 @@ include("src/Kernel.jl")
 
 
 using Serialization # for saving last plot
-using ThreadPinning
 #using MeshGrid, GLMakie
 #using .Plotter, 
 using .Logger
@@ -17,7 +16,6 @@ using .BoundaryConditions
 using .TurbulenceModel 
 using .Kernel
 function run_JuLattice()
-    pinthreads(:numa)
     ####################################  Initialize  ####################################
     ##-------- User Settings --------##
     # Cylinder Definition
@@ -183,21 +181,19 @@ function run_JuLattice()
     is_fluid[2:gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= true
 
     # Solid and object mask
-    Threads.@threads :static for z in 1:gridlengthZ
-        for y in 1:gridlengthY, x in 1:gridlengthX
-            # walls
-            if y==1 || y==gridlengthY || z==1 || z==gridlengthZ
-                is_solid[x, y, z] = true
-                continue
-            end
+    for x in 1:gridlengthX, y in 1:gridlengthY, z in 1:gridlengthZ
+        # walls
+        if y==1 || y==gridlengthY || z==1 || z==gridlengthZ
+            is_solid[x, y, z] = true
+            continue
+        end
 
-            # cylinder vertically (y-axis)
-            dx = x - cylinder_x
-            dy = y - cylinder_y
-            if (z >= cylinder_start) && (z <= cylinder_end) && (sqrt(dx^2 + dy^2) <= cylinder_radius)
-                is_object[x, y, z] = true
-                is_solid[x, y, z] = true
-            end
+        # cylinder vertically (y-axis)
+        dx = x - cylinder_x
+        dy = y - cylinder_y
+        if (z >= cylinder_start) && (z <= cylinder_end) && (sqrt(dx^2 + dy^2) <= cylinder_radius)
+            is_object[x, y, z] = true
+            is_solid[x, y, z] = true
         end
     end
     # object_indices = findall(is_object)
@@ -243,12 +239,6 @@ function run_JuLattice()
             push!(wall_top_x, x); push!(wall_top_y, y)
         end
     end
-
-    corner_frontbot_x = [x for x in 1:gridlengthX if !is_solid[x, 2, 2]]
-    corner_fronttop_x = [x for x in 1:gridlengthX if !is_solid[x, 2, gridlengthZ-1]]
-    corner_backbot_x  = [x for x in 1:gridlengthX if !is_solid[x, gridlengthY-1, 2]]
-    corner_backtop_x  = [x for x in 1:gridlengthX if !is_solid[x, gridlengthY-1, gridlengthZ-1]]
-
     
 
     ##-------- precompute BC --------##
@@ -277,35 +267,22 @@ function run_JuLattice()
     # f[QM0M], f[QM0P], f[QP0M], f[QP0P] = xz-plane edges
     # f[Q0MM], f[Q0MP], f[Q0PM], f[Q0PP] = yz-plane edges
 
-    f  = Array{Float64}(undef, NQ, gridlengthX, gridlengthY, gridlengthZ)
-    fS = Array{Float64}(undef, NQ, gridlengthX, gridlengthY, gridlengthZ)
+    f  = zeros(NQ, gridlengthX, gridlengthY, gridlengthZ)
+    fS = zeros(NQ, gridlengthX, gridlengthY, gridlengthZ)
 
-    Threads.@threads :static for z in 1:gridlengthZ
-        @inbounds for y in 1:gridlengthY, x in 1:gridlengthX, q in 1:NQ
-            f[q,x,y,z]  = 0.0
-            fS[q,x,y,z] = 0.0
-        end
-    end
-
-    local_Fx   = zeros(Threads.maxthreadid() * 8)
-    local_Fy   = zeros(Threads.maxthreadid() * 8)
-
-    rho        = Array{Float64}(undef, gridlengthX, gridlengthY, gridlengthZ)
-    u          = Array{Float64}(undef, gridlengthX, gridlengthY, gridlengthZ)
-    v          = Array{Float64}(undef, gridlengthX, gridlengthY, gridlengthZ)
-    w          = Array{Float64}(undef, gridlengthX, gridlengthY, gridlengthZ)
-
-    Threads.@threads :static for z in 1:gridlengthZ
-        @inbounds for y in 1:gridlengthY, x in 1:gridlengthX
-            rho[x,y,z] = 0.0
-            u[x,y,z]   = 0.0
-            v[x,y,z]   = 0.0
-            w[x,y,z]   = 0.0
-        end
-    end
+    rho        = ones(gridlengthX, gridlengthY, gridlengthZ) .* fluiddensity
+    u          = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    v          = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    w          = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    velocityX   = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    velocityY   = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    velocityZ   = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    velocityMag = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    vortZ       = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    vortY       = zeros(gridlengthX, gridlengthY, gridlengthZ)
 
     ##--------  Initialize distribution functions FLUID NODES and SOLID NODES  --------##
-    Threads.@threads :static for z in 1:gridlengthZ
+    for z in 1:gridlengthZ
         for y in 1:gridlengthY
             for x in 1:gridlengthX
 
@@ -375,13 +352,10 @@ function run_JuLattice()
     end#z
    
     ##-------- Initialise fS's --------##
-    Threads.@threads :static for z in 1:gridlengthZ
-        @inbounds for y in 1:gridlengthY, x in 1:gridlengthX, q in 1:NQ
-            fS[q,x,y,z] = f[q,x,y,z]
-        end
-    end
+    fS .= f
 
     # Force garbage collection to free unused memory
+    GC.gc()
 
     ##--------  Logging  --------##
     Log_Simulation_Header()
@@ -411,7 +385,6 @@ function run_JuLattice()
     # forces
     forces_io = open(forces_csv_path, "w")
     println(forces_io, "t_phys, Cd, Cl")
-    flush(forces_io)
 
 
     ##--------  Plot calls  --------## 
@@ -490,7 +463,9 @@ function run_JuLattice()
 
 
         ##-------- free slip walls --------##
-        @inbounds Threads.@threads :static for i in eachindex(wall_front_x)
+        # y-faces (front+back) in one barrier, z-faces (bot+top) in another.
+        # y-faces and z-faces stay sequential to avoid corner node conflicts.
+        @inbounds for i in eachindex(wall_front_x)
             x = wall_front_x[i]; z = wall_front_z[i]
             fS[Q0P0, x, 2, z] = fS[Q0M0, x, 1, z]
             fS[QMP0, x, 2, z] = fS[QMM0, x, 1, z]
@@ -498,7 +473,7 @@ function run_JuLattice()
             fS[Q0PM, x, 2, z] = fS[Q0MM, x, 1, z]
             fS[Q0PP, x, 2, z] = fS[Q0MP, x, 1, z]
         end
-        @inbounds Threads.@threads :static for i in eachindex(wall_back_x)
+        @inbounds for i in eachindex(wall_back_x)
             x = wall_back_x[i]; z = wall_back_z[i]
             fS[Q0M0, x, gridlengthY-1, z] = fS[Q0P0, x, gridlengthY, z]
             fS[QMM0, x, gridlengthY-1, z] = fS[QMP0, x, gridlengthY, z]
@@ -506,7 +481,7 @@ function run_JuLattice()
             fS[Q0MM, x, gridlengthY-1, z] = fS[Q0PM, x, gridlengthY, z]
             fS[Q0MP, x, gridlengthY-1, z] = fS[Q0PP, x, gridlengthY, z]
         end
-        @inbounds Threads.@threads :static for i in eachindex(wall_bot_x)
+        @inbounds for i in eachindex(wall_bot_x)
             x = wall_bot_x[i]; y = wall_bot_y[i]
             fS[Q00P, x, y, 2] = fS[Q00M, x, y, 1]
             fS[QP0P, x, y, 2] = fS[QP0M, x, y, 1]
@@ -514,7 +489,7 @@ function run_JuLattice()
             fS[Q0PP, x, y, 2] = fS[Q0PM, x, y, 1]
             fS[Q0MP, x, y, 2] = fS[Q0MM, x, y, 1]
         end
-        @inbounds Threads.@threads :static for i in eachindex(wall_top_x)
+        @inbounds for i in eachindex(wall_top_x)
             x = wall_top_x[i]; y = wall_top_y[i]
             fS[Q00M, x, y, gridlengthZ-1] = fS[Q00P, x, y, gridlengthZ]
             fS[QP0M, x, y, gridlengthZ-1] = fS[QP0P, x, y, gridlengthZ]
@@ -522,17 +497,29 @@ function run_JuLattice()
             fS[Q0PM, x, y, gridlengthZ-1] = fS[Q0PP, x, y, gridlengthZ]
             fS[Q0MM, x, y, gridlengthZ-1] = fS[Q0MP, x, y, gridlengthZ]
         end
-        @inbounds for x in corner_frontbot_x
-            fS[Q0PP, x, 2, 2] = fS[Q0MM, x, 1, 1]
-        end
-        @inbounds for x in corner_fronttop_x
-            fS[Q0PM, x, 2, gridlengthZ-1] = fS[Q0MP, x, 1, gridlengthZ]
-        end
-        @inbounds for x in corner_backbot_x
-            fS[Q0MP, x, gridlengthY-1, 2] = fS[Q0PM, x, gridlengthY, 1]
-        end
-        @inbounds for x in corner_backtop_x
-            fS[Q0MM, x, gridlengthY-1, gridlengthZ-1] = fS[Q0PP, x, gridlengthY, gridlengthZ]
+
+        # Corner handling: free slip corners get noslip bounceback values
+        # Corner handling after "normal" freeslip logic to rewrite corner populations
+        @inbounds for x in 1:gridlengthX
+            # front/bot edge
+            if !is_solid[x, 2, 2]
+                fS[Q0PP, x, 2, 2] = fS[Q0MM, x, 1, 1]
+            end
+
+            # front/top edge
+            if !is_solid[x, 2, gridlengthZ-1]
+                fS[Q0PM, x, 2, gridlengthZ-1] = fS[Q0MP, x, 1, gridlengthZ]
+            end
+
+            # back/bot edge
+            if !is_solid[x, gridlengthY-1, 2]
+                fS[Q0MP, x, gridlengthY-1, 2] = fS[Q0PM, x, gridlengthY, 1]
+            end
+
+            # back/top edge
+            if !is_solid[x, gridlengthY-1, gridlengthZ-1]
+                fS[Q0MM, x, gridlengthY-1, gridlengthZ-1] = fS[Q0PP, x, gridlengthY, gridlengthZ]
+            end
         end
         ##-------- free slip walls  end --------##
 
@@ -613,7 +600,7 @@ function run_JuLattice()
 
 
         # bounce-back object | Bouzidi bounceback (IBB)
-        F_x_lat, F_y_lat = apply_bouzidi_bc_3d!(boundary_data, fS, local_Fx, local_Fy)
+        F_x_lat, F_y_lat = apply_bouzidi_bc_3d!(boundary_data, fS)
         
         Cd = 2.0 * F_x_lat / (fluiddensity * lattice_inflow_velocity^2 * A_lat)
         Cl = 2.0 * F_y_lat / (fluiddensity * lattice_inflow_velocity^2 * A_lat)
@@ -663,6 +650,7 @@ function run_JuLattice()
             sample_times[buf_ptr] = i * delta_t
 
             println(forces_io, "$(i * delta_t), $Cd, $Cl")
+            flush(forces_io)
 
             fac = cumulativ_count > 1 ? 1.0 / (cumulativ_count -1) : 0.0
             
@@ -730,7 +718,6 @@ function run_JuLattice()
 
 
             if buf_ptr ==  samples_per_flush
-                flush(forces_io)
                 # 3D flush
                 open(wake_csv_path_3D, "a") do io
                     for s in 1:samples_per_flush-1
@@ -866,28 +853,13 @@ function run_JuLattice()
 
     Log_Simulation_Tail()
 
-    # Compute visualization fields from final velocity state for snapshot
-    velocityX   = copy(u)
-    velocityMag = @. sqrt(u^2 + v^2 + w^2)
-    vortZ       = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    vortY       = zeros(gridlengthX, gridlengthY, gridlengthZ)
-    @inbounds for sz in 2:gridlengthZ-1, sy in 2:gridlengthY-1, sx in 2:gridlengthX-1
-        if is_solid[sx,sy,sz]
-            velocityX[sx,sy,sz]   = NaN
-            velocityMag[sx,sy,sz] = NaN
-        else
-            vortZ[sx,sy,sz] = (v[sx+1,sy,sz]-v[sx-1,sy,sz])*0.5 - (u[sx,sy+1,sz]-u[sx,sy-1,sz])*0.5
-            vortY[sx,sy,sz] = (u[sx,sy,sz+1]-u[sx,sy,sz-1])*0.5 - (w[sx+1,sy,sz]-w[sx-1,sy,sz])*0.5
-        end
-    end
-
     # save last plot for post processing
     snapshot_path = "visualization/snapshot_$(run_tag).jls"
     serialize(snapshot_path, (
-        velocityMag     = velocityMag,
-        velocityX       = velocityX,
-        vortY           = vortY,
-        vortZ           = vortZ,
+        velocityMag     = copy(velocityMag),
+        velocityX       = copy(velocityX),
+        vortY           = copy(vortY),
+        vortZ           = copy(vortZ),
         is_object       = copy(is_object),
         gridlengthX     = gridlengthX,
         gridlengthY     = gridlengthY,
