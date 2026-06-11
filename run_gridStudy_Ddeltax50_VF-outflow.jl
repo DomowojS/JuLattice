@@ -9,6 +9,7 @@ include("src/Kernel.jl")
 
 
 using Serialization # for saving last plot
+using ThreadPinning
 #using MeshGrid, GLMakie
 #using .Plotter, 
 using .Logger
@@ -17,6 +18,7 @@ using .TurbulenceModel
 using .Kernel
 
 function run_JuLattice()
+    pinthreads(:numa)
     ####################################  Initialize  ####################################
     ##-------- User Settings --------##
     # Cylinder Definition
@@ -183,7 +185,7 @@ function run_JuLattice()
     is_fluid[2:gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= true
 
     # Solid and object mask
-    Threads.@threads for z in 1:gridlengthZ
+    Threads.@threads :static for z in 1:gridlengthZ
         for y in 1:gridlengthY, x in 1:gridlengthX
             # walls
             if y==1 || y==gridlengthY || z==1 || z==gridlengthZ
@@ -280,6 +282,13 @@ function run_JuLattice()
     f  = Array{Float64}(undef, NQ, gridlengthX, gridlengthY, gridlengthZ)
     fS = Array{Float64}(undef, NQ, gridlengthX, gridlengthY, gridlengthZ)
 
+    Threads.@threads :static for z in 1:gridlengthZ
+        @inbounds for y in 1:gridlengthY, x in 1:gridlengthX, q in 1:NQ
+            f[q,x,y,z]  = 0.0
+            fS[q,x,y,z] = 0.0
+        end
+    end
+
     local_Fx   = zeros(Threads.maxthreadid() * 8)
     local_Fy   = zeros(Threads.maxthreadid() * 8)
 
@@ -288,8 +297,17 @@ function run_JuLattice()
     v          = Array{Float64}(undef, gridlengthX, gridlengthY, gridlengthZ)
     w          = Array{Float64}(undef, gridlengthX, gridlengthY, gridlengthZ)
 
+    Threads.@threads :static for z in 1:gridlengthZ
+        @inbounds for y in 1:gridlengthY, x in 1:gridlengthX
+            rho[x,y,z] = 0.0
+            u[x,y,z]   = 0.0
+            v[x,y,z]   = 0.0
+            w[x,y,z]   = 0.0
+        end
+    end
+
     ##--------  Initialize distribution functions FLUID NODES and SOLID NODES  --------##
-    Threads.@threads for z in 1:gridlengthZ
+    Threads.@threads :static for z in 1:gridlengthZ
         for y in 1:gridlengthY
             for x in 1:gridlengthX
 
@@ -359,7 +377,7 @@ function run_JuLattice()
     end#z
    
     ##-------- Initialise fS's --------##
-    Threads.@threads for z in 1:gridlengthZ
+    Threads.@threads :static for z in 1:gridlengthZ
         @inbounds for y in 1:gridlengthY, x in 1:gridlengthX, q in 1:NQ
             fS[q,x,y,z] = f[q,x,y,z]
         end
@@ -474,7 +492,7 @@ function run_JuLattice()
 
 
         ##-------- free slip walls --------##
-        @inbounds Threads.@threads for i in eachindex(wall_front_x)
+        @inbounds Threads.@threads :static for i in eachindex(wall_front_x)
             x = wall_front_x[i]; z = wall_front_z[i]
             fS[Q0P0, x, 2, z] = fS[Q0M0, x, 1, z]
             fS[QMP0, x, 2, z] = fS[QMM0, x, 1, z]
@@ -482,7 +500,7 @@ function run_JuLattice()
             fS[Q0PM, x, 2, z] = fS[Q0MM, x, 1, z]
             fS[Q0PP, x, 2, z] = fS[Q0MP, x, 1, z]
         end
-        @inbounds Threads.@threads for i in eachindex(wall_back_x)
+        @inbounds Threads.@threads :static for i in eachindex(wall_back_x)
             x = wall_back_x[i]; z = wall_back_z[i]
             fS[Q0M0, x, gridlengthY-1, z] = fS[Q0P0, x, gridlengthY, z]
             fS[QMM0, x, gridlengthY-1, z] = fS[QMP0, x, gridlengthY, z]
@@ -490,7 +508,7 @@ function run_JuLattice()
             fS[Q0MM, x, gridlengthY-1, z] = fS[Q0PM, x, gridlengthY, z]
             fS[Q0MP, x, gridlengthY-1, z] = fS[Q0PP, x, gridlengthY, z]
         end
-        @inbounds Threads.@threads for i in eachindex(wall_bot_x)
+        @inbounds Threads.@threads :static for i in eachindex(wall_bot_x)
             x = wall_bot_x[i]; y = wall_bot_y[i]
             fS[Q00P, x, y, 2] = fS[Q00M, x, y, 1]
             fS[QP0P, x, y, 2] = fS[QP0M, x, y, 1]
@@ -498,7 +516,7 @@ function run_JuLattice()
             fS[Q0PP, x, y, 2] = fS[Q0PM, x, y, 1]
             fS[Q0MP, x, y, 2] = fS[Q0MM, x, y, 1]
         end
-        @inbounds Threads.@threads for i in eachindex(wall_top_x)
+        @inbounds Threads.@threads :static for i in eachindex(wall_top_x)
             x = wall_top_x[i]; y = wall_top_y[i]
             fS[Q00M, x, y, gridlengthZ-1] = fS[Q00P, x, y, gridlengthZ]
             fS[QP0M, x, y, gridlengthZ-1] = fS[QP0P, x, y, gridlengthZ]
