@@ -1,5 +1,5 @@
 include(joinpath(@__DIR__, "../src/Plotter.jl"))
-using .Plotter
+using .Plotter: setup_mag_plot, setup_vx_plot, setup_vorticity_plot
 using JLD2, GLMakie
 using NativeFileDialog
 
