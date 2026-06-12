@@ -1,11 +1,15 @@
-# ============================================================
-# Grid study — Actuator disc
-# Runs all runfiles back to back on ALL available CPU cores
-# ============================================================
+$mutex = [System.Threading.Mutex]::new($false, "JuLattice_queue")
+if (-not $mutex.WaitOne(0)) {
+    Write-Host "ERROR: Another queue instance is already running. Exiting." -ForegroundColor Red
+    exit 1
+}
 
 $julia   = "julia"
 $project = "."
 $threads = 16
+
+# JULIA_EXCLUSIVE: no CPU yielding to other OS processes
+$env:JULIA_EXCLUSIVE = "1"
 
 $runfiles = @(
     "runfile_disc_gridStudyDdx=8.jl",
@@ -13,33 +17,46 @@ $runfiles = @(
     "runfile_disc_gridStudyDdx=14.jl",
     "runfile_disc_gridStudyDdx=20.jl",
     "runfile_disc_gridStudyDdx=27.jl",
-    "runfile_disc_gridStudyDdx=40.jl",
-    "runfile_disc_gridStudyDdx=54.jl"
+    "runfile_disc_gridStudyDdx=40.jl"
 )
 
-Write-Host "Using $threads threads (all logical cores)" -ForegroundColor Yellow
+Write-Host "================================" -ForegroundColor Cyan
+Write-Host "  JuLattice Simulation Queue" -ForegroundColor Cyan
+Write-Host "  Threads: $threads  |  JULIA_EXCLUSIVE=1" -ForegroundColor Cyan
+Write-Host "================================" -ForegroundColor Cyan
 
 $total = $runfiles.Count
 $run   = 1
 
 foreach ($file in $runfiles) {
+    $logFile = $file -replace '\.jl$', '.log'
+
+    Start-Transcript -Path $logFile -Append
+
     Write-Host ""
-    Write-Host "========================================" -ForegroundColor Cyan
-    Write-Host "  Run $run / $total  —  $file" -ForegroundColor Cyan
-    Write-Host "========================================" -ForegroundColor Cyan
+    Write-Host "[$run/$total] Starting: $file  |  $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" -ForegroundColor Cyan
 
     $start = Get-Date
     & $julia --project=$project -t $threads $file
-    $elapsed = (Get-Date) - $start
+    $exitCode = $LASTEXITCODE
+    $elapsed  = (Get-Date) - $start
 
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "ERROR: $file failed (exit code $LASTEXITCODE)" -ForegroundColor Red
+    Write-Host "[$run/$total] Done (exit code $exitCode) in $($elapsed.ToString('hh\:mm\:ss'))  |  $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" -ForegroundColor Green
+
+    Stop-Transcript
+
+    if ($exitCode -ne 0) {
+        Write-Host "ERROR: $file failed  stopping queue." -ForegroundColor Red
+        $mutex.ReleaseMutex()
         exit 1
     }
 
-    Write-Host "  Done in $($elapsed.ToString('hh\:mm\:ss'))" -ForegroundColor Green
     $run++
 }
 
 Write-Host ""
-Write-Host "All $total runs completed." -ForegroundColor Green
+Write-Host "=================================" -ForegroundColor Cyan
+Write-Host "  All $total simulations complete" -ForegroundColor Cyan
+Write-Host "=================================" -ForegroundColor Cyan
+
+$mutex.ReleaseMutex()

@@ -31,13 +31,21 @@ const Q0PM = 18  # ( 0,+1,-1)
 const Q0PP = 19  # ( 0,+1,+1)
 const NQ   = 19
 
+#with rho
+# function collision_stream!(
+#     gridlengthX::Int, gridlengthY::Int, gridlengthZ::Int,
+#     τ::Float64, CS::Float64, is_fluid,
+#     rho, u, v, w,
+#     f, fS, disc_nodes, F_x_lat
+# )
+
+# without rho
 function collision_stream!(
     gridlengthX::Int, gridlengthY::Int, gridlengthZ::Int,
     τ::Float64, CS::Float64, is_fluid,
-    rho, u, v, w,
+    u, v, w,
     f, fS, disc_nodes, F_x_lat
 )
-
 
     # Iterate over all cells except boundary cells
     @inbounds Threads.@threads :static for z in 2:gridlengthZ-1
@@ -76,7 +84,7 @@ function collision_stream!(
                             fm0m + fm0p + fp0m + fp0p +
                             f0mm + f0mp + f0pm + f0pp)
 
-                rho[x,y,z] = rho_loc
+                #rho[x,y,z] = rho_loc
                 inv_rho = 1.0 / rho_loc
 
                 u_loc = ((-fm00 + fp00) +
