@@ -9,8 +9,7 @@ include("src/Kernel.jl")
 
 using JLD2          # for saving last plot (cross-version compatible)
 using MeshGrid, GLMakie
-#using .Plotter, 
-using .Logger
+using .Plotter, .Logger
 using .TurbulenceModel 
 using .Kernel
 
@@ -29,7 +28,7 @@ function run_JuLattice()
 
     # Grid spacing (physical units per lattice unit)
     # value from grid independence study
-    delta_x         = 0.00625  #0.00092 
+    delta_x         = 0.003571  #0.00092 
 
     # Fluid Settings 
     Kinematic_Viscosity = 1e-6                                       # m^2/s 
@@ -43,11 +42,11 @@ function run_JuLattice()
                               
    
     # Smagorinsky constant CS
-    CS              = 1/3                  # CS ↑ = eddy viscosity ↑
+    CS              = 0.1 #1/3                  # CS ↑ = eddy viscosity ↑
 
     # Plot Requests (Flags)
     Plotvx = false;
-    Plotmag = false;
+    Plotmag = true;
     Plotdebug = false;
     Plotvorticity = false;
     vorticity_mode = :component # :component (ω_z / ω_y)   or   :magnitude (|ω|)
@@ -169,6 +168,17 @@ function run_JuLattice()
     is_fluid[2:gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= true
 
     disc_nodes = findall(is_disc)
+
+    # DEBUG
+    n_disc_nodes    = length(disc_nodes)
+    A_disc_lat      = π * disc_radius^2
+    F_total_applied = abs(F_x_lat) * n_disc_nodes
+    F_total_theory  = 0.5 * C_T * fluiddensity * lattice_inflow_velocity^2 * A_disc_lat
+    ratio           = F_total_applied / F_total_theory
+    println("  F_applied (lat): $(round(F_total_applied, sigdigits=4))")
+    println("  F_theory  (lat): $(round(F_total_theory,  sigdigits=4))")
+    println("  Ratio:           $(round(ratio, digits=4))  $(abs(ratio-1) < 0.05 ? "✓ OK" : "⚠ CHECK")")
+    # DEBUG
 
     for idx in disc_nodes
         is_fluid[idx] = false
@@ -351,7 +361,7 @@ function run_JuLattice()
     Log_Simulation_Start()
     
     ##-------- Logging into .CSV --------##
-    run_tag = "Re$(reynoldsNumber)_Ma$(Mach_Number)_dx$(delta_x)"
+    run_tag = "Re$(reynoldsNumber)_Ma$(Mach_Number)_dx$(delta_x)_CS$(CS)_CT$(C_T)"
 
     wake_csv_paths = ["simulation_data/wake_profil_$(lbl)_$(run_tag).csv" for lbl in probe_labels]
 
@@ -675,23 +685,6 @@ function run_JuLattice()
 
     Log_Simulation_Tail()
 
-    # Compute fields for snapshot
-    velocityX .= u
-    @. velocityMag = sqrt(u^2 + v^2 + w^2)
-    @inbounds for idx in disc_nodes
-        velocityMag[idx] = NaN
-        velocityX[idx]   = NaN
-    end
-    # vorticity
-    @inbounds for z in 2:gridlengthZ-1, y in 2:gridlengthY-1, x in 2:gridlengthX-1
-        if is_solid[x,y,z]
-            vortZ[x,y,z] = NaN; vortY[x,y,z] = NaN
-        else
-            vortZ[x,y,z] = (v[x+1,y,z] - v[x-1,y,z]) * 0.5 - (u[x,y+1,z] - u[x,y-1,z]) * 0.5
-            vortY[x,y,z] = (u[x,y,z+1] - u[x,y,z-1]) * 0.5 - (w[x+1,y,z] - w[x-1,y,z]) * 0.5
-        end
-    end
-    
     # save last plot for post processing
     snapshot_path = "visualization/snapshot_$(run_tag).jld2"
     jldsave(snapshot_path;

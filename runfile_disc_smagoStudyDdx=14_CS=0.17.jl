@@ -28,7 +28,7 @@ function run_JuLattice()
 
     # Grid spacing (physical units per lattice unit)
     # value from grid independence study
-    delta_x         = 0.0023  #0.00092 
+    delta_x         = 0.003571  #0.00092 
 
     # Fluid Settings 
     Kinematic_Viscosity = 1e-6                                       # m^2/s 
@@ -42,7 +42,7 @@ function run_JuLattice()
                               
    
     # Smagorinsky constant CS
-    CS              = 1/3                  # CS ↑ = eddy viscosity ↑
+    CS              = 0.17 #1/3                  # CS ↑ = eddy viscosity ↑
 
     # Plot Requests (Flags)
     Plotvx = false;
@@ -361,7 +361,7 @@ function run_JuLattice()
     Log_Simulation_Start()
     
     ##-------- Logging into .CSV --------##
-    run_tag = "Re$(reynoldsNumber)_Ma$(Mach_Number)_dx$(delta_x)"
+    run_tag = "Re$(reynoldsNumber)_Ma$(Mach_Number)_dx$(delta_x)_CS$(CS)_CT$(C_T)"
 
     wake_csv_paths = ["simulation_data/wake_profil_$(lbl)_$(run_tag).csv" for lbl in probe_labels]
 
