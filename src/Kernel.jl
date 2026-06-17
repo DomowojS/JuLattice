@@ -39,14 +39,21 @@ const NQ   = 19
 #     f, fS, disc_nodes, F_x_lat
 # )
 
-# without rho
+# without rho with uniform u
+# function collision_stream!(
+#     gridlengthX::Int, gridlengthY::Int, gridlengthZ::Int,
+#     τ::Float64, CS::Float64, is_fluid,
+#     u, v, w,
+#     f, fS, disc_nodes, F_x_lat
+# )
+
+# with local u
 function collision_stream!(
     gridlengthX::Int, gridlengthY::Int, gridlengthZ::Int,
     τ::Float64, CS::Float64, is_fluid,
     u, v, w,
-    f, fS, disc_nodes, F_x_lat
+    f, fS, disc_nodes, C_T
 )
-
     # Iterate over all cells except boundary cells
     @inbounds Threads.@threads :static for z in 2:gridlengthZ-1
         for y in 2:gridlengthY-1
@@ -257,7 +264,11 @@ function collision_stream!(
                     (-fmm0 - fmp0 + fpm0 + fpp0) +
                     (-fm0m - fm0p + fp0m + fp0p)) * inv_rho
 
-        u_loc = u_loc + 0.5 * F_x_lat * inv_rho
+        u_loc_pre_force = u_loc
+
+        F_x_lat_local = -0.5 * C_T * (u_loc_pre_force * u_loc_pre_force)
+
+        u_loc = u_loc + 0.5 * F_x_lat_local * inv_rho
 
         v_loc = ((-f0m0 + f0p0) +
                     (-fmm0 + fmp0 - fpm0 + fpp0) +
@@ -360,19 +371,19 @@ function collision_stream!(
         w_face = 1.0 / 18.0
         # Fi calculation Krüger (6.14) S.236
         # +x
-        F_p00 = w_face * (3.0 * (1.0 - u_loc) + 9.0 * 1.0 * u_loc) * F_x_lat
+        F_p00 = w_face * (3.0 * (1.0 - u_loc) + 9.0 * 1.0 * u_loc) * F_x_lat_local 
 
-        F_pp0 = w_edge * (3.0 * (1.0 - u_loc) + 9.0 * 1.0 * (u_loc + v_loc)) * F_x_lat
-        F_pm0 = w_edge * (3.0 * (1.0 - u_loc) + 9.0 * 1.0 * (u_loc - v_loc)) * F_x_lat
-        F_p0p = w_edge * (3.0 * (1.0 - u_loc) + 9.0 * 1.0 * (u_loc + w_loc)) * F_x_lat
-        F_p0m = w_edge * (3.0 * (1.0 - u_loc) + 9.0 * 1.0 * (u_loc - w_loc)) * F_x_lat
+        F_pp0 = w_edge * (3.0 * (1.0 - u_loc) + 9.0 * 1.0 * (u_loc + v_loc)) * F_x_lat_local 
+        F_pm0 = w_edge * (3.0 * (1.0 - u_loc) + 9.0 * 1.0 * (u_loc - v_loc)) * F_x_lat_local 
+        F_p0p = w_edge * (3.0 * (1.0 - u_loc) + 9.0 * 1.0 * (u_loc + w_loc)) * F_x_lat_local 
+        F_p0m = w_edge * (3.0 * (1.0 - u_loc) + 9.0 * 1.0 * (u_loc - w_loc)) * F_x_lat_local 
         # -x
-        F_m00 = w_face * (3.0 * (-1.0 - u_loc) + 9.0 * (-1.0) * (-u_loc)) * F_x_lat
+        F_m00 = w_face * (3.0 * (-1.0 - u_loc) + 9.0 * (-1.0) * (-u_loc)) * F_x_lat_local 
 
-        F_mp0 = w_edge * (3.0 * (-1.0 - u_loc) + 9.0 * (-1.0) * (-u_loc + v_loc)) * F_x_lat
-        F_mm0 = w_edge * (3.0 * (-1.0 - u_loc) + 9.0 * (-1.0) * (-u_loc - v_loc)) * F_x_lat
-        F_m0p = w_edge * (3.0 * (-1.0 - u_loc) + 9.0 * (-1.0) * (-u_loc + w_loc)) * F_x_lat
-        F_m0m = w_edge * (3.0 * (-1.0 - u_loc) + 9.0 * (-1.0) * (-u_loc - w_loc)) * F_x_lat
+        F_mp0 = w_edge * (3.0 * (-1.0 - u_loc) + 9.0 * (-1.0) * (-u_loc + v_loc)) * F_x_lat_local 
+        F_mm0 = w_edge * (3.0 * (-1.0 - u_loc) + 9.0 * (-1.0) * (-u_loc - v_loc)) * F_x_lat_local 
+        F_m0p = w_edge * (3.0 * (-1.0 - u_loc) + 9.0 * (-1.0) * (-u_loc + w_loc)) * F_x_lat_local 
+        F_m0m = w_edge * (3.0 * (-1.0 - u_loc) + 9.0 * (-1.0) * (-u_loc - w_loc)) * F_x_lat_local 
 
         fS[Q000, x,   y,   z  ] = f000 - omega_local * (-feq000 + f000)
         fS[QP00, x+1, y,   z  ] = fp00 - omega_local * (-feqp00 + fp00) + force_factor * F_p00

@@ -1,0 +1,27 @@
+﻿**********************
+nStart der Windows PowerShell-Aufzeichnung
+Startzeit: 20260617133741
+Benutzername: LAPTÖP\User
+RunAs-Benutzer: LAPTÖP\User
+Konfigurationsname: 
+Computer: LAPTÖP (Microsoft Windows NT 10.0.26200.0)
+Hostanwendung: C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe -noexit -command try { . "c:\Users\User\AppData\Local\Programs\Microsoft VS Code\6928394f91\resources\app\out\vs\workbench\contrib\terminal\common\scripts\shellIntegration.ps1" } catch {}
+Prozess-ID: 3948
+PSVersion: 5.1.26100.8655
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.8655
+BuildVersion: 10.0.26100.8655
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+Die Aufzeichnung wurde gestartet. Die Ausgabedatei ist "gridStudy2_Ddx8_Re2760_Ma0.1_Ct0.65".
+
+[1/5] Starting: gridStudy2_Ddx8_Re2760_Ma0.1_Ct0.65  |  2026-06-17 13:37:41
+
+[1/5] Done (exit code 1) in 00:00:03  |  2026-06-17 13:37:45
+**********************
+Ende der Windows PowerShell-Aufzeichnung
+Endzeit: 20260617133745
+**********************
