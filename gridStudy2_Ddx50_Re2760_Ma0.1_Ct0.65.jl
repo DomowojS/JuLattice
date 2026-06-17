@@ -20,6 +20,11 @@ function run_JuLattice()
     D = 0.05        # diameter
     C_T = 0.65 #S67 Rotor      # thrust coefficient
 
+    # convert global C_T to local C_T from 1D momentum theory
+    # C_T = 4a(1-a) => a = (1- sqrt(1-C_T)) / 2
+    a = (1.0 - sqrt(1.0 - C_T)) / 2.0
+    C_T_local = C_T / (1.0 - a)^2
+    println("C_T = $(C_T) | C_T_local = $(C_T_local)")
 
      # Domainsize from cylinder validation
     length_X = 17.5 * D   
@@ -28,7 +33,7 @@ function run_JuLattice()
 
     # Grid spacing (physical units per lattice unit)
     # value from grid independence study
-    delta_x         = 0.003571  #0.00092 
+    delta_x         = 0.00092  #0.00092 
 
     # Fluid Settings 
     Kinematic_Viscosity = 1e-6                                       # m^2/s 
@@ -42,7 +47,7 @@ function run_JuLattice()
                               
    
     # Smagorinsky constant CS
-    CS              = 0.17 #1/3                  # CS ↑ = eddy viscosity ↑
+    CS              = 1/3                  # CS ↑ = eddy viscosity ↑
 
     # Plot Requests (Flags)
     Plotvx = false;
@@ -63,8 +68,10 @@ function run_JuLattice()
     τ       = lattice_viscosity / (lattice_speedOfSound * lattice_speedOfSound) + 0.5
     omega   = 1.0 / τ
 
+    
+
     # force Fx in stream direction
-    F_x_lat = -0.5 * C_T * (lattice_inflow_velocity^2)
+    # F_x_lat = -0.5 * C_T * (lattice_inflow_velocity^2)
 
     fluiddensity = 1.0 # lattice units
     simulationTime = ceil(Int, Simulation_Time / delta_t);  #lattice units
@@ -168,17 +175,6 @@ function run_JuLattice()
     is_fluid[2:gridlengthX-1, 2:gridlengthY-1, 2:gridlengthZ-1] .= true
 
     disc_nodes = findall(is_disc)
-
-    # DEBUG
-    n_disc_nodes    = length(disc_nodes)
-    A_disc_lat      = π * disc_radius^2
-    F_total_applied = abs(F_x_lat) * n_disc_nodes
-    F_total_theory  = 0.5 * C_T * fluiddensity * lattice_inflow_velocity^2 * A_disc_lat
-    ratio           = F_total_applied / F_total_theory
-    println("  F_applied (lat): $(round(F_total_applied, sigdigits=4))")
-    println("  F_theory  (lat): $(round(F_total_theory,  sigdigits=4))")
-    println("  Ratio:           $(round(ratio, digits=4))  $(abs(ratio-1) < 0.05 ? "✓ OK" : "⚠ CHECK")")
-    # DEBUG
 
     for idx in disc_nodes
         is_fluid[idx] = false
@@ -361,7 +357,7 @@ function run_JuLattice()
     Log_Simulation_Start()
     
     ##-------- Logging into .CSV --------##
-    run_tag = "Re$(reynoldsNumber)_Ma$(Mach_Number)_dx$(delta_x)_CS$(CS)_CT$(C_T)"
+    run_tag = "Re$(reynoldsNumber)_Ma$(Mach_Number)_dx$(delta_x)"
 
     wake_csv_paths = ["simulation_data/wake_profil_$(lbl)_$(run_tag).csv" for lbl in probe_labels]
 
@@ -422,14 +418,20 @@ function run_JuLattice()
             #     rho, u, v, w,
             #     f, fS, disc_nodes, F_x_lat
             # )        
-        # without rho
-            collision_stream!(
-                gridlengthX, gridlengthY, gridlengthZ, τ, CS, is_fluid,
-                u, v, w,
-                f, fS, disc_nodes, F_x_lat
-            )        
+        # # without rho global u
+        #     collision_stream!(
+        #         gridlengthX, gridlengthY, gridlengthZ, τ, CS, is_fluid,
+        #         u, v, w,
+        #         f, fS, disc_nodes, F_x_lat
+        #     )        
     
-            
+        # local u
+        collision_stream!(
+            gridlengthX, gridlengthY, gridlengthZ, τ, CS, is_fluid,
+            u, v, w,
+            f, fS, disc_nodes, C_T_local
+        )        
+        
         ##-------- free slip walls --------##
         # y-faces (front+back) in one barrier, z-faces (bot+top) in another.
         # y-faces and z-faces stay sequential to avoid corner node conflicts.

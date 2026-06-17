@@ -1,3 +1,7 @@
+# Startup: 
+#   Start-Process powershell -ArgumentList "-File .\run_gridStudy_disc.ps1" -WindowStyle Normal
+
+
 $mutex = [System.Threading.Mutex]::new($false, "JuLattice_queue")
 if (-not $mutex.WaitOne(0)) {
     Write-Host "ERROR: Another queue instance is already running. Exiting." -ForegroundColor Red
@@ -12,12 +16,11 @@ $threads = 16
 $env:JULIA_EXCLUSIVE = "1"
 
 $runfiles = @(
-    "runfile_disc_gridStudyDdx=8.jl",
-    "runfile_disc_gridStudyDdx=10.jl",
-    "runfile_disc_gridStudyDdx=14.jl",
-    "runfile_disc_gridStudyDdx=20.jl",
-    "runfile_disc_gridStudyDdx=27.jl",
-    "runfile_disc_gridStudyDdx=40.jl"
+    "gridStudy2_Ddx8_Re2760_Ma0.1_Ct0.65",
+    "gridStudy2_Ddx10_Re2760_Ma0.1_Ct0.65",
+    "gridStudy2_Ddx14_Re2760_Ma0.1_Ct0.65",
+    "gridStudy2_Ddx20_Re2760_Ma0.1_Ct0.65",
+    "gridStudy2_Ddx27_Re2760_Ma0.1_Ct0.65"
 )
 
 Write-Host "================================" -ForegroundColor Cyan
