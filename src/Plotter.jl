@@ -1,7 +1,10 @@
 module Plotter
-using GLMakie
 using Colors
 using ColorSchemes
+
+if get(ENV, "ENABLE_PLOTTING", "0") == "1"
+    using GLMakie
+end
 
 export Create_Plot_XY, Create_Plot_XZ, Create_Vorticity_XY, Create_Vorticity_XZ,
        Create_Vorticity_Mag_XY, Create_Vorticity_Mag_XZ,
