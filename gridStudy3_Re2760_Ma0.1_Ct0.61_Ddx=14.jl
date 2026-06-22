@@ -8,10 +8,13 @@ include("src/Kernel.jl")
 
 
 using JLD2          # for saving last plot (cross-version compatible)
-using MeshGrid, GLMakie
+using MeshGrid
 using .Plotter, .Logger
 using .TurbulenceModel 
 using .Kernel
+if get(ENV, "ENABLE_PLOTTING", "0") == "1"
+    using GLMakie
+end
 
 function run_JuLattice()
     ####################################  Initialize  ####################################
@@ -50,8 +53,10 @@ function run_JuLattice()
     CS              = 1/3                  # CS ↑ = eddy viscosity ↑
 
     # Plot Requests (Flags)
+    # Live plotting only when ENABLE_PLOTTING=1 (else headless; snapshots are saved for later replot)
+    _plotting = get(ENV, "ENABLE_PLOTTING", "0") == "1"
     Plotvx = false;
-    Plotmag = true;
+    Plotmag = _plotting;
     Plotdebug = false;
     Plotvorticity = false;
     vorticity_mode = :component # :component (ω_z / ω_y)   or   :magnitude (|ω|)
