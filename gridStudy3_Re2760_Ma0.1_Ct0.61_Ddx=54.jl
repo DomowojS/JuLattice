@@ -610,14 +610,14 @@ function run_JuLattice()
             Log_Simulation_Runtime(i, simulationTime)
             println("MNUPS: $(round(mnups, digits=2))")
 
-            F_total = 0.0
-            for idx in disc_nodes
-                u_disc = u[idx]
-                F_total += -0.5 * C_T_local * (u_disc * u_disc)
-            end
-            A_disc = Float64(length(disc_nodes))
-            C_T_check = abs(F_total) / (0.5 * A_disc * lattice_inflow_velocity^2)
-            println("C_T target: $(round(C_T, digits=4)) | C_T_local: $(round(C_T_local, digits=4)) | C_T_eff: $(round(C_T_check, digits=4)) | ratio C_T_eff/C_T: $(round(C_T_check/C_T, digits=3))")
+            # F_total = 0.0
+            # for idx in disc_nodes
+            #     u_disc = u[idx]
+            #     F_total += -0.5 * C_T_local * (u_disc * u_disc)
+            # end
+            # A_disc = Float64(length(disc_nodes))
+            # C_T_check = abs(F_total) / (0.5 * A_disc * lattice_inflow_velocity^2)
+            # println("C_T target: $(round(C_T, digits=4)) | C_T_local: $(round(C_T_local, digits=4)) | C_T_eff: $(round(C_T_check, digits=4)) | ratio C_T_eff/C_T: $(round(C_T_check/C_T, digits=3))")
         
         end
 
