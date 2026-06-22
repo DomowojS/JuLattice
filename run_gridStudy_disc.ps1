@@ -16,8 +16,10 @@ $threads = 16
 $env:JULIA_EXCLUSIVE = "1"
 
 $runfiles = @(
-    "gridStudy2_Ddx20_Re2760_Ma0.1_Ct0.65.jl",
-    "gridStudy2_Ddx27_Re2760_Ma0.1_Ct0.65.jl"
+    "gridStudy3_Re2760_Ma0.1_Ct0.61_Ddx=10.jl",
+    "gridStudy3_Re2760_Ma0.1_Ct0.61_Ddx=14.jl",
+    "gridStudy3_Re2760_Ma0.1_Ct0.61_Ddx=20.jl",
+    "gridStudy3_Re2760_Ma0.1_Ct0.61_Ddx=27.jl"
 )
 
 Write-Host "================================" -ForegroundColor Cyan

@@ -20,14 +20,17 @@ echo "================================"
 
 
 
-echo "[1/2] Starting: Grid Study D/dx=40"
-JULIA_EXCLUSIVE=1 stdbuf -oL julia --project=$PROJECT -t $THREADS gridStudy2_Ddx40_Re2760_Ma0.1_Ct0.65.jl
-echo "[1/2] Done (exit code $?): $(date)"
+echo "[1/3] Starting: Grid Study D/dx=40"
+JULIA_EXCLUSIVE=1 stdbuf -oL julia --project=$PROJECT -t $THREADS gridStudy3_Re2760_Ma0.1_Ct0.61_Ddx=40.jl
+echo "[1/3] Done (exit code $?): $(date)"
 
-echo "[2/2] Starting: Grid Study D/dx=50"
-JULIA_EXCLUSIVE=1 stdbuf -oL julia --project=$PROJECT -t $THREADS gridStudy2_Ddx50_Re2760_Ma0.1_Ct0.65.jl
-echo "[2/2] Done (exit code $?): $(date)"
+echo "[2/3] Starting: Grid Study D/dx=54"
+JULIA_EXCLUSIVE=1 stdbuf -oL julia --project=$PROJECT -t $THREADS gridStudy3_Re2760_Ma0.1_Ct0.61_Ddx=54.jl
+echo "[2/3] Done (exit code $?): $(date)"
 
+echo "[3/3] Starting: Grid Study D/dx=70"
+JULIA_EXCLUSIVE=1 stdbuf -oL julia --project=$PROJECT -t $THREADS gridStudy3_Re2760_Ma0.1_Ct0.61_Ddx=70.jl
+echo "[3/3] Done (exit code $?): $(date)"
 
 
 echo "================================="

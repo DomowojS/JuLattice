@@ -18,7 +18,7 @@ function run_JuLattice()
     ##-------- User Settings --------##
     # Disc parameters
     D = 0.05        # diameter
-    C_T = 0.65 #S67 Rotor      # thrust coefficient
+    C_T = 0.61 #0.65 #S67 Rotor      # thrust coefficient
 
     # convert global C_T to local C_T from 1D momentum theory
     # C_T = 4a(1-a) => a = (1- sqrt(1-C_T)) / 2
@@ -33,7 +33,7 @@ function run_JuLattice()
 
     # Grid spacing (physical units per lattice unit)
     # value from grid independence study
-    delta_x         = 0.00092  #0.00092 
+    delta_x         = 0.005  #0.00092 
 
     # Fluid Settings 
     Kinematic_Viscosity = 1e-6                                       # m^2/s 
@@ -106,8 +106,8 @@ function run_JuLattice()
 
     ##-------- Probe Setup --------## 
     D_lat   = Int(round(D / delta_x))
-    probe_labels    = ["2D", "4D", "7D", "10D"]
-    probe_xs        = [disc_x + 2*D_lat, disc_x + 4*D_lat, disc_x + 7*D_lat,  disc_x + 10*D_lat]
+    probe_labels    = ["2D", "4D", "6D", "8D", "10D"]
+    probe_xs        = [disc_x + 2*D_lat, disc_x + 4*D_lat, disc_x + 6*D_lat, disc_x + 8*D_lat, disc_x + 10*D_lat]
     n_probes        = length(probe_xs)
     probe_z         = midZ
     probe_ys        = collect(2:gridlengthY-1)
@@ -609,7 +609,19 @@ function run_JuLattice()
         if (i % 100 == 0) || (i == simulationTime)
             Log_Simulation_Runtime(i, simulationTime)
             println("MNUPS: $(round(mnups, digits=2))")
+
+            F_total = 0.0
+            for idx in disc_nodes
+                u_disc = u[idx]
+                F_total += -0.5 * C_T_local * (u_disc * u_disc)
+            end
+            A_disc = Float64(length(disc_nodes))
+            C_T_check = abs(F_total) / (0.5 * A_disc * lattice_inflow_velocity^2)
+            println("C_T target: $(round(C_T, digits=4)) | C_T_local: $(round(C_T_local, digits=4)) | C_T_eff: $(round(C_T_check, digits=4)) | ratio C_T_eff/C_T: $(round(C_T_check/C_T, digits=3))")
+        
         end
+
+        
 
         # Plot of the field
         if any((Plotvx, Plotdebug, Plotmag, Plotvorticity)) && ((i % 100 == 0) || (i == simulationTime))
