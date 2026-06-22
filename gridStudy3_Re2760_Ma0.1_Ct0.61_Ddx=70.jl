@@ -9,8 +9,7 @@ include("src/Kernel.jl")
 
 using JLD2          # for saving last plot (cross-version compatible)
 using MeshGrid, GLMakie
-#using .Plotter, 
-using .Logger
+using .Plotter, .Logger
 using .TurbulenceModel 
 using .Kernel
 
@@ -19,8 +18,13 @@ function run_JuLattice()
     ##-------- User Settings --------##
     # Disc parameters
     D = 0.05        # diameter
-    C_T = 0.65 #S67 Rotor      # thrust coefficient
+    C_T = 0.61 #0.65 #S67 Rotor      # thrust coefficient
 
+    # convert global C_T to local C_T from 1D momentum theory
+    # C_T = 4a(1-a) => a = (1- sqrt(1-C_T)) / 2
+    a = (1.0 - sqrt(1.0 - C_T)) / 2.0
+    C_T_local = C_T / (1.0 - a)^2
+    println("C_T = $(C_T) | C_T_local = $(C_T_local)")
 
      # Domainsize from cylinder validation
     length_X = 17.5 * D   
@@ -29,7 +33,7 @@ function run_JuLattice()
 
     # Grid spacing (physical units per lattice unit)
     # value from grid independence study
-    delta_x         = 0.003571  #0.00092 
+    delta_x         = 0.005  #0.00092 
 
     # Fluid Settings 
     Kinematic_Viscosity = 1e-6                                       # m^2/s 
@@ -47,7 +51,7 @@ function run_JuLattice()
 
     # Plot Requests (Flags)
     Plotvx = false;
-    Plotmag = false;
+    Plotmag = true;
     Plotdebug = false;
     Plotvorticity = false;
     vorticity_mode = :component # :component (ω_z / ω_y)   or   :magnitude (|ω|)
@@ -64,8 +68,10 @@ function run_JuLattice()
     τ       = lattice_viscosity / (lattice_speedOfSound * lattice_speedOfSound) + 0.5
     omega   = 1.0 / τ
 
+    
+
     # force Fx in stream direction
-    F_x_lat = -0.5 * C_T * (lattice_inflow_velocity^2)
+    # F_x_lat = -0.5 * C_T * (lattice_inflow_velocity^2)
 
     fluiddensity = 1.0 # lattice units
     simulationTime = ceil(Int, Simulation_Time / delta_t);  #lattice units
@@ -100,8 +106,8 @@ function run_JuLattice()
 
     ##-------- Probe Setup --------## 
     D_lat   = Int(round(D / delta_x))
-    probe_labels    = ["2D", "4D", "7D", "10D"]
-    probe_xs        = [disc_x + 2*D_lat, disc_x + 4*D_lat, disc_x + 7*D_lat,  disc_x + 10*D_lat]
+    probe_labels    = ["2D", "4D", "6D", "8D", "10D"]
+    probe_xs        = [disc_x + 2*D_lat, disc_x + 4*D_lat, disc_x + 6*D_lat, disc_x + 8*D_lat, disc_x + 10*D_lat]
     n_probes        = length(probe_xs)
     probe_z         = midZ
     probe_ys        = collect(2:gridlengthY-1)
@@ -412,14 +418,20 @@ function run_JuLattice()
             #     rho, u, v, w,
             #     f, fS, disc_nodes, F_x_lat
             # )        
-        # without rho
-            collision_stream!(
-                gridlengthX, gridlengthY, gridlengthZ, τ, CS, is_fluid,
-                u, v, w,
-                f, fS, disc_nodes, F_x_lat
-            )        
+        # # without rho global u
+        #     collision_stream!(
+        #         gridlengthX, gridlengthY, gridlengthZ, τ, CS, is_fluid,
+        #         u, v, w,
+        #         f, fS, disc_nodes, F_x_lat
+        #     )        
     
-            
+        # local u
+        collision_stream!(
+            gridlengthX, gridlengthY, gridlengthZ, τ, CS, is_fluid,
+            u, v, w,
+            f, fS, disc_nodes, C_T_local
+        )        
+        
         ##-------- free slip walls --------##
         # y-faces (front+back) in one barrier, z-faces (bot+top) in another.
         # y-faces and z-faces stay sequential to avoid corner node conflicts.
@@ -597,7 +609,19 @@ function run_JuLattice()
         if (i % 100 == 0) || (i == simulationTime)
             Log_Simulation_Runtime(i, simulationTime)
             println("MNUPS: $(round(mnups, digits=2))")
+
+            # F_total = 0.0
+            # for idx in disc_nodes
+            #     u_disc = u[idx]
+            #     F_total += -0.5 * C_T_local * (u_disc * u_disc)
+            # end
+            # A_disc = Float64(length(disc_nodes))
+            # C_T_check = abs(F_total) / (0.5 * A_disc * lattice_inflow_velocity^2)
+            # println("C_T target: $(round(C_T, digits=4)) | C_T_local: $(round(C_T_local, digits=4)) | C_T_eff: $(round(C_T_check, digits=4)) | ratio C_T_eff/C_T: $(round(C_T_check/C_T, digits=3))")
+        
         end
+
+        
 
         # Plot of the field
         if any((Plotvx, Plotdebug, Plotmag, Plotvorticity)) && ((i % 100 == 0) || (i == simulationTime))
@@ -674,23 +698,6 @@ function run_JuLattice()
     end
 
     Log_Simulation_Tail()
-
-    # Compute fields for snapshot
-    velocityX .= u
-    @. velocityMag = sqrt(u^2 + v^2 + w^2)
-    @inbounds for idx in disc_nodes
-        velocityMag[idx] = NaN
-        velocityX[idx]   = NaN
-    end
-    # vorticity
-    @inbounds for z in 2:gridlengthZ-1, y in 2:gridlengthY-1, x in 2:gridlengthX-1
-        if is_solid[x,y,z]
-            vortZ[x,y,z] = NaN; vortY[x,y,z] = NaN
-        else
-            vortZ[x,y,z] = (v[x+1,y,z] - v[x-1,y,z]) * 0.5 - (u[x,y+1,z] - u[x,y-1,z]) * 0.5
-            vortY[x,y,z] = (u[x,y,z+1] - u[x,y,z-1]) * 0.5 - (w[x+1,y,z] - w[x-1,y,z]) * 0.5
-        end
-    end
 
     # save last plot for post processing
     snapshot_path = "visualization/snapshot_$(run_tag).jld2"

@@ -265,6 +265,7 @@ function collision_stream!(
                     (-fm0m - fm0p + fp0m + fp0p)) * inv_rho
 
         u_loc_pre_force = u_loc
+        u[x,y,z] = u_loc_pre_force
 
         F_x_lat_local = -0.5 * C_T * (u_loc_pre_force * u_loc_pre_force)
 

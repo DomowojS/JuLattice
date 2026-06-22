@@ -8,9 +8,8 @@ include("src/Kernel.jl")
 
 
 using JLD2          # for saving last plot (cross-version compatible)
-using MeshGrid, GLMakie
-#using .Plotter, 
-using .Logger
+using MeshGrid#, GLMakie
+using .Plotter, .Logger
 using .TurbulenceModel 
 using .Kernel
 
@@ -19,8 +18,13 @@ function run_JuLattice()
     ##-------- User Settings --------##
     # Disc parameters
     D = 0.05        # diameter
-    C_T = 0.65 #S67 Rotor      # thrust coefficient
+    C_T = 0.61 #0.65 #S67 Rotor      # thrust coefficient
 
+    # convert global C_T to local C_T from 1D momentum theory
+    # C_T = 4a(1-a) => a = (1- sqrt(1-C_T)) / 2
+    a = (1.0 - sqrt(1.0 - C_T)) / 2.0
+    C_T_local = C_T / (1.0 - a)^2
+    println("C_T = $(C_T) | C_T_local = $(C_T_local)")
 
      # Domainsize from cylinder validation
     length_X = 17.5 * D   
@@ -29,7 +33,7 @@ function run_JuLattice()
 
     # Grid spacing (physical units per lattice unit)
     # value from grid independence study
-    delta_x         = 0.00092  #0.00092 
+    delta_x         = 0.005  #0.00092 
 
     # Fluid Settings 
     Kinematic_Viscosity = 1e-6                                       # m^2/s 
@@ -64,8 +68,10 @@ function run_JuLattice()
     τ       = lattice_viscosity / (lattice_speedOfSound * lattice_speedOfSound) + 0.5
     omega   = 1.0 / τ
 
+    
+
     # force Fx in stream direction
-    F_x_lat = -0.5 * C_T * (lattice_inflow_velocity^2)
+    # F_x_lat = -0.5 * C_T * (lattice_inflow_velocity^2)
 
     fluiddensity = 1.0 # lattice units
     simulationTime = ceil(Int, Simulation_Time / delta_t);  #lattice units
@@ -100,8 +106,8 @@ function run_JuLattice()
 
     ##-------- Probe Setup --------## 
     D_lat   = Int(round(D / delta_x))
-    probe_labels    = ["2D", "4D", "7D", "10D"]
-    probe_xs        = [disc_x + 2*D_lat, disc_x + 4*D_lat, disc_x + 7*D_lat,  disc_x + 10*D_lat]
+    probe_labels    = ["2D", "4D", "6D", "8D", "10D"]
+    probe_xs        = [disc_x + 2*D_lat, disc_x + 4*D_lat, disc_x + 6*D_lat, disc_x + 8*D_lat, disc_x + 10*D_lat]
     n_probes        = length(probe_xs)
     probe_z         = midZ
     probe_ys        = collect(2:gridlengthY-1)
@@ -226,47 +232,18 @@ function run_JuLattice()
     # f[QM0M], f[QM0P], f[QP0M], f[QP0P] = xz-plane edges
     # f[Q0MM], f[Q0MP], f[Q0PM], f[Q0PP] = yz-plane edges
 
-    # f  = pre-collision populations; fS = post-collision push target
-    # undef + parallel first-touch: each thread touches its own z-slice so Linux
-    # places those pages on the local NUMA node, matching the collision_stream! access pattern.
-    f  = Array{Float64}(undef, NQ, gridlengthX, gridlengthY, gridlengthZ)
-    fS = Array{Float64}(undef, NQ, gridlengthX, gridlengthY, gridlengthZ)
-    Threads.@threads for z in 1:gridlengthZ
-        for y in 1:gridlengthY, x in 1:gridlengthX
-            @inbounds for q in 1:NQ
-                f[q,x,y,z]  = 0.0
-                fS[q,x,y,z] = 0.0
-            end
-        end
-    end
+    f  = zeros(NQ, gridlengthX, gridlengthY, gridlengthZ)
+    fS = zeros(NQ, gridlengthX, gridlengthY, gridlengthZ)
 
-    # Initialise macroscopic variables — same first-touch pattern
-    # rho        = Array{Float64}(undef, gridlengthX, gridlengthY, gridlengthZ)
-    u          = Array{Float64}(undef, gridlengthX, gridlengthY, gridlengthZ)
-    v          = Array{Float64}(undef, gridlengthX, gridlengthY, gridlengthZ)
-    w          = Array{Float64}(undef, gridlengthX, gridlengthY, gridlengthZ)
-    velocityX   = Array{Float64}(undef, gridlengthX, gridlengthY, gridlengthZ)
-    velocityY   = Array{Float64}(undef, gridlengthX, gridlengthY, gridlengthZ)
-    velocityZ   = Array{Float64}(undef, gridlengthX, gridlengthY, gridlengthZ)
-    velocityMag = Array{Float64}(undef, gridlengthX, gridlengthY, gridlengthZ)
-    vortZ       = Array{Float64}(undef, gridlengthX, gridlengthY, gridlengthZ)
-    vortY       = Array{Float64}(undef, gridlengthX, gridlengthY, gridlengthZ)
-    Threads.@threads for z in 1:gridlengthZ
-        for y in 1:gridlengthY, x in 1:gridlengthX
-            @inbounds begin
-                # rho[x,y,z]        = 1.0
-                u[x,y,z]          = 0.0
-                v[x,y,z]          = 0.0
-                w[x,y,z]          = 0.0
-                velocityX[x,y,z]  = 0.0
-                velocityY[x,y,z]  = 0.0
-                velocityZ[x,y,z]  = 0.0
-                velocityMag[x,y,z] = 0.0
-                vortZ[x,y,z]      = 0.0
-                vortY[x,y,z]      = 0.0
-            end
-        end
-    end
+    u          = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    v          = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    w          = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    velocityX   = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    velocityY   = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    velocityZ   = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    velocityMag = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    vortZ       = zeros(gridlengthX, gridlengthY, gridlengthZ)
+    vortY       = zeros(gridlengthX, gridlengthY, gridlengthZ)
 
     ##--------  Initialize distribution functions FLUID NODES and SOLID NODES  --------##
     for z in 1:gridlengthZ
@@ -412,56 +389,52 @@ function run_JuLattice()
             #     rho, u, v, w,
             #     f, fS, disc_nodes, F_x_lat
             # )        
-        # without rho
-            collision_stream!(
-                gridlengthX, gridlengthY, gridlengthZ, τ, CS, is_fluid,
-                u, v, w,
-                f, fS, disc_nodes, F_x_lat
-            )        
+        # # without rho global u
+        #     collision_stream!(
+        #         gridlengthX, gridlengthY, gridlengthZ, τ, CS, is_fluid,
+        #         u, v, w,
+        #         f, fS, disc_nodes, F_x_lat
+        #     )        
     
-            
+        # local u
+        collision_stream!(
+            gridlengthX, gridlengthY, gridlengthZ, τ, CS, is_fluid,
+            u, v, w,
+            f, fS, disc_nodes, C_T_local
+        )        
+        
         ##-------- free slip walls --------##
-        # y-faces (front+back) in one barrier, z-faces (bot+top) in another.
-        # y-faces and z-faces stay sequential to avoid corner node conflicts.
-        let nf = length(wall_front_x), nb = length(wall_back_x)
-            @inbounds Threads.@threads :static for i in 1:(nf + nb)
-                if i <= nf
-                    x = wall_front_x[i]; z = wall_front_z[i]
-                    fS[Q0P0, x, 2, z] = fS[Q0M0, x, 1, z]
-                    fS[QMP0, x, 2, z] = fS[QMM0, x, 1, z]
-                    fS[QPP0, x, 2, z] = fS[QPM0, x, 1, z]
-                    fS[Q0PM, x, 2, z] = fS[Q0MM, x, 1, z]
-                    fS[Q0PP, x, 2, z] = fS[Q0MP, x, 1, z]
-                else
-                    j = i - nf
-                    x = wall_back_x[j]; z = wall_back_z[j]
-                    fS[Q0M0, x, gridlengthY-1, z] = fS[Q0P0, x, gridlengthY, z]
-                    fS[QMM0, x, gridlengthY-1, z] = fS[QMP0, x, gridlengthY, z]
-                    fS[QPM0, x, gridlengthY-1, z] = fS[QPP0, x, gridlengthY, z]
-                    fS[Q0MM, x, gridlengthY-1, z] = fS[Q0PM, x, gridlengthY, z]
-                    fS[Q0MP, x, gridlengthY-1, z] = fS[Q0PP, x, gridlengthY, z]
-                end
-            end
+        @inbounds for i in eachindex(wall_front_x)
+            x = wall_front_x[i]; z = wall_front_z[i]
+            fS[Q0P0, x, 2, z] = fS[Q0M0, x, 1, z]
+            fS[QMP0, x, 2, z] = fS[QMM0, x, 1, z]
+            fS[QPP0, x, 2, z] = fS[QPM0, x, 1, z]
+            fS[Q0PM, x, 2, z] = fS[Q0MM, x, 1, z]
+            fS[Q0PP, x, 2, z] = fS[Q0MP, x, 1, z]
         end
-        let nbot = length(wall_bot_x), ntop = length(wall_top_x)
-            @inbounds Threads.@threads :static for i in 1:(nbot + ntop)
-                if i <= nbot
-                    x = wall_bot_x[i]; y = wall_bot_y[i]
-                    fS[Q00P, x, y, 2] = fS[Q00M, x, y, 1]
-                    fS[QP0P, x, y, 2] = fS[QP0M, x, y, 1]
-                    fS[QM0P, x, y, 2] = fS[QM0M, x, y, 1]
-                    fS[Q0PP, x, y, 2] = fS[Q0PM, x, y, 1]
-                    fS[Q0MP, x, y, 2] = fS[Q0MM, x, y, 1]
-                else
-                    j = i - nbot
-                    x = wall_top_x[j]; y = wall_top_y[j]
-                    fS[Q00M, x, y, gridlengthZ-1] = fS[Q00P, x, y, gridlengthZ]
-                    fS[QP0M, x, y, gridlengthZ-1] = fS[QP0P, x, y, gridlengthZ]
-                    fS[QM0M, x, y, gridlengthZ-1] = fS[QM0P, x, y, gridlengthZ]
-                    fS[Q0PM, x, y, gridlengthZ-1] = fS[Q0PP, x, y, gridlengthZ]
-                    fS[Q0MM, x, y, gridlengthZ-1] = fS[Q0MP, x, y, gridlengthZ]
-                end
-            end
+        @inbounds for i in eachindex(wall_back_x)
+            x = wall_back_x[i]; z = wall_back_z[i]
+            fS[Q0M0, x, gridlengthY-1, z] = fS[Q0P0, x, gridlengthY, z]
+            fS[QMM0, x, gridlengthY-1, z] = fS[QMP0, x, gridlengthY, z]
+            fS[QPM0, x, gridlengthY-1, z] = fS[QPP0, x, gridlengthY, z]
+            fS[Q0MM, x, gridlengthY-1, z] = fS[Q0PM, x, gridlengthY, z]
+            fS[Q0MP, x, gridlengthY-1, z] = fS[Q0PP, x, gridlengthY, z]
+        end
+        @inbounds for i in eachindex(wall_bot_x)
+            x = wall_bot_x[i]; y = wall_bot_y[i]
+            fS[Q00P, x, y, 2] = fS[Q00M, x, y, 1]
+            fS[QP0P, x, y, 2] = fS[QP0M, x, y, 1]
+            fS[QM0P, x, y, 2] = fS[QM0M, x, y, 1]
+            fS[Q0PP, x, y, 2] = fS[Q0PM, x, y, 1]
+            fS[Q0MP, x, y, 2] = fS[Q0MM, x, y, 1]
+        end
+        @inbounds for i in eachindex(wall_top_x)
+            x = wall_top_x[i]; y = wall_top_y[i]
+            fS[Q00M, x, y, gridlengthZ-1] = fS[Q00P, x, y, gridlengthZ]
+            fS[QP0M, x, y, gridlengthZ-1] = fS[QP0P, x, y, gridlengthZ]
+            fS[QM0M, x, y, gridlengthZ-1] = fS[QM0P, x, y, gridlengthZ]
+            fS[Q0PM, x, y, gridlengthZ-1] = fS[Q0PP, x, y, gridlengthZ]
+            fS[Q0MM, x, y, gridlengthZ-1] = fS[Q0MP, x, y, gridlengthZ]
         end
 
         # Corner handling: free slip corners get noslip bounceback values
@@ -597,7 +570,19 @@ function run_JuLattice()
         if (i % 100 == 0) || (i == simulationTime)
             Log_Simulation_Runtime(i, simulationTime)
             println("MNUPS: $(round(mnups, digits=2))")
+
+            F_total = 0.0
+            for idx in disc_nodes
+                u_disc = u[idx]
+                F_total += -0.5 * C_T_local * (u_disc * u_disc)
+            end
+            A_disc = Float64(length(disc_nodes))
+            C_T_check = abs(F_total) / (0.5 * A_disc * lattice_inflow_velocity^2)
+            println("C_T target: $(round(C_T, digits=4)) | C_T_local: $(round(C_T_local, digits=4)) | C_T_eff: $(round(C_T_check, digits=4)) | ratio C_T_eff/C_T: $(round(C_T_check/C_T, digits=3))")
+        
         end
+
+        
 
         # Plot of the field
         if any((Plotvx, Plotdebug, Plotmag, Plotvorticity)) && ((i % 100 == 0) || (i == simulationTime))
