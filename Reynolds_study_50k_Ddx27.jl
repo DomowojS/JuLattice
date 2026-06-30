@@ -33,11 +33,11 @@ function run_JuLattice()
 
     # Grid spacing (physical units per lattice unit)
     # value from grid independence study
-    delta_x         = 0.000714  #0.00092 
+    delta_x         = 0.00185 #0.00092 
 
     # Fluid Settings 
     Kinematic_Viscosity = 1e-6                                       # m^2/s 
-    reynoldsNumber =   2760 #2760                                    # Target Reynolds number
+    reynoldsNumber =   50000 #2760                                    # Target Reynolds number
     Mach_Number = 0.1 # 0.05                                         # Target Mach number (Ma = U_lattice/c_s)
                                                                      # Keep Ma < 0.1 for incompressible flow!
 

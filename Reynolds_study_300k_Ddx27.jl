@@ -8,13 +8,10 @@ include("src/Kernel.jl")
 
 
 using JLD2          # for saving last plot (cross-version compatible)
-using MeshGrid
+using MeshGrid, GLMakie
 using .Plotter, .Logger
 using .TurbulenceModel 
 using .Kernel
-if get(ENV, "ENABLE_PLOTTING", "0") == "1"
-    using GLMakie
-end
 
 function run_JuLattice()
     ####################################  Initialize  ####################################
@@ -36,11 +33,11 @@ function run_JuLattice()
 
     # Grid spacing (physical units per lattice unit)
     # value from grid independence study
-    delta_x         = 0.005  #0.00092 
+    delta_x         = 0.00185 #0.00092 
 
     # Fluid Settings 
     Kinematic_Viscosity = 1e-6                                       # m^2/s 
-    reynoldsNumber =   2760 #2760                                    # Target Reynolds number
+    reynoldsNumber =   300000 #2760                                    # Target Reynolds number
     Mach_Number = 0.1 # 0.05                                         # Target Mach number (Ma = U_lattice/c_s)
                                                                      # Keep Ma < 0.1 for incompressible flow!
 
@@ -53,10 +50,8 @@ function run_JuLattice()
     CS              = 1/3                  # CS ↑ = eddy viscosity ↑
 
     # Plot Requests (Flags)
-    # Live plotting only when ENABLE_PLOTTING=1 (else headless; snapshots are saved for later replot)
-    _plotting = get(ENV, "ENABLE_PLOTTING", "0") == "1"
     Plotvx = false;
-    Plotmag = _plotting;
+    Plotmag = true;
     Plotdebug = false;
     Plotvorticity = false;
     vorticity_mode = :component # :component (ω_z / ω_y)   or   :magnitude (|ω|)
@@ -615,14 +610,14 @@ function run_JuLattice()
             Log_Simulation_Runtime(i, simulationTime)
             println("MNUPS: $(round(mnups, digits=2))")
 
-            F_total = 0.0
-            for idx in disc_nodes
-                u_disc = u[idx]
-                F_total += -0.5 * C_T_local * (u_disc * u_disc)
-            end
-            A_disc = Float64(length(disc_nodes))
-            C_T_check = abs(F_total) / (0.5 * A_disc * lattice_inflow_velocity^2)
-            println("C_T target: $(round(C_T, digits=4)) | C_T_local: $(round(C_T_local, digits=4)) | C_T_eff: $(round(C_T_check, digits=4)) | ratio C_T_eff/C_T: $(round(C_T_check/C_T, digits=3))")
+            # F_total = 0.0
+            # for idx in disc_nodes
+            #     u_disc = u[idx]
+            #     F_total += -0.5 * C_T_local * (u_disc * u_disc)
+            # end
+            # A_disc = Float64(length(disc_nodes))
+            # C_T_check = abs(F_total) / (0.5 * A_disc * lattice_inflow_velocity^2)
+            # println("C_T target: $(round(C_T, digits=4)) | C_T_local: $(round(C_T_local, digits=4)) | C_T_eff: $(round(C_T_check, digits=4)) | ratio C_T_eff/C_T: $(round(C_T_check/C_T, digits=3))")
         
         end
 

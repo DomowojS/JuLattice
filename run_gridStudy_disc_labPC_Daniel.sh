@@ -20,17 +20,21 @@ echo "================================"
 
 
 
-echo "[1/3] Starting: Grid Study D/dx=40"
-JULIA_EXCLUSIVE=1 stdbuf -oL julia --project=$PROJECT -t $THREADS gridStudy3_Re2760_Ma0.1_Ct0.61_Ddx=40.jl
-echo "[1/3] Done (exit code $?): $(date)"
+echo "[1/4] Starting: Reynolds Study Re=10k D/dx=27"
+JULIA_EXCLUSIVE=1 stdbuf -oL julia --project=$PROJECT -t $THREADS Reynolds_study_10k_Ddx27.jl
+echo "[1/4] Done (exit code $?): $(date)"
 
-echo "[2/3] Starting: Grid Study D/dx=54"
-JULIA_EXCLUSIVE=1 stdbuf -oL julia --project=$PROJECT -t $THREADS gridStudy3_Re2760_Ma0.1_Ct0.61_Ddx=54.jl
-echo "[2/3] Done (exit code $?): $(date)"
+echo "[2/4] Starting: Reynolds Study Re=50k D/dx=27"
+JULIA_EXCLUSIVE=1 stdbuf -oL julia --project=$PROJECT -t $THREADS Reynolds_study_50k_Ddx27.jl
+echo "[2/4] Done (exit code $?): $(date)"
 
-echo "[3/3] Starting: Grid Study D/dx=70"
-JULIA_EXCLUSIVE=1 stdbuf -oL julia --project=$PROJECT -t $THREADS gridStudy3_Re2760_Ma0.1_Ct0.61_Ddx=70.jl
-echo "[3/3] Done (exit code $?): $(date)"
+echo "[3/4] Starting: Reynolds Study Re=100k D/dx=27"
+JULIA_EXCLUSIVE=1 stdbuf -oL julia --project=$PROJECT -t $THREADS Reynolds_study_100k_Ddx27.jl
+echo "[3/4] Done (exit code $?): $(date)"
+
+echo "[4/4] Starting: Reynolds Study Re=300k D/dx=27"
+JULIA_EXCLUSIVE=1 stdbuf -oL julia --project=$PROJECT -t $THREADS Reynolds_study_300k_Ddx27.jl
+echo "[4/4] Done (exit code $?): $(date)"
 
 
 echo "================================="
