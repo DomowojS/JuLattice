@@ -2,7 +2,9 @@ module Plotter
 using Colors
 using ColorSchemes
 
-if get(ENV, "ENABLE_PLOTTING", "0") == "1"
+const _PLOTTING = get(ENV, "ENABLE_PLOTTING", "0") == "1"
+
+if _PLOTTING
     using GLMakie
 end
 
@@ -11,7 +13,26 @@ export Create_Plot_XY, Create_Plot_XZ, Create_Vorticity_XY, Create_Vorticity_XZ,
        Create_Plot_Mag_XY, Create_Plot_Mag_XZ,
        setup_vx_plot, setup_mag_plot, setup_debug_plots, setup_vorticity_plot, update_plots!
 
-## Custom Heatmap settings 
+if !_PLOTTING
+
+    setup_vx_plot(args...; kwargs...) = (nothing, nothing, nothing, nothing)
+    setup_mag_plot(args...; kwargs...) = (nothing, nothing, nothing, nothing)
+    setup_debug_plots(args...; kwargs...) = (nothing, nothing, nothing, nothing)
+    setup_vorticity_plot(args...; kwargs...) = (nothing, nothing, nothing, nothing)
+    update_plots!(args...; kwargs...) = nothing
+
+    Create_Plot_XY(args...; kwargs...)          = (nothing, nothing, nothing)
+    Create_Plot_XZ(args...; kwargs...)          = (nothing, nothing, nothing)
+    Create_Plot_Mag_XY(args...; kwargs...)      = (nothing, nothing, nothing)
+    Create_Plot_Mag_XZ(args...; kwargs...)      = (nothing, nothing, nothing)
+    Create_Vorticity_XY(args...; kwargs...)     = (nothing, nothing, nothing)
+    Create_Vorticity_XZ(args...; kwargs...)     = (nothing, nothing, nothing)
+    Create_Vorticity_Mag_XY(args...; kwargs...) = (nothing, nothing, nothing)
+    Create_Vorticity_Mag_XZ(args...; kwargs...) = (nothing, nothing, nothing)
+
+else
+
+## Custom Heatmap settings
 ######################################################
     function transparency_map(n::Int=256)
         t = range(-1, 1; length = n)
@@ -156,7 +177,7 @@ function update_plots!(Plotmag, Plotvx, Plotdebug,
                         vx_xz_obs=nothing, step_text_vx_xz=nothing,
                         vx_xz_front_obs=nothing, step_text_vx_xz_front=nothing,
                         vx_xz_back_obs=nothing, step_text_vx_xz_back=nothing;
-                        Plotvorticity = false, 
+                        Plotvorticity = false,
                         vortZ=nothing, vortY=nothing,
                         vort_xy_obs=nothing, step_text_vort_xy=nothing,
                         vort_xz_obs=nothing, step_text_vort_xz=nothing,
@@ -193,7 +214,7 @@ end
 ## Plotting functions
 ######################################################
 function Create_Plot_XY(nx::Int, ny::Int, field2d::Array{<:Real, 2}; title="vx slice XY", ax=nothing, colorrange = (-0.02, 0.02))
-    vx_obs = Observable(field2d)          
+    vx_obs = Observable(field2d)
     # colorrange = (-0.02, 0.02)
     hm = heatmap!(ax, 1:nx, 1:ny, vx_obs;
                     colormap = :RdBu,
@@ -210,8 +231,8 @@ end
 function Create_Plot_XZ(nx::Int, nz::Int, field2d::Array{<:Real, 2}; title="vx slice XZ", ax=nothing, colorrange = (-0.02, 0.02))
     vx_obs = Observable(field2d)
     # colorrange = (-0.02, 0.02)
-    hm = heatmap!(ax, 1:nx, 1:nz, vx_obs; 
-                colormap = :RdBu, 
+    hm = heatmap!(ax, 1:nx, 1:nz, vx_obs;
+                colormap = :RdBu,
                 nan_color= :black, colorrange = colorrange,
                 interpolate=false)
     xlims!(ax, 1, nx); ylims!(ax, 1, nz)
@@ -219,10 +240,10 @@ function Create_Plot_XZ(nx::Int, nz::Int, field2d::Array{<:Real, 2}; title="vx s
     ax.aspect = DataAspect()
     step_text = Observable("Time step: 0, 0s")
     text!(ax, 10, 10, text=step_text, color=:black, fontsize=14, align=(:left, :top))
-    return vx_obs, step_text, hm    
+    return vx_obs, step_text, hm
 end
 
-function Create_Plot_Mag_XY(nx::Int, ny::Int, field2d::Array{<:Real, 2}; 
+function Create_Plot_Mag_XY(nx::Int, ny::Int, field2d::Array{<:Real, 2};
                             title="Vel. Magnitude slice XY", ax=nothing,
                             colorrange=(0.0, 0.06), colormap=:Blues, velocity_scale=1.0)
     vx_obs = Observable(field2d .* velocity_scale)
@@ -238,12 +259,12 @@ function Create_Plot_Mag_XY(nx::Int, ny::Int, field2d::Array{<:Real, 2};
     return vx_obs, step_text, hm
 end
 
-function Create_Plot_Mag_XZ(nx::Int, nz::Int, field2d::Array{<:Real, 2}; 
+function Create_Plot_Mag_XZ(nx::Int, nz::Int, field2d::Array{<:Real, 2};
                             title="Vel. Magnitude slice XZ", ax=nothing,
                             colorrange=(0.0, 0.06), colormap=:Blues, velocity_scale=1.0)
     vx_obs = Observable(field2d .* velocity_scale)
-    hm = heatmap!(ax, 1:nx, 1:nz, vx_obs; 
-                colormap = colormap, 
+    hm = heatmap!(ax, 1:nx, 1:nz, vx_obs;
+                colormap = colormap,
                 nan_color= :black, colorrange = colorrange,
                 interpolate=false)
     xlims!(ax, 1, nx); ylims!(ax, 1, nz)
@@ -251,7 +272,7 @@ function Create_Plot_Mag_XZ(nx::Int, nz::Int, field2d::Array{<:Real, 2};
     ax.aspect = DataAspect()
     step_text = Observable("Time step: 0, 0s")
     #text!(ax, 10, 10, text=step_text, color=:black, fontsize=14, align=(:left, :top))
-    return vx_obs, step_text, hm 
+    return vx_obs, step_text, hm
 end
 
 function Create_Vorticity_XY(nx::Int, ny::Int, field2d::Array{<:Real, 2}; title="ω_z slice XY", ax=nothing)
@@ -294,6 +315,7 @@ function Create_Vorticity_Mag_XZ(nx::Int, nz::Int, field2d::Array{<:Real, 2}; ti
     return vort_obs, step_text, hm
 end
 ######################################################
-    
+
+end # if _PLOTTING
 
 end#module
